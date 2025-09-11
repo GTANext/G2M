@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
+import rewriteAll from 'vite-plugin-rewrite-all';
 
 // 自动路由和组件引入插件
 import VueRouter from 'unplugin-vue-router/vite'
@@ -31,6 +32,8 @@ export default defineConfig({
         propsDestructure: true            // 启用props解构
       }
     }),
+
+    rewriteAll(),
 
     Vuetify({
       autoImport: true,
