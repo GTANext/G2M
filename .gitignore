@@ -29,6 +29,7 @@ coverage
 
 *.tsbuildinfo
 
+__pycache__/
 .virtualme/
 .repomap/
 .venv/
