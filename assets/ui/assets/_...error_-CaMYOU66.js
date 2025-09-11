@@ -1,0 +1,1 @@
+import{_ as r}from"./index-Ici79znu.js";import{c as o,o as s,a as t}from"./vue-vendor-C0hsVY07.js";const a={},_={class:"about"};function n(c,e){return s(),o("div",_,[...e[0]||(e[0]=[t("h1",null,"This is an error page",-1)])])}const l=r(a,[["render",n]]);export{l as default};
