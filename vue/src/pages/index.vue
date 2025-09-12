@@ -28,6 +28,7 @@ const {
   showGameEdit,
   closeEditGameDialog,
   saveGameEdit,
+  deleteGameHandler,
   launchGameHandler,
   selectGameExecutableHandler,
   openAddGameDialog,
@@ -260,6 +261,15 @@ onMounted(async () => {
           启动游戏
         </v-btn>
         <v-spacer></v-spacer>
+        <v-btn 
+          @click="deleteGameHandler"
+          color="error"
+          variant="text"
+          v-if="currentGameIndex !== null"
+        >
+          删除
+        </v-btn>
+
         <v-btn @click="closeEditGameDialog" variant="text">取消</v-btn>
         <v-btn
           @click="saveGameEdit"

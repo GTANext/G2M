@@ -4,10 +4,12 @@ import subprocess
 from core.add_game import GameManager
 from core.get_games import GameListManager
 from core.update_game import GameUpdater
+from core.delete_game import GameDeleter
 from core.config_manager import ConfigManager
 from core.constants import CONFIG_FILE_PATH, GAME_EXECUTABLES
 from tkinter import filedialog
 import tkinter as tk
+
 
 class GTANext:
     def __init__(self):
@@ -15,6 +17,7 @@ class GTANext:
         self.game_manager = GameManager(self.config_path)
         self.game_list_manager = GameListManager(self.config_path)
         self.game_updater = GameUpdater(self.config_path)
+        self.game_deleter = GameDeleter(self.config_path)
         self.config_manager = ConfigManager(self.config_path)
         self.directory = ''
 
@@ -48,6 +51,28 @@ class GTANext:
             return result
         except Exception as e:
             return {"success": False, "message": f"更新游戏信息时出错: {str(e)}"}
+
+    def delete_game(self, index):
+        """删除游戏"""
+        try:
+            # 处理传入的参数可能是字典的情况
+            if isinstance(index, dict):
+                # 如果index是一个字典，从中提取index值
+                if 'index' in index:
+                    index = index['index']
+                else:
+                    return {"success": False, "message": "无效的索引参数"}
+
+            # 确保index是整数类型
+            try:
+                index = int(index)
+            except (ValueError, TypeError):
+                return {"success": False, "message": "索引必须是数字"}
+
+            result = self.game_deleter.delete_game(index)
+            return result
+        except Exception as e:
+            return {"success": False, "message": f"删除游戏时出错: {str(e)}"}
 
     def select_directory(self):
         """选择游戏目录"""
