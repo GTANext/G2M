@@ -39,13 +39,15 @@ const {
   defaultExecutable
 } = useWebview()
 
-// 页面加载时获取游戏列表
 onMounted(async () => {
   await waitForApi()
   if (isApiReady) {
     await loadGames()
   } else {
     console.warn('pywebview API 尚未准备好')
+    if (window.motyf) {
+      window.motyf.error("系统错误：API不可用")
+    }
   }
 })
 </script>
@@ -64,15 +66,15 @@ onMounted(async () => {
   </v-card>
 
   <!-- 游戏列表标题 -->
-  <div class="d-flex"  v-if="games && games.length > 0">
-      <div class="pa-2 me-auto">
-        <v-card-title class="text-h6 pa-0 mt-4 mb-2">
-          已添加的游戏
-        </v-card-title>
-      </div>
-      <div class="pa-2 align-self-center">
-        <v-btn color="primary" @click="openAddGameDialog">添加游戏</v-btn>
-      </div>
+  <div class="d-flex" v-if="games && games.length > 0">
+    <div class="pa-2 me-auto">
+      <v-card-title class="text-h6 pa-0 mt-4 mb-2">
+        已添加的游戏
+      </v-card-title>
+    </div>
+    <div class="pa-2 align-self-center">
+      <v-btn color="primary" @click="openAddGameDialog">添加游戏</v-btn>
+    </div>
   </div>
 
   <v-row v-if="games && games.length > 0">
@@ -94,13 +96,11 @@ onMounted(async () => {
           {{ game?.name || game?.type || '未知游戏' }}
         </v-card-title>
 
-        <!-- 添加时间显示 -->
         <v-card-subtitle v-if="game?.addedTime">
           添加时间: {{ formatAddedTime(game.addedTime) }}
         </v-card-subtitle>
 
         <v-card-actions>
-
           <v-btn
             color="orange-lighten-2"
             variant="text"

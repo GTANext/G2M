@@ -1,6 +1,5 @@
 import { ref, type Ref, computed } from 'vue'
 
-// 扩展Window接口
 declare global {
   interface Window {
     pywebview?: {
@@ -8,7 +7,7 @@ declare global {
         [key: string]: (...args: any[]) => Promise<any>
       }
     }
-    motyf?: any // 声明 motyf 全局变量
+    motyf?: any
   }
 }
 
@@ -17,7 +16,7 @@ interface GameData {
   directory: string
   name?: string
   customExecutable?: string
-  addedTime?: number
+  addedTime?: number | string
   exe?: string
   index?: number
 }
@@ -35,7 +34,6 @@ export function useWebview() {
   const isApiAvailable = ref(false)
   const isApiReady = ref(false)
 
-  // 状态管理
   const games = ref<GameData[]>([])
   const isGamesLoading = ref(false)
   const selectedGameType = ref<string>('')
@@ -47,7 +45,6 @@ export function useWebview() {
   const currentGame = ref<GameData | null>(null)
   const currentGameIndex = ref<number | null>(null)
 
-  // 游戏类型和图片数据
   const gameTypes = [
     { value: 'GTA3', title: 'GTA III' },
     { value: 'GTAVC', title: 'GTA Vice City' },
@@ -60,26 +57,65 @@ export function useWebview() {
     { value: 'GTASA', src: 'images/games/gtasa.jpg' }
   ]
 
-  // 显示消息的辅助函数
-  const showMessage = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', options: any = {}) => {
+  // 消息显示函数
+  type MessageType = 'success' | 'error' | 'warning' | 'info'
+  const showMessage = (message: string, type: MessageType = 'info', duration?: number) => {
     if (window.motyf) {
-      window.motyf({
-        content: message,
-        type,
-        ...options
-      })
+      const options: { content: string; type: MessageType; time?: number } = { content: message, type }
+      if (duration !== undefined) options.time = duration
+      window.motyf(options)
     } else {
-      console[type === 'error' ? 'error' : type === 'warning' ? 'warn' : 'log'](message)
+      const consoleMethods: Record<MessageType, keyof Console> = {
+        success: 'log',
+        error: 'error',
+        warning: 'warn',
+        info: 'info'
+      }
+
+      const method = consoleMethods[type]
+        ; (console[method] as (...args: any[]) => void)(`[${type.toUpperCase()}] ${message}`)
+    }
+  }
+  // 改进的时间格式化函数
+  const formatAddedTime = (timestamp: number | string | undefined): string => {
+    if (!timestamp) return '未知时间'
+
+    // 处理字符串类型的时间戳
+    const timestampNum = typeof timestamp === 'string'
+      ? parseInt(timestamp, 10)
+      : timestamp
+
+    // 验证时间戳有效性
+    if (isNaN(timestampNum) || timestampNum <= 0) {
+      return '未知时间'
+    }
+
+    // 处理秒级时间戳（10位）
+    const adjustedTimestamp = timestampNum < 10000000000
+      ? timestampNum * 1000
+      : timestampNum
+
+    try {
+      return new Date(adjustedTimestamp).toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).replace(/\//g, '-')
+    } catch (e) {
+      console.error('格式化时间失败:', e)
+      return '未知时间'
     }
   }
 
-  // 检查API是否可用
   const checkApiAvailability = () => {
     isApiAvailable.value = typeof window.pywebview !== 'undefined' && window.pywebview?.api !== undefined
     return isApiAvailable.value
   }
 
-  // 等待API准备就绪
   const waitForApi = (): Promise<boolean> => {
     return new Promise((resolve) => {
       if (checkApiAvailability()) {
@@ -96,7 +132,6 @@ export function useWebview() {
         }
       }, 100)
 
-      // 超时处理
       setTimeout(() => {
         clearInterval(timer)
         resolve(false)
@@ -104,7 +139,6 @@ export function useWebview() {
     })
   }
 
-  // 调用API方法的通用函数
   const callApiMethod = async <T>(methodName: string, params?: any): Promise<T> => {
     if (!isApiAvailable.value && !checkApiAvailability()) {
       throw new Error('API不可用')
@@ -115,55 +149,48 @@ export function useWebview() {
       if (!method) {
         throw new Error(`API方法 "${methodName}" 不存在`)
       }
-
-      // 如果没有参数，直接调用方法
-      if (params === undefined) {
-        return await method()
-      }
-
-      return await method(params)
+      return params === undefined ? await method() : await method(params)
     } catch (error) {
       console.error(`调用API方法 "${methodName}" 时出错:`, error)
       throw error
     }
   }
 
-  // 获取游戏列表
   const getGames = async (): Promise<GameData[]> => {
     return await callApiMethod<GameData[]>('get_games')
   }
 
-  // 添加游戏
   const addGame = async (gameData: Omit<GameData, 'addedTime' | 'index'>) => {
     return await callApiMethod<{ success: boolean; message: string }>('add_game', gameData)
   }
 
-  // 更新游戏
   const updateGame = async (gameData: GameData & { index: number }) => {
     return await callApiMethod<{ success: boolean; message: string }>('update_game', gameData)
   }
 
-  // 启动游戏
   const launchGame = async (gameData: GameData) => {
     return await callApiMethod<{ success: boolean; message: string }>('launch_game', gameData)
   }
 
-  // 选择目录
   const selectDirectory = async (options?: DirectorySelectionOptions) => {
     return await callApiMethod<string | null>('select_directory', options)
   }
 
-  // 选择游戏可执行文件
   const selectGameExecutable = async (options?: ExecutableSelectionOptions) => {
     return await callApiMethod<string | null>('select_game_executable', options)
   }
 
-  // 加载游戏列表
   const loadGames = async () => {
     isGamesLoading.value = true
     try {
       const loadedGames = await getGames()
-      games.value = loadedGames
+      // 确保时间戳有效
+      games.value = loadedGames.map(game => ({
+        ...game,
+        addedTime: game.addedTime && !isNaN(Number(game.addedTime))
+          ? Number(game.addedTime)
+          : Date.now()
+      }))
     } catch (error) {
       console.error('加载游戏列表失败:', error)
       showMessage('加载游戏列表失败', 'error')
@@ -172,7 +199,6 @@ export function useWebview() {
     }
   }
 
-  // 选择目录处理
   const selectDirectoryHandler = async () => {
     try {
       const directory = await selectDirectory()
@@ -185,7 +211,6 @@ export function useWebview() {
     }
   }
 
-  // 选择编辑目录处理
   const selectEditDirectoryHandler = async () => {
     if (!currentGame.value) return
 
@@ -200,7 +225,6 @@ export function useWebview() {
     }
   }
 
-  // 选择自定义可执行文件
   const selectCustomExecutable = async () => {
     if (!currentGame.value) return
 
@@ -218,7 +242,6 @@ export function useWebview() {
     }
   }
 
-  // 添加游戏处理
   const addGameHandler = async () => {
     if (!selectedGameType.value || !gameDirectory.value) {
       showMessage('请选择游戏类型和目录', 'error')
@@ -234,7 +257,7 @@ export function useWebview() {
       })
 
       if (result.success) {
-        showMessage('游戏添加成功', 'success')
+        showMessage('游戏添加成功', 'success', 2000)
         await loadGames()
         closeAddGameDialog()
       } else {
@@ -248,21 +271,18 @@ export function useWebview() {
     }
   }
 
-  // 显示游戏编辑对话框
   const showGameEdit = (game: GameData, index: number) => {
     currentGame.value = { ...game }
     currentGameIndex.value = index
     showEditGameDialog.value = true
   }
 
-  // 关闭编辑游戏对话框
   const closeEditGameDialog = () => {
     showEditGameDialog.value = false
     currentGame.value = null
     currentGameIndex.value = null
   }
 
-  // 保存游戏编辑
   const saveGameEdit = async () => {
     if (!currentGame.value || currentGameIndex.value === null) return
 
@@ -273,7 +293,7 @@ export function useWebview() {
       })
 
       if (result.success) {
-        showMessage('游戏更新成功', 'success')
+        showMessage('游戏更新成功', 'success', 2000)
         await loadGames()
         closeEditGameDialog()
       } else {
@@ -285,12 +305,11 @@ export function useWebview() {
     }
   }
 
-  // 启动游戏处理
   const launchGameHandler = async (game: GameData) => {
     try {
       const result = await launchGame(game)
       if (result.success) {
-        showMessage('游戏启动成功', 'success')
+        showMessage('游戏启动成功', 'success', 2000)
       } else {
         showMessage(result.message || '启动游戏失败', 'error')
       }
@@ -300,7 +319,6 @@ export function useWebview() {
     }
   }
 
-  // 选择游戏可执行文件处理
   const selectGameExecutableHandler = async (game: GameData) => {
     try {
       const executable = await selectGameExecutable({
@@ -308,7 +326,6 @@ export function useWebview() {
         type: game.type
       })
       if (executable) {
-        // 更新游戏的可执行文件
         const index = games.value.findIndex(g => g.directory === game.directory)
         if (index !== -1) {
           games.value[index].exe = executable
@@ -320,7 +337,6 @@ export function useWebview() {
     }
   }
 
-  // 打开添加游戏对话框
   const openAddGameDialog = () => {
     showAddGameDialog.value = true
     selectedGameType.value = ''
@@ -328,7 +344,6 @@ export function useWebview() {
     gameName.value = ''
   }
 
-  // 关闭添加游戏对话框
   const closeAddGameDialog = () => {
     showAddGameDialog.value = false
     selectedGameType.value = ''
@@ -336,22 +351,13 @@ export function useWebview() {
     gameName.value = ''
   }
 
-  // 格式化添加时间
-  const formatAddedTime = (timestamp: number) => {
-    if (!timestamp) return '未知时间'
-    return new Date(timestamp).toLocaleString()
-  }
-
-  // 根据游戏类型获取对应的图片
   const getGameImage = (gameType: string) => {
     const gameImage = gameImages.find(img => img.value === gameType)
     return gameImage ? gameImage.src : 'images/heishou.jpg'
   }
 
-  // 计算属性用于编辑对话框中的默认exe文件名
   const defaultExecutable = computed(() => {
     if (!currentGame.value || !currentGame.value.type) return '未知'
-
     switch (currentGame.value.type) {
       case 'GTA3': return 'gta3.exe'
       case 'GTAVC': return 'gta-vc.exe'
@@ -361,7 +367,6 @@ export function useWebview() {
   })
 
   return {
-    // 状态
     isApiAvailable,
     isApiReady,
     games,
@@ -376,8 +381,6 @@ export function useWebview() {
     currentGameIndex,
     gameTypes,
     gameImages,
-
-    // 方法
     waitForApi,
     loadGames,
     selectDirectoryHandler,
@@ -393,8 +396,6 @@ export function useWebview() {
     closeAddGameDialog,
     formatAddedTime,
     getGameImage,
-
-    // 计算属性
     defaultExecutable
   }
 }
