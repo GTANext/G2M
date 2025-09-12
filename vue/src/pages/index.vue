@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 const gameTypes = [
   { value: 'GTA3', title: 'GTA III' },
@@ -17,10 +17,12 @@ const selectedGameType = ref('')
 const gameDirectory = ref('')
 const gameName = ref('')  // 自定义游戏名称
 const isAddingGame = ref(false)
+const isEditingGame = ref(false) // 是否正在编辑游戏
 const games = ref([])
 const showAddGameDialog = ref(false) // 控制添加游戏对话框显示状态
-// 为每个游戏卡片单独设置展开状态
-const expandedGames = ref({})
+const showEditGameDialog = ref(false) // 控制编辑游戏对话框显示状态
+const currentGame = ref(null) // 当前查看的游戏
+const currentGameIndex = ref(null) // 当前查看的游戏索引
 
 // 页面加载时获取游戏列表
 onMounted(async () => {
@@ -75,6 +77,46 @@ const selectDirectory = async () => {
   }
 }
 
+const selectEditDirectory = async () => {
+  try {
+    if (!window.pywebview || !window.pywebview.api) {
+      motyf.error("系统错误：API不可用")
+      return
+    }
+
+    const result = await window.pywebview.api.select_directory()
+    if (result && currentGame.value) {
+      currentGame.value.directory = result
+    }
+  } catch (error) {
+    motyf.error("选择目录失败：" + error.message)
+    console.error('选择目录时出错:', error)
+  }
+}
+
+// 选择自定义可执行文件
+const selectCustomExecutable = async () => {
+  try {
+    if (!window.pywebview || !window.pywebview.api) {
+      motyf.error("系统错误：API不可用")
+      return
+    }
+
+    const result = await window.pywebview.api.select_game_executable({
+      directory: currentGame.value?.directory || ''
+    })
+
+    if (result && currentGame.value) {
+      // 从完整路径中提取文件名
+      const fileName = result.split('\\').pop().split('/').pop()
+      currentGame.value.customExecutable = fileName
+    }
+  } catch (error) {
+    motyf.error("选择可执行文件失败：" + error.message)
+    console.error('选择可执行文件时出错:', error)
+  }
+}
+
 const addGame = async () => {
   if (!selectedGameType.value || !gameDirectory.value) {
     motyf.warning("请选择游戏类型和目录")
@@ -113,6 +155,64 @@ const addGame = async () => {
   }
 }
 
+// 显示游戏编辑对话框（默认模式）
+const showGameEdit = (game, index) => {
+  // 创建一个响应式副本而不是简单复制
+  currentGame.value = {
+    type: game.type || '',
+    name: game.name || '',
+    directory: game.directory || '',
+    customExecutable: game.customExecutable || '' // 自定义可执行文件
+  }
+  currentGameIndex.value = index
+  showEditGameDialog.value = true
+}
+
+// 关闭编辑游戏对话框
+const closeEditGameDialog = () => {
+  showEditGameDialog.value = false
+  currentGame.value = null
+  currentGameIndex.value = null
+}
+
+// 保存游戏修改
+const saveGameEdit = async () => {
+  if (!currentGame.value || !currentGame.value.type || !currentGame.value.directory) {
+    motyf.warning("请选择游戏类型和目录")
+    return
+  }
+
+  try {
+    if (!window.pywebview || !window.pywebview.api) {
+      motyf.error("系统错误：API不可用")
+      return
+    }
+
+    // 调用API更新游戏信息
+    const result = await window.pywebview.api.update_game({
+      index: currentGameIndex.value,
+      type: currentGame.value.type,
+      directory: currentGame.value.directory,
+      name: currentGame.value.name || undefined,
+      customExecutable: currentGame.value.customExecutable || undefined
+    })
+
+    if (result.success) {
+      motyf.success("游戏信息更新成功！")
+      showEditGameDialog.value = false
+      currentGame.value = null
+      currentGameIndex.value = null
+      // 重新加载游戏列表
+      await loadGames()
+    } else {
+      motyf.error("更新失败: " + result.message)
+    }
+  } catch (error) {
+    motyf.error("更新游戏信息时出错：" + error.message)
+    console.error(error)
+  }
+}
+
 // 启动游戏
 const launchGame = async (game) => {
   try {
@@ -123,10 +223,11 @@ const launchGame = async (game) => {
 
     console.log("尝试启动游戏:", game); // 调试信息
 
-    // 直接尝试启动游戏，不使用对话框
+    // 直接尝试启动游戏，传递自定义exe
     const result = await window.pywebview.api.launch_game({
       type: game.type,
-      directory: game.directory
+      directory: game.directory,
+      exe: game.customExecutable || undefined
     })
 
     console.log("启动游戏结果:", result); // 调试信息
@@ -186,11 +287,6 @@ const getGameImage = (gameType) => {
   return gameImage ? gameImage.src : 'images/heishou.jpg'
 }
 
-// 切换游戏卡片展开状态
-const toggleGameExpansion = (index) => {
-  expandedGames.value[index] = !expandedGames.value[index]
-}
-
 // 打开添加游戏对话框
 const openAddGameDialog = () => {
   showAddGameDialog.value = true
@@ -204,6 +300,18 @@ const closeAddGameDialog = () => {
   gameDirectory.value = ''
   gameName.value = ''
 }
+
+// 计算属性用于编辑对话框中的默认exe文件名
+const defaultExecutable = computed(() => {
+  if (!currentGame.value || !currentGame.value.type) return '未知'
+
+  switch (currentGame.value.type) {
+    case 'GTA3': return 'gta3.exe'
+    case 'GTAVC': return 'gta-vc.exe'
+    case 'GTASA': return 'gta-sa.exe'
+    default: return '未知'
+  }
+})
 </script>
 
 <template>
@@ -220,7 +328,7 @@ const closeAddGameDialog = () => {
   </v-card>
 
   <!-- 游戏列表标题 -->
-  <div class="d-flex mb-6">
+  <div class="d-flex">
       <div class="pa-2 me-auto">
         <v-card-title v-if="games && games.length > 0" class="text-h6 pa-0 mt-4 mb-2">
           已添加的游戏
@@ -251,11 +359,13 @@ const closeAddGameDialog = () => {
         </v-card-title>
 
         <v-card-actions>
+
           <v-btn
-            icon
-            @click="toggleGameExpansion(index)"
+            color="orange-lighten-2"
+            variant="text"
+            @click="launchGame(game)"
           >
-            <v-icon>{{ expandedGames[index] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+            启动游戏
           </v-btn>
 
           <v-spacer></v-spacer>
@@ -266,23 +376,14 @@ const closeAddGameDialog = () => {
           >
             {{ game?.type || '未知' }}
           </v-chip>
+
           <v-btn
-            color="orange-lighten-2"
-            variant="text"
-            @click="launchGame(game)"
+            icon
+            @click="showGameEdit(game, index)"
           >
-            启动游戏
+            <v-icon>mdi-cog</v-icon>
           </v-btn>
         </v-card-actions>
-
-        <v-expand-transition>
-          <div v-show="expandedGames[index]">
-            <v-divider></v-divider>
-            <v-card-text>
-              {{ game?.directory || '未知路径' }}
-            </v-card-text>
-          </div>
-        </v-expand-transition>
       </v-card>
     </v-col>
   </v-row>
@@ -336,6 +437,91 @@ const closeAddGameDialog = () => {
           color="primary"
         >
           添加
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- 编辑游戏对话框 -->
+  <v-dialog v-model="showEditGameDialog" max-width="500px">
+    <v-card title="编辑游戏">
+      <v-card-text>
+        <v-select
+          v-model="currentGame.type"
+          :items="gameTypes"
+          label="选择游戏类型"
+          item-title="title"
+          item-value="value"
+          variant="outlined"
+          density="comfortable"
+          v-if="currentGame"
+        ></v-select>
+
+        <v-text-field
+          v-model="currentGame.name"
+          label="游戏显示名称（可选）"
+          placeholder="留空则使用默认名称"
+          variant="outlined"
+          density="comfortable"
+          class="mt-2"
+          v-if="currentGame"
+        ></v-text-field>
+
+        <v-text-field
+          v-model="currentGame.directory"
+          label="游戏目录"
+          variant="outlined"
+          density="comfortable"
+          readonly
+          @click="selectEditDirectory"
+          class="mt-2"
+          v-if="currentGame"
+        >
+          <template v-slot:append>
+            <v-btn @click="selectEditDirectory" variant="text" icon="mdi-folder-open">
+            </v-btn>
+          </template>
+        </v-text-field>
+
+        <v-text-field
+          v-model="currentGame.customExecutable"
+          label="自定义可执行文件（可选）"
+          :placeholder="`默认: ${defaultExecutable}`"
+          variant="outlined"
+          density="comfortable"
+          class="mt-2"
+          v-if="currentGame"
+        >
+          <template v-slot:append>
+            <v-btn @click="selectCustomExecutable" variant="text" icon="mdi-file-find">
+            </v-btn>
+          </template>
+        </v-text-field>
+
+        <v-list class="mt-4" v-if="currentGame">
+          <v-list-item>
+            <v-list-item-title>默认可执行文件</v-list-item-title>
+            <v-list-item-subtitle>{{ defaultExecutable }}</v-list-item-subtitle>
+          </v-list-item>
+        </v-list>
+      </v-card-text>
+
+      <v-card-actions>
+        <v-btn
+          @click="() => { closeEditGameDialog(); launchGame(currentGame); }"
+          variant="text"
+          v-if="currentGame"
+        >
+          启动游戏
+        </v-btn>
+        <v-spacer></v-spacer>
+        <v-btn @click="closeEditGameDialog" variant="text">取消</v-btn>
+        <v-btn
+          @click="saveGameEdit"
+          color="primary"
+          v-if="currentGame"
+        >
+          保存
         </v-btn>
       </v-card-actions>
     </v-card>

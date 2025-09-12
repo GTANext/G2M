@@ -1,9 +1,11 @@
 import os
 import json
+import subprocess
 from core.add_game import GameManager
 from core.get_games import GameListManager
-from core.open_game import GameLauncher
-from core.constants import CONFIG_FILE_PATH
+from core.update_game import GameUpdater
+from core.config_manager import ConfigManager
+from core.constants import CONFIG_FILE_PATH, GAME_EXECUTABLES
 from tkinter import filedialog
 import tkinter as tk
 
@@ -12,7 +14,8 @@ class GTANext:
         self.config_path = CONFIG_FILE_PATH
         self.game_manager = GameManager(self.config_path)
         self.game_list_manager = GameListManager(self.config_path)
-        self.game_launcher = GameLauncher(self.config_path)
+        self.game_updater = GameUpdater(self.config_path)
+        self.config_manager = ConfigManager(self.config_path)
         self.directory = ''
 
     @staticmethod
@@ -25,12 +28,26 @@ class GTANext:
         try:
             game_type = game_data['type']
             directory = game_data['directory']
-            name = game_data.get('name')  # 获取自定义名称（可选）
+            name = game_data.get('name')  # 获取自定义名称
 
             result = self.game_manager.add_game(game_type, directory, name)
             return result
         except Exception as e:
             return {"success": False, "message": f"添加游戏时出错: {str(e)}"}
+
+    def update_game(self, game_data):
+        """更新游戏信息"""
+        try:
+            index = game_data['index']
+            game_type = game_data['type']
+            directory = game_data['directory']
+            name = game_data.get('name')  # 获取自定义名称（可选）
+            custom_executable = game_data.get('customExecutable')  # 获取自定义可执行文件（可选）
+
+            result = self.game_updater.update_game(index, game_type, directory, name, custom_executable)
+            return result
+        except Exception as e:
+            return {"success": False, "message": f"更新游戏信息时出错: {str(e)}"}
 
     def select_directory(self):
         """选择游戏目录"""
@@ -47,8 +64,30 @@ class GTANext:
             game_directory = game_data['directory']
             custom_exe = game_data.get('exe')  # 获取自定义exe（可选）
 
-            result = self.game_launcher.launch_game(game_type, game_directory, custom_exe)
-            return result
+            # 如果没有指定自定义exe，则检查游戏配置中是否有自定义exe，否则使用默认的
+            if not custom_exe:
+                # 检查游戏数据中是否有自定义可执行文件
+                if 'customExecutable' in game_data and game_data['customExecutable']:
+                    executable = game_data['customExecutable']
+                else:
+                    executable = GAME_EXECUTABLES.get(game_type, '')
+
+                if not executable:
+                    return {"success": False, "message": f"未知的游戏类型: {game_type}"}
+            else:
+                executable = custom_exe
+
+            # 构造完整路径
+            exe_path = os.path.join(game_directory, executable)
+
+            # 检查可执行文件是否存在
+            if not os.path.exists(exe_path):
+                return {"success": False, "message": f"游戏可执行文件不存在: {exe_path}"}
+
+            # 启动游戏
+            subprocess.Popen([exe_path], cwd=game_directory)
+
+            return {"success": True, "message": "游戏启动成功"}
         except Exception as e:
             return {"success": False, "message": f"启动游戏时出错: {str(e)}"}
 

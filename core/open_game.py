@@ -7,7 +7,8 @@ class GameLauncher:
     def __init__(self, config_path='assets/config.json'):
         self.config_manager = ConfigManager(config_path)
 
-    def get_default_executable(self, game_type):
+    @staticmethod
+    def get_default_executable(game_type):
         """根据游戏类型获取默认的可执行文件名"""
         return GAME_EXECUTABLES.get(game_type, '')
 
