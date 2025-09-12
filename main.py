@@ -38,11 +38,20 @@ def check_dotnet_version():
 if __name__ == '__main__':
     api = GTANext()
 
-    # 检查API方法
-    print("API 方法列表:")
-    for attr in dir(api):
-        if not attr.startswith('_'):
-            print(f"  {attr}: {type(getattr(api, attr))}")
+    # 详细检查API方法
+    print("API 方法检查:")
+    method_list = [method for method in dir(api) if not method.startswith('_')]
+    for method in method_list:
+        attr = getattr(api, method)
+        print(f"  {method}: {type(attr)} - {'callable' if callable(attr) else 'not callable'}")
+
+    # 特别检查关键方法
+    required_methods = ['get_games', 'add_game', 'update_game', 'launch_game']
+    for method in required_methods:
+        if hasattr(api, method):
+            print(f"✓ {method} 方法存在")
+        else:
+            print(f"✗ {method} 方法缺失")
 
     webview.create_window(
         'GTANext ModLoader丨Powered by 鼠子Tomoriゞ',
