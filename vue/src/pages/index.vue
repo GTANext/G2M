@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useWebview } from '@/composables/useWebview'
 
 const gameTypes = [
   { value: 'GTA3', title: 'GTA III' },
@@ -24,32 +25,34 @@ const showEditGameDialog = ref(false) // 控制编辑游戏对话框显示状态
 const currentGame = ref(null) // 当前查看的游戏
 const currentGameIndex = ref(null) // 当前查看的游戏索引
 
+// 使用新的webview composable
+const {
+  isApiAvailable,
+  isApiReady,
+  waitForApi,
+  getGames,
+  addGame,
+  updateGame,
+  launchGame,
+  selectDirectory,
+  selectGameExecutable
+} = useWebview()
+
 // 页面加载时获取游戏列表
 onMounted(async () => {
-  // 确保 pywebview API 已经准备好
-  if (typeof window.pywebview !== 'undefined' && window.pywebview.api) {
+  await waitForApi()
+  if (isApiReady.value) {
     await loadGames()
   } else {
     console.warn('pywebview API 尚未准备好')
-    // 设置一个定时器重试
-    setTimeout(async () => {
-      if (typeof window.pywebview !== 'undefined' && window.pywebview.api) {
-        await loadGames()
-      }
-    }, 1000)
+    motyf.error("系统错误：API不可用")
   }
 })
 
 const loadGames = async () => {
   try {
     console.log("开始获取游戏列表")
-    if (!window.pywebview || !window.pywebview.api) {
-      console.error('pywebview API 不可用')
-      motyf.error("系统错误：API不可用")
-      return
-    }
-
-    const result = await window.pywebview.api.get_games()
+    const result = await getGames()
     console.log("获取到的游戏列表:", result)
     games.value = result || []  // 确保即使返回 undefined 也设置为空数组
     console.log("games.value 更新为:", games.value)
@@ -60,14 +63,9 @@ const loadGames = async () => {
   }
 }
 
-const selectDirectory = async () => {
+const selectDirectoryHandler = async () => {
   try {
-    if (!window.pywebview || !window.pywebview.api) {
-      motyf.error("系统错误：API不可用")
-      return
-    }
-
-    const result = await window.pywebview.api.select_directory()
+    const result = await selectDirectory()
     if (result) {
       gameDirectory.value = result
     }
@@ -77,14 +75,9 @@ const selectDirectory = async () => {
   }
 }
 
-const selectEditDirectory = async () => {
+const selectEditDirectoryHandler = async () => {
   try {
-    if (!window.pywebview || !window.pywebview.api) {
-      motyf.error("系统错误：API不可用")
-      return
-    }
-
-    const result = await window.pywebview.api.select_directory()
+    const result = await selectDirectory()
     if (result && currentGame.value) {
       currentGame.value.directory = result
     }
@@ -97,12 +90,7 @@ const selectEditDirectory = async () => {
 // 选择自定义可执行文件
 const selectCustomExecutable = async () => {
   try {
-    if (!window.pywebview || !window.pywebview.api) {
-      motyf.error("系统错误：API不可用")
-      return
-    }
-
-    const result = await window.pywebview.api.select_game_executable({
+    const result = await selectGameExecutable({
       directory: currentGame.value?.directory || ''
     })
 
@@ -117,7 +105,7 @@ const selectCustomExecutable = async () => {
   }
 }
 
-const addGame = async () => {
+const addGameHandler = async () => {
   if (!selectedGameType.value || !gameDirectory.value) {
     motyf.warning("请选择游戏类型和目录")
     return
@@ -125,12 +113,7 @@ const addGame = async () => {
 
   isAddingGame.value = true
   try {
-    if (!window.pywebview || !window.pywebview.api) {
-      motyf.error("系统错误：API不可用")
-      return
-    }
-
-    const result = await window.pywebview.api.add_game({
+    const result = await addGame({
       type: selectedGameType.value,
       directory: gameDirectory.value,
       name: gameName.value.trim() || undefined  // 如果没有输入名称，则不传递该字段
@@ -184,13 +167,8 @@ const saveGameEdit = async () => {
   }
 
   try {
-    if (!window.pywebview || !window.pywebview.api) {
-      motyf.error("系统错误：API不可用")
-      return
-    }
-
     // 调用API更新游戏信息
-    const result = await window.pywebview.api.update_game({
+    const result = await updateGame({
       index: currentGameIndex.value,
       type: currentGame.value.type,
       directory: currentGame.value.directory,
@@ -215,17 +193,12 @@ const saveGameEdit = async () => {
 }
 
 // 启动游戏
-const launchGame = async (game) => {
+const launchGameHandler = async (game) => {
   try {
-    if (!window.pywebview || !window.pywebview.api) {
-      motyf.error("系统错误：API不可用")
-      return
-    }
-
     console.log("尝试启动游戏:", game); // 调试信息
 
     // 直接尝试启动游戏，传递自定义exe
-    const result = await window.pywebview.api.launch_game({
+    const result = await launchGame({
       type: game.type,
       directory: game.directory,
       exe: game.customExecutable || undefined
@@ -238,33 +211,28 @@ const launchGame = async (game) => {
     } else {
       motyf.error("启动失败: " + result.message)
       // 如果启动失败，让用户选择exe文件
-      selectGameExecutable(game)
+      selectGameExecutableHandler(game)
     }
   } catch (error) {
     console.error("启动游戏时出错:", error) // 调试信息
     motyf.error("启动游戏时出错：" + error.message)
     // 出错时也让用户选择exe文件
-    selectGameExecutable(game)
+    selectGameExecutableHandler(game)
   }
 }
 
 // 选择游戏可执行文件
-const selectGameExecutable = async (game) => {
+const selectGameExecutableHandler = async (game) => {
   try {
-    if (!window.pywebview || !window.pywebview.api) {
-      motyf.error("系统错误：API不可用")
-      return
-    }
-
     // 使用pywebview的文件选择器选择exe文件
-    const exePath = await window.pywebview.api.select_game_executable({
+    const exePath = await selectGameExecutable({
       type: game.type,
       directory: game.directory
     })
 
     if (exePath) {
       // 选择成功后启动游戏
-      const result = await window.pywebview.api.launch_game({
+      const result = await launchGame({
         type: game.type,
         directory: game.directory,
         exe: exePath
@@ -331,6 +299,7 @@ const formatAddedTime = (timestamp) => {
 </script>
 
 <template>
+  <!-- 模板部分保持不变，只是更新了事件处理函数的引用 -->
   <v-alert class="mb-3" text="还在开发中! 如有疑问请加群: 829270254" type="info" variant="tonal"></v-alert>
 
   <v-card title="欢迎使用 ModLoader" subtitle="可视化安装 III.VC.SA 的 Mod / Cleo">
@@ -384,7 +353,7 @@ const formatAddedTime = (timestamp) => {
           <v-btn
             color="orange-lighten-2"
             variant="text"
-            @click="launchGame(game)"
+            @click="launchGameHandler(game)"
           >
             启动游戏
           </v-btn>
@@ -438,11 +407,11 @@ const formatAddedTime = (timestamp) => {
           variant="outlined"
           density="comfortable"
           readonly
-          @click="selectDirectory"
+          @click="selectDirectoryHandler"
           class="mt-2"
         >
           <template v-slot:append>
-            <v-btn @click="selectDirectory" variant="text" icon="mdi-folder-open">
+            <v-btn @click="selectDirectoryHandler" variant="text" icon="mdi-folder-open">
             </v-btn>
           </template>
         </v-text-field>
@@ -452,7 +421,7 @@ const formatAddedTime = (timestamp) => {
         <v-spacer></v-spacer>
         <v-btn @click="closeAddGameDialog" variant="text">取消</v-btn>
         <v-btn
-          @click="addGame"
+          @click="addGameHandler"
           :loading="isAddingGame"
           :disabled="!selectedGameType || !gameDirectory"
           color="primary"
@@ -494,12 +463,12 @@ const formatAddedTime = (timestamp) => {
           variant="outlined"
           density="comfortable"
           readonly
-          @click="selectEditDirectory"
+          @click="selectEditDirectoryHandler"
           class="mt-2"
           v-if="currentGame"
         >
           <template v-slot:append>
-            <v-btn @click="selectEditDirectory" variant="text" icon="mdi-folder-open">
+            <v-btn @click="selectEditDirectoryHandler" variant="text" icon="mdi-folder-open">
             </v-btn>
           </template>
         </v-text-field>
@@ -533,7 +502,7 @@ const formatAddedTime = (timestamp) => {
 
       <v-card-actions>
         <v-btn
-          @click="() => { closeEditGameDialog(); launchGame(currentGame); }"
+          @click="() => { closeEditGameDialog(); launchGameHandler(currentGame); }"
           variant="text"
           v-if="currentGame"
         >
@@ -581,17 +550,17 @@ const formatAddedTime = (timestamp) => {
           variant="outlined"
           density="comfortable"
           readonly
-          @click="selectDirectory"
+          @click="selectDirectoryHandler"
           class="mt-2"
         >
           <template v-slot:append>
-            <v-btn @click="selectDirectory" variant="text" icon="mdi-folder-open">
+            <v-btn @click="selectDirectoryHandler" variant="text" icon="mdi-folder-open">
             </v-btn>
           </template>
         </v-text-field>
 
         <v-btn
-          @click="addGame"
+          @click="addGameHandler"
           :loading="isAddingGame"
           :disabled="!selectedGameType || !gameDirectory"
           color="primary"
