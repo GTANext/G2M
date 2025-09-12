@@ -38,4 +38,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='assets/ui/favicon.ico',
+    env=dict(os.environ, PYTHONIOENCODING='utf-8')
 )

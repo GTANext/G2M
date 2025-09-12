@@ -49,9 +49,9 @@ if __name__ == '__main__':
     required_methods = ['get_games', 'add_game', 'update_game', 'launch_game']
     for method in required_methods:
         if hasattr(api, method):
-            print(f"✓ {method} 方法存在")
+            print(f"[OK] {method} 方法存在")
         else:
-            print(f"✗ {method} 方法缺失")
+            print(f"[MISSING] {method} 方法缺失")
 
     webview.create_window(
         'GTANext ModLoader丨Powered by 鼠子Tomoriゞ',

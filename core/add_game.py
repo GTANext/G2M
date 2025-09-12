@@ -3,6 +3,7 @@ from tkinter import filedialog
 import tkinter as tk
 from core.config_manager import ConfigManager
 from core.constants import CONFIG_FILE_PATH, GAME_TYPE_NAMES
+import time
 
 class GameManager:
     def __init__(self, config_path=CONFIG_FILE_PATH):
@@ -31,7 +32,8 @@ class GameManager:
             new_game = {
                 "type": game_type,
                 "directory": directory,
-                "name": game_name
+                "name": game_name,
+                "addedTime": int(time.time())  # 添加时间戳
             }
 
             if "games" not in config:

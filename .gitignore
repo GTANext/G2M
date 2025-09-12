@@ -33,5 +33,6 @@ __pycache__/
 .virtualme/
 .repomap/
 .venv/
+build/
 assets/config.json
 assets/ui/

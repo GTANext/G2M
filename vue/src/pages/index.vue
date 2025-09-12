@@ -162,7 +162,8 @@ const showGameEdit = (game, index) => {
     type: game.type || '',
     name: game.name || '',
     directory: game.directory || '',
-    customExecutable: game.customExecutable || '' // 自定义可执行文件
+    customExecutable: game.customExecutable || '', // 自定义可执行文件
+    addedTime: game.addedTime || null // 添加时间
   }
   currentGameIndex.value = index
   showEditGameDialog.value = true
@@ -312,6 +313,21 @@ const defaultExecutable = computed(() => {
     default: return '未知'
   }
 })
+
+// 格式化添加时间
+const formatAddedTime = (timestamp) => {
+  if (!timestamp) return '未知时间'
+
+  const date = new Date(timestamp * 1000)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
 </script>
 
 <template>
@@ -328,9 +344,9 @@ const defaultExecutable = computed(() => {
   </v-card>
 
   <!-- 游戏列表标题 -->
-  <div class="d-flex">
+  <div class="d-flex"  v-if="games && games.length > 0">
       <div class="pa-2 me-auto">
-        <v-card-title v-if="games && games.length > 0" class="text-h6 pa-0 mt-4 mb-2">
+        <v-card-title class="text-h6 pa-0 mt-4 mb-2">
           已添加的游戏
         </v-card-title>
       </div>
@@ -357,6 +373,11 @@ const defaultExecutable = computed(() => {
         <v-card-title>
           {{ game?.name || game?.type || '未知游戏' }}
         </v-card-title>
+
+        <!-- 添加时间显示 -->
+        <v-card-subtitle v-if="game?.addedTime">
+          添加时间: {{ formatAddedTime(game.addedTime) }}
+        </v-card-subtitle>
 
         <v-card-actions>
 
@@ -499,6 +520,10 @@ const defaultExecutable = computed(() => {
         </v-text-field>
 
         <v-list class="mt-4" v-if="currentGame">
+          <v-list-item v-if="currentGame.addedTime">
+            <v-list-item-title>添加时间</v-list-item-title>
+            <v-list-item-subtitle>{{ formatAddedTime(currentGame.addedTime) }}</v-list-item-subtitle>
+          </v-list-item>
           <v-list-item>
             <v-list-item-title>默认可执行文件</v-list-item-title>
             <v-list-item-subtitle>{{ defaultExecutable }}</v-list-item-subtitle>
