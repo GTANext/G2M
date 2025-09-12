@@ -37,6 +37,13 @@ def check_dotnet_version():
 
 if __name__ == '__main__':
     api = GTANext()
+
+    # 检查API方法
+    print("API 方法列表:")
+    for attr in dir(api):
+        if not attr.startswith('_'):
+            print(f"  {attr}: {type(getattr(api, attr))}")
+
     webview.create_window(
         'GTANext ModLoader丨Powered by 鼠子Tomoriゞ',
         os.path.join(os.path.dirname(os.path.realpath(__file__)), 'assets/ui/index.html'),

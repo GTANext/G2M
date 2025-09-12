@@ -1,1 +1,0 @@
-import{_ as e}from"./index-Ici79znu.js";import{c as t,o as s,a}from"./vue-vendor-C0hsVY07.js";const r={},n={class:"about"};function c(_,o){return s(),t("div",n,[...o[0]||(o[0]=[a("h1",null,"This is an about page",-1)])])}const l=e(r,[["render",c]]);export{l as default};
