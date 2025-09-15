@@ -11,7 +11,6 @@ const {
   currentGameIndex,
   gameTypes,
   gameImages,
-  // 新增缺少的变量
   selectedGameType,
   gameName,
   gameDirectory,
@@ -29,9 +28,10 @@ const {
   launchGameHandler,
   formatAddedTime,
   getGameImage,
-  // 新增缺少的方法
   selectDirectoryHandler,
   addGameHandler,
+  openAddGameDialog,
+  closeAddGameDialog,
 
   // 计算属性
   defaultExecutable
@@ -45,12 +45,12 @@ onMounted(async () => {
 <template>
   <div class="d-flex" v-if="games && games.length > 0">
     <div class="pa-2 me-auto">
-      <v-card-title class="text-h6 pa-0 mt-4 mb-2">
+      <v-card-title class="text-h6 pa-0 mb-2">
         已添加的游戏
       </v-card-title>
     </div>
     <div class="pa-2 align-self-center">
-      <v-btn color="primary" @click="$emit('open-add-game')">添加游戏</v-btn>
+      <v-btn color="primary" @click="openAddGameDialog">添加游戏</v-btn>
     </div>
   </div>
 
@@ -199,6 +199,60 @@ onMounted(async () => {
             v-if="currentGame"
         >
           保存
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- 添加游戏对话框 -->
+  <v-dialog v-model="showAddGameDialog" max-width="500px">
+    <v-card title="添加游戏">
+      <v-card-text>
+        <v-select
+            v-model="selectedGameType"
+            :items="gameTypes"
+            label="选择游戏类型"
+            item-title="title"
+            item-value="value"
+            variant="outlined"
+            density="comfortable"
+        ></v-select>
+
+        <v-text-field
+            v-model="gameName"
+            label="游戏显示名称（可选）"
+            placeholder="留空则使用默认名称"
+            variant="outlined"
+            density="comfortable"
+            class="mt-2"
+        ></v-text-field>
+
+        <v-text-field
+            v-model="gameDirectory"
+            label="游戏目录"
+            variant="outlined"
+            density="comfortable"
+            readonly
+            @click="selectDirectoryHandler"
+            class="mt-2"
+        >
+          <template v-slot:append>
+            <v-btn @click="selectDirectoryHandler" variant="text" icon="mdi-folder-open">
+            </v-btn>
+          </template>
+        </v-text-field>
+      </v-card-text>
+
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn @click="closeAddGameDialog" variant="text">取消</v-btn>
+        <v-btn
+            @click="addGameHandler"
+            :loading="isAddingGame"
+            :disabled="!selectedGameType || !gameDirectory"
+            color="primary"
+        >
+          添加
         </v-btn>
       </v-card-actions>
     </v-card>

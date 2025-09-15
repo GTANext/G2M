@@ -6,5 +6,5 @@ class GameListManager:
 
     def get_games(self):
         """获取游戏列表"""
-        config = self.config_manager.load_config()
-        return config.get("games", [])
+        game_list_config = self.config_manager.load_game_list()
+        return game_list_config.get("games", [])

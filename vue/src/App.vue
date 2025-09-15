@@ -31,7 +31,10 @@ onMounted(async () => {
           type="error"
           variant="tonal"
         ></v-alert>
-        <RouterView v-else />
+        <template v-else>
+          <v-alert class="mb-3" text="还在开发中! 如有疑问请加群: 829270254" type="info" variant="tonal"></v-alert>
+          <RouterView />
+        </template>
       </v-container>
     </v-main>
   </v-app>

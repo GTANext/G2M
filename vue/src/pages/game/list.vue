@@ -3,9 +3,5 @@
 </script>
 
 <template>
-
+  <GameCardList />
 </template>
-
-<style scoped>
-
-</style>

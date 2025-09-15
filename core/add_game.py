@@ -4,6 +4,7 @@ import tkinter as tk
 from core.config_manager import ConfigManager
 from core.constants import CONFIG_FILE_PATH, GAME_TYPE_NAMES
 import time
+import uuid
 
 class GameManager:
     def __init__(self, config_path=CONFIG_FILE_PATH):
@@ -23,28 +24,50 @@ class GameManager:
                 return {"success": False, "message": "游戏目录不存在"}
 
             # 检查是否已存在相同类型和目录的游戏
-            config = self.config_manager.load_config()
-            for game in config.get("games", []):
+            game_list_config = self.config_manager.load_game_list()
+            for game in game_list_config.get("games", []):
                 if game.get("type") == game_type and game.get("directory") == directory:
                     return {"success": False, "message": "该游戏已存在"}
 
+            # 生成唯一ID
+            game_id = self._generate_game_id(game_list_config)
+
             # 添加新游戏
             new_game = {
+                "id": game_id,
                 "type": game_type,
                 "directory": directory,
                 "name": game_name,
                 "addedTime": int(time.time())  # 添加时间戳
             }
 
-            if "games" not in config:
-                config["games"] = []
+            if "games" not in game_list_config:
+                game_list_config["games"] = []
 
-            config["games"].append(new_game)
-            self.config_manager.save_config(config)
+            game_list_config["games"].append(new_game)
+            self.config_manager.save_game_list(game_list_config)
 
             return {"success": True, "message": "游戏添加成功"}
         except Exception as e:
             return {"success": False, "message": f"添加游戏时出错: {str(e)}"}
+
+    def _generate_game_id(self, game_list_config):
+        """生成唯一的游戏ID"""
+        games = game_list_config.get("games", [])
+        if not games:
+            return 1
+        
+        # 获取现有最大的ID数字
+        max_id = 0
+        for game in games:
+            game_id = game.get("id", 0)
+            try:
+                id_num = int(game_id)
+                max_id = max(max_id, id_num)
+            except (ValueError, TypeError):
+                continue
+        
+        return max_id + 1
 
     def select_directory(self):
         """选择游戏目录"""

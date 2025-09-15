@@ -9,11 +9,11 @@ class GameUpdater:
     def update_game(self, index, game_type, directory, name=None, custom_executable=None):
         """更新游戏信息"""
         try:
-            # 加载配置
-            config = self.config_manager.load_config()
+            # 加载游戏列表
+            game_list_config = self.config_manager.load_game_list()
 
             # 检查索引是否有效
-            if index < 0 or index >= len(config.get("games", [])):
+            if index < 0 or index >= len(game_list_config.get("games", [])):
                 return {"success": False, "message": "游戏索引无效"}
 
             # 根据游戏类型设置默认名称
@@ -25,8 +25,12 @@ class GameUpdater:
 
             game_name = name if name else game_names.get(game_type, game_type)
 
+            # 获取现有游戏的ID
+            existing_id = game_list_config["games"][index].get("id", f"id{index+1}")
+
             # 构建游戏信息
             updated_game = {
+                "id": existing_id,
                 "type": game_type,
                 "directory": directory,
                 "name": game_name
@@ -36,11 +40,15 @@ class GameUpdater:
             if custom_executable:
                 updated_game["customExecutable"] = custom_executable
 
-            # 更新游戏信息
-            config["games"][index] = updated_game
+            # 保留原有的添加时间
+            if "addedTime" in game_list_config["games"][index]:
+                updated_game["addedTime"] = game_list_config["games"][index]["addedTime"]
 
-            # 保存配置
-            self.config_manager.save_config(config)
+            # 更新游戏信息
+            game_list_config["games"][index] = updated_game
+
+            # 保存游戏列表
+            self.config_manager.save_game_list(game_list_config)
 
             return {"success": True, "message": "游戏信息更新成功"}
         except Exception as e:

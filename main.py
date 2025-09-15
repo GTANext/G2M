@@ -54,7 +54,7 @@ if __name__ == '__main__':
             print(f"[MISSING] {method} 方法缺失")
 
     webview.create_window(
-        'GTANext ModLoader丨Powered by 鼠子Tomoriゞ',
+        '[测试版] GTANext ModLoader丨Powered by 鼠子Tomoriゞ',
         os.path.join(os.path.dirname(os.path.realpath(__file__)),
         'assets/ui/index.html'),
         js_api=api,

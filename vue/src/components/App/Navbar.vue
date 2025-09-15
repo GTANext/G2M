@@ -7,7 +7,7 @@ const route = useRoute()
 
 const items = [
   { title: '首页', value: 'home', icon: 'mdi-home', route: '/' },
-  { title: 'Mod文件', value: 'modfiles', icon: 'mdi-folder', route: '/ModFiles' }
+  { title: '游戏列表', value: 'modfiles', icon: 'mdi-gamepad', route: '/game/list' }
 ]
 
 const onItemClick = (item) => {

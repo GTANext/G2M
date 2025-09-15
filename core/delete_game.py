@@ -22,11 +22,11 @@ class GameDeleter:
             except (ValueError, TypeError):
                 return {"success": False, "message": "索引必须是数字"}
 
-            # 加载配置
-            config = self.config_manager.load_config()
+            # 加载游戏列表
+            game_list_config = self.config_manager.load_game_list()
 
             # 检查索引是否有效
-            games = config.get("games", [])
+            games = game_list_config.get("games", [])
             if not isinstance(games, list):
                 return {"success": False, "message": "游戏列表格式错误"}
 
@@ -36,8 +36,8 @@ class GameDeleter:
             # 删除游戏
             deleted_game = games.pop(index)
 
-            # 保存配置
-            self.config_manager.save_config(config)
+            # 保存游戏列表
+            self.config_manager.save_game_list(game_list_config)
 
             return {"success": True, "message": f"游戏 '{deleted_game.get('name', deleted_game.get('type', '未知游戏'))}' 已删除"}
         except Exception as e:

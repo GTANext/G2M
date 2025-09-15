@@ -12,6 +12,7 @@ declare global {
 }
 
 interface GameData {
+    id?: number
     type: string
     directory: string
     name?: string
@@ -164,7 +165,7 @@ export function useWebview() {
         return await callApiMethod<GameData[]>('get_games')
     }
 
-    const addGame = async (gameData: Omit<GameData, 'addedTime' | 'index'>) => {
+    const addGame = async (gameData: Omit<GameData, 'addedTime' | 'index' | 'id'>) => {
         return await callApiMethod<{ success: boolean; message: string }>('add_game', gameData)
     }
 
