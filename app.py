@@ -4,10 +4,10 @@
 # @Software: PyCharm/VSCode
 # @Discription: GTANext Core 模块
 
-
 import os
 import json
 import subprocess
+import winreg  # 添加这个导入
 from core.add_game import GameManager
 from core.get_games import GameListManager
 from core.update_game import GameUpdater
@@ -16,6 +16,7 @@ from core.config_manager import ConfigManager
 from core.constants import CONFIG_FILE_PATH, GAME_EXECUTABLES
 from tkinter import filedialog
 import tkinter as tk
+
 
 class GTANext:
     def __init__(self):
@@ -30,6 +31,51 @@ class GTANext:
     @staticmethod
     def example_method(param: str) -> str:
         return f"Processed: {param}"
+
+    def is_webview2_installed(self):
+        """
+        检查WebView2是否已安装
+        """
+        # 方法1: 检查用户级别的安装
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}") as key:
+                version = winreg.QueryValueEx(key, "pv")[0]
+                return True
+        except WindowsError:
+            pass
+        
+        # 方法2: 检查系统级别的安装
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}") as key:
+                version = winreg.QueryValueEx(key, "pv")[0]
+                return True
+        except WindowsError:
+            pass
+            
+        # 方法3: 检查另一种系统级别安装
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}") as key:
+                version = winreg.QueryValueEx(key, "pv")[0]
+                return True
+        except WindowsError:
+            pass
+        
+        # 如果以上方法都失败，则认为未安装
+        return False
+
+    def check_dotnet_version(self):
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                r"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full") as key:
+                release = winreg.QueryValueEx(key, "Release")[0]
+                if release >= 528040:
+                    return True
+                return False
+        except WindowsError:
+            return False
 
     def add_game(self, game_data):
         try:
@@ -48,7 +94,8 @@ class GTANext:
             directory = game_data['directory']
             name = game_data.get('name')
             custom_executable = game_data.get('customExecutable')
-            result = self.game_updater.update_game(index, game_type, directory, name, custom_executable)
+            result = self.game_updater.update_game(
+                index, game_type, directory, name, custom_executable)
             return result
         except Exception as e:
             return {"success": False, "message": f"更新游戏信息时出错: {str(e)}"}
@@ -83,7 +130,7 @@ class GTANext:
                     game_id = game_id['id']
                 else:
                     raise ValueError("字典中缺少'id'键")
-            
+
             # 强制 game_id 为数字类型
             game_id = int(game_id)
             from core.get_game_info import GameInfoManager
