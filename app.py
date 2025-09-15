@@ -7,7 +7,7 @@
 import os
 import json
 import subprocess
-import winreg  # 添加这个导入
+import winreg
 from core.add_game import GameManager
 from core.get_games import GameListManager
 from core.update_game import GameUpdater
