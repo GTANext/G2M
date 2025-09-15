@@ -17,5 +17,8 @@ const {
     </template>
   </v-card>
 
-  <GameCardList />
+  <GameCardList 
+  :show-view-details-btn="false"
+  :show-launch-game-btn="true"
+  />
 </template>

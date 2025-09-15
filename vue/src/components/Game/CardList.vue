@@ -1,6 +1,33 @@
 <script setup>
 import {onMounted} from 'vue'
+import {useRouter} from 'vue-router'
 import {useWebview} from '@/composables/useWebview'
+
+// 定义 props
+const props = defineProps({
+  showViewDetailsBtn: {
+    type: Boolean,
+    default: true
+  },
+  showLaunchGameBtn: {
+    type: Boolean,
+    default: false
+  },
+  showSettingsBtn: {
+    type: Boolean,
+    default: true
+  },
+  showDeleteBtn: {
+    type: Boolean,
+    default: false
+  },
+  showTypeTag: {
+    type: Boolean,
+    default: true
+  }
+})
+
+const router = useRouter()
 
 const {
   // 状态
@@ -40,6 +67,10 @@ const {
 onMounted(async () => {
   await loadGames()
 })
+
+const viewGameDetails = (gameId) => {
+  router.push(`/game/${gameId}`)
+}
 </script>
 
 <template>
@@ -78,8 +109,20 @@ onMounted(async () => {
         </v-card-subtitle>
 
         <v-card-actions>
+          <!-- 查看详情按钮 -->
           <v-btn
+              v-if="showViewDetailsBtn"
               color="orange-lighten-2"
+              variant="text"
+              @click="() => viewGameDetails(game.id)"
+          >
+            查看详情
+          </v-btn>
+
+          <!-- 启动游戏按钮 -->
+          <v-btn
+              v-if="showLaunchGameBtn"
+              color="green-lighten-2"
               variant="text"
               @click="() => launchGameHandler(game)"
           >
@@ -87,7 +130,10 @@ onMounted(async () => {
           </v-btn>
 
           <v-spacer></v-spacer>
+
+          <!-- 游戏类型标签 -->
           <v-chip
+              v-if="showTypeTag"
               :color="game?.type === 'GTA3' ? 'blue' : game?.type === 'GTAVC' ? 'green' : 'orange'"
               size="small"
               variant="tonal"
@@ -95,11 +141,23 @@ onMounted(async () => {
             {{ game?.type || '未知' }}
           </v-chip>
 
+          <!-- 设置按钮 -->
           <v-btn
+              v-if="showSettingsBtn"
               icon
               @click="() => showGameEdit(game, index)"
           >
             <v-icon>mdi-cog</v-icon>
+          </v-btn>
+
+          <!-- 删除按钮 -->
+          <v-btn
+              v-if="showDeleteBtn"
+              icon
+              color="error"
+              @click="() => { showGameEdit(game, index); deleteGameHandler(); }"
+          >
+            <v-icon>mdi-delete</v-icon>
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -162,7 +220,7 @@ onMounted(async () => {
           </template>
         </v-text-field>
 
-        <v-list class="mt-4" v-if="currentGame">
+        <v-list v-if="currentGame">
           <v-list-item v-if="currentGame.addedTime">
             <v-list-item-title>添加时间</v-list-item-title>
             <v-list-item-subtitle>{{ formatAddedTime(currentGame.addedTime) }}</v-list-item-subtitle>

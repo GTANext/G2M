@@ -1,4 +1,4 @@
-import {ref, type Ref, computed} from 'vue'
+import { ref, type Ref, computed } from 'vue'
 
 declare global {
     interface Window {
@@ -35,6 +35,10 @@ interface DeleteGameOptions {
     index: number
 }
 
+interface GameInfoOptions {
+    id: number
+}
+
 export function useWebview() {
     const isApiAvailable = ref(false)
     const isApiReady = ref(false)
@@ -51,22 +55,22 @@ export function useWebview() {
     const currentGameIndex = ref<number | null>(null)
 
     const gameTypes = [
-        {value: 'GTA3', title: 'GTA III'},
-        {value: 'GTAVC', title: 'GTA Vice City'},
-        {value: 'GTASA', title: 'GTA San Andreas'}
+        { value: 'GTA3', title: 'GTA III' },
+        { value: 'GTAVC', title: 'GTA Vice City' },
+        { value: 'GTASA', title: 'GTA San Andreas' }
     ]
 
     const gameImages = [
-        {value: 'GTA3', src: 'images/games/gta3.jpg'},
-        {value: 'GTAVC', src: 'images/games/gtavc.jpg'},
-        {value: 'GTASA', src: 'images/games/gtasa.jpg'}
+        { value: 'GTA3', src: 'images/games/gta3.jpg' },
+        { value: 'GTAVC', src: 'images/games/gtavc.jpg' },
+        { value: 'GTASA', src: 'images/games/gtasa.jpg' }
     ]
 
     // 消息显示函数
     type MessageType = 'success' | 'error' | 'warning' | 'info'
     const showMessage = (message: string, type: MessageType = 'info', duration?: number) => {
         if (window.motyf) {
-            const options: { content: string; type: MessageType; time?: number } = {content: message, type}
+            const options: { content: string; type: MessageType; time?: number } = { content: message, type }
             if (duration !== undefined) options.time = duration
             window.motyf(options)
         } else {
@@ -78,24 +82,21 @@ export function useWebview() {
             }
 
             const method = consoleMethods[type]
-            ;(console[method] as (...args: any[]) => void)(`[${type.toUpperCase()}] ${message}`)
+                ; (console[method] as (...args: any[]) => void)(`[${type.toUpperCase()}] ${message}`)
         }
     }
-    // 改进的时间格式化函数
+
     const formatAddedTime = (timestamp: number | string | undefined): string => {
         if (!timestamp) return '未知时间'
 
-        // 处理字符串类型的时间戳
         const timestampNum = typeof timestamp === 'string'
             ? parseInt(timestamp, 10)
             : timestamp
 
-        // 验证时间戳有效性
         if (isNaN(timestampNum) || timestampNum <= 0) {
             return '未知时间'
         }
 
-        // 处理秒级时间戳（10位）
         const adjustedTimestamp = timestampNum < 10000000000
             ? timestampNum * 1000
             : timestampNum
@@ -165,6 +166,20 @@ export function useWebview() {
         return await callApiMethod<GameData[]>('get_games')
     }
 
+    const getGameInfo = async (options: GameInfoOptions): Promise<GameData | null> => {
+        try {
+            // 直接传递数字ID而不是对象
+            const result = await callApiMethod<GameData>('get_game_info', Number(options.id))
+            if (result && typeof result === 'object' && 'type' in result) {
+                return result
+            }
+            return null
+        } catch (error) {
+            console.error('获取游戏信息失败:', error)
+            return null
+        }
+    }
+
     const addGame = async (gameData: Omit<GameData, 'addedTime' | 'index' | 'id'>) => {
         return await callApiMethod<{ success: boolean; message: string }>('add_game', gameData)
     }
@@ -193,7 +208,6 @@ export function useWebview() {
         isGamesLoading.value = true
         try {
             const loadedGames = await getGames()
-            // 确保时间戳有效
             games.value = loadedGames.map(game => ({
                 ...game,
                 addedTime: game.addedTime && !isNaN(Number(game.addedTime))
@@ -205,6 +219,20 @@ export function useWebview() {
             showMessage('加载游戏列表失败', 'error')
         } finally {
             isGamesLoading.value = false
+        }
+    }
+
+    const loadGameInfo = async (id: number): Promise<GameData | null> => {
+        try {
+            const result = await getGameInfo({ id })
+            if (result) {
+                return result
+            }
+            return null
+        } catch (error) {
+            console.error('获取游戏信息失败:', error)
+            showMessage('获取游戏信息失败', 'error')
+            return null
         }
     }
 
@@ -281,7 +309,7 @@ export function useWebview() {
     }
 
     const showGameEdit = (game: GameData, index: number) => {
-        currentGame.value = {...game}
+        currentGame.value = { ...game }
         currentGameIndex.value = index
         showEditGameDialog.value = true
     }
@@ -318,8 +346,7 @@ export function useWebview() {
         if (currentGameIndex.value === null || currentGameIndex.value === undefined) return
 
         try {
-            // 确保传递的是正确的对象格式
-            const result = await deleteGame({index: Number(currentGameIndex.value)})
+            const result = await deleteGame({ index: Number(currentGameIndex.value) })
 
             if (result.success) {
                 showMessage(result.message || '游戏删除成功', 'success', 2000)
@@ -334,7 +361,6 @@ export function useWebview() {
         }
     }
 
-
     const launchGameHandler = async (game: GameData) => {
         try {
             const result = await launchGame(game)
@@ -343,9 +369,11 @@ export function useWebview() {
             } else {
                 showMessage(result.message || '启动游戏失败', 'error')
             }
+            return result
         } catch (error) {
             console.error('启动游戏失败:', error)
             showMessage('启动游戏失败', 'error')
+            return { success: false, message: '启动游戏失败' }
         }
     }
 
@@ -417,6 +445,7 @@ export function useWebview() {
         gameImages,
         waitForApi,
         loadGames,
+        loadGameInfo,
         selectDirectoryHandler,
         selectEditDirectoryHandler,
         selectCustomExecutable,

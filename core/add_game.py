@@ -4,7 +4,6 @@ import tkinter as tk
 from core.config_manager import ConfigManager
 from core.constants import CONFIG_FILE_PATH, GAME_TYPE_NAMES
 import time
-import uuid
 
 class GameManager:
     def __init__(self, config_path=CONFIG_FILE_PATH):
@@ -34,7 +33,7 @@ class GameManager:
 
             # 添加新游戏
             new_game = {
-                "id": game_id,
+                "id": game_id,  # 保持为数字类型
                 "type": game_type,
                 "directory": directory,
                 "name": game_name,
@@ -52,7 +51,7 @@ class GameManager:
             return {"success": False, "message": f"添加游戏时出错: {str(e)}"}
 
     def _generate_game_id(self, game_list_config):
-        """生成唯一的游戏ID"""
+        """生成唯一的游戏ID，返回数字类型"""
         games = game_list_config.get("games", [])
         if not games:
             return 1
