@@ -1,6 +1,24 @@
 import os
 
+ui_path = 'assets/ui/'
 config_path = 'assets/bocchi/'
+
+BASE_CONFIG = {
+    "title": "GTANext ModLoader",
+    "version": "test_0.0.1",
+    "author": "鼠子Tomoriゞ",
+    "url": "https://github.com/GTANext/ModLoader",
+    "description": "GTANext ModLoader",
+    "license": "MIT",
+    "webview": {
+        "title": "[测试版] GTANext ModLoader丨Powered by 鼠子Tomoriゞ",
+        "width": 1280,
+        "height": 720,
+        "html": ui_path + "index.html",
+        "devTitle": "GTANext ModLoader丨DEV MODE",
+        "devUrl": "http://localhost:8000"
+    }
+}
 
 # 配置文件路径
 CONFIG_FILE_PATH = config_path + 'config.json'

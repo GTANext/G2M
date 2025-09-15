@@ -10,6 +10,7 @@ import winreg
 import webview
 import tkinter as tk
 from tkinter import messagebox
+from core.constants import BASE_CONFIG
 
 def check_environment():
     """检查运行环境是否满足要求"""
@@ -67,11 +68,11 @@ if __name__ == '__main__':
             print(f"[MISSING] {method} 方法缺失")
 
     webview.create_window(
-        '[测试版] GTANext ModLoader丨Powered by 鼠子Tomoriゞ',
+        BASE_CONFIG['webview']['title'],
         os.path.join(os.path.dirname(os.path.realpath(__file__)),
-        'assets/ui/index.html'),
+        BASE_CONFIG['webview']['html']),
         js_api=api,
-        width=1024,
-        height=600
+        width=BASE_CONFIG['webview']['width'],
+        height=BASE_CONFIG['webview']['height']
     )
     webview.start()

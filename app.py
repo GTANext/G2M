@@ -17,7 +17,6 @@ from core.constants import CONFIG_FILE_PATH, GAME_EXECUTABLES
 from tkinter import filedialog
 import tkinter as tk
 
-
 class GTANext:
     def __init__(self):
         self.config_path = CONFIG_FILE_PATH

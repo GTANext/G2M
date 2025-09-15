@@ -10,6 +10,7 @@ import time
 import webview
 from importlib import reload
 import sys
+from core.constants import BASE_CONFIG
 
 class WebviewHotReloader:
     def __init__(self):
@@ -37,11 +38,11 @@ class WebviewHotReloader:
                 pass
 
         self.window = webview.create_window(
-            'GTANext ModLoader丨DEV MODE',
-            "http://localhost:8000",
+            BASE_CONFIG['webview']['devTitle'],
+            BASE_CONFIG['webview']['devUrl'],
             js_api=api,
-            width=1024,
-            height=600
+            width=BASE_CONFIG['webview']['width'],
+            height=BASE_CONFIG['webview']['height'],
         )
         webview.start()
 
