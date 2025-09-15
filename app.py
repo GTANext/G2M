@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+# @Author  : 鼠子Tomoriゞ
+# @File    : app.py
+# @Software: PyCharm/VSCode
+# @Discription: GTANext Core 模块
+
+
 import os
 import json
 import subprocess

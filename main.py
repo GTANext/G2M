@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+# @Author  : 鼠子Tomoriゞ
+# @File    : main.py
+# @Software: PyCharm/VSCode
+# @Discription: GTANext ModLoader 主程序入口
+
 import os
 from app import GTANext
 import winreg

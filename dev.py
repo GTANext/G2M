@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+# @Author  : 鼠子Tomoriゞ
+# @File    : dev.py
+# @Software: PyCharm/VSCode
+# @Discription: GTANext ModLoader 开发模式入口
+
 import hupper
 import os
 import time
