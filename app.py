@@ -33,10 +33,8 @@ class GTANext:
         return f"Processed: {param}"
 
     def is_webview2_installed(self):
-        """
-        检查WebView2是否已安装
-        """
-        # 方法1: 检查用户级别的安装
+        """检查WebView2是否已安装"""
+        # 检查用户级别的安装
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
                                 r"Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}") as key:
@@ -45,7 +43,7 @@ class GTANext:
         except WindowsError:
             pass
         
-        # 方法2: 检查系统级别的安装
+        # 检查系统级别的安装
         try:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
                                 r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}") as key:
@@ -54,7 +52,7 @@ class GTANext:
         except WindowsError:
             pass
             
-        # 方法3: 检查另一种系统级别安装
+        # 检查另一种系统级别安装
         try:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
                                 r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}") as key:
