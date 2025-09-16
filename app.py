@@ -5,14 +5,13 @@
 # @Discription: GTANext Core 模块
 
 import os
-import json
 import subprocess
 import winreg
-from core.add_game import GameManager
-from core.get_games import GameListManager
-from core.update_game import GameUpdater
-from core.delete_game import GameDeleter
-from core.config_manager import ConfigManager
+from core.game.add import GameManager
+from core.game.get_list import GameListManager
+from core.game.update import GameUpdater
+from core.game.delete import GameDeleter
+from core.config import ConfigManager
 from core.constants import CONFIG_FILE_PATH, GAME_EXECUTABLES
 from tkinter import filedialog
 import tkinter as tk
@@ -130,7 +129,7 @@ class GTANext:
 
             # 强制 game_id 为数字类型
             game_id = int(game_id)
-            from core.get_game_info import GameInfoManager
+            from core.game.get_info import GameInfoManager
             game_info_manager = GameInfoManager(self.config_path)
             game_info = game_info_manager.get_game_by_id(game_id)
             return game_info

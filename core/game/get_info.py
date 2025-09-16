@@ -1,4 +1,4 @@
-from core.config_manager import ConfigManager
+from core.config import ConfigManager
 from core.constants import CONFIG_FILE_PATH
 
 class GameInfoManager:

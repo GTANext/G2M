@@ -1,4 +1,4 @@
-from core.config_manager import ConfigManager
+from core.config import ConfigManager
 
 class GameListManager:
     def __init__(self, config_path='assets/config.json'):

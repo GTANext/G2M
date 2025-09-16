@@ -1,6 +1,6 @@
 import os
 import subprocess
-from core.config_manager import ConfigManager
+from core.config import ConfigManager
 from core.constants import GAME_EXECUTABLES
 
 class GameLauncher:

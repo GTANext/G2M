@@ -1,7 +1,7 @@
 import os
 from tkinter import filedialog
 import tkinter as tk
-from core.config_manager import ConfigManager
+from core.config import ConfigManager
 from core.constants import CONFIG_FILE_PATH, GAME_TYPE_NAMES
 import time
 
@@ -51,12 +51,12 @@ class GameManager:
             return {"success": False, "message": f"添加游戏时出错: {str(e)}"}
 
     def _generate_game_id(self, game_list_config):
-        """生成唯一的游戏ID，返回数字类型"""
+        """递增方式生成唯一的游戏ID，不重复使用已删除的ID"""
         games = game_list_config.get("games", [])
         if not games:
             return 1
         
-        # 获取现有最大的ID数字
+        # 获取现有最大的ID数字并加1
         max_id = 0
         for game in games:
             game_id = game.get("id", 0)
