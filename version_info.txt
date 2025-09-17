@@ -30,12 +30,12 @@ VSVersionInfo(
       StringTable(
         u'040904B0',
         [StringStruct(u'CompanyName', u'GTAModX'),
-        StringStruct(u'FileDescription', u'GTA Next Loader'),
+        StringStruct(u'FileDescription', u'GTANext ModInstall: 可视化安装III.VC.SA Mod/Cleo'),
         StringStruct(u'FileVersion', u'1.0.0.0'),
-        StringStruct(u'InternalName', u'GTANextLoader'),
+        StringStruct(u'InternalName', u'GTANext'),
         StringStruct(u'LegalCopyright', u'Copyright (C) 2025 GTAModX'),
         StringStruct(u'OriginalFilename', u'main.exe'),
-        StringStruct(u'ProductName', u'GTA Next Loader'),
+        StringStruct(u'ProductName', u'GTANext ModInstall'),
         StringStruct(u'ProductVersion', u'1.0.0.0')])
       ]), 
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])

@@ -443,7 +443,17 @@ export function useWebview() {
 
     const restoreGameHandler = async (index: number) => {
         try {
-            const result = await restoreGame({ index: Number(index) })
+            // 先获取被删除的游戏完整信息
+            const gameToRestore = deletedGames.value[index];
+
+            // 构造完整的恢复数据，包括索引和状态
+            const restoreData = {
+                ...gameToRestore,
+                index: Number(index),
+                status: 'active'
+            };
+
+            const result = await updateGame(restoreData);
 
             if (result.success) {
                 showMessage(result.message || '游戏恢复成功', 'success', 2000)

@@ -21,9 +21,6 @@ const handleRestoreGame = async (index) => {
         await restoreGameHandler(index);
         // 重新加载列表
         await loadDeletedGames()
-        if (window.motyf) {
-            window.motyf({ content: "游戏恢复成功", type: "success" })
-        }
     } catch (error) {
         if (window.motyf) {
             window.motyf({ content: "游戏恢复失败", type: "error" })

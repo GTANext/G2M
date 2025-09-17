@@ -1,6 +1,10 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useWebview } from '@/composables/useWebview'
+import { useWebAPI } from '@/composables/useWebAPI'
+
+const { getAppAlert } = useWebAPI()
+const alert = getAppAlert()
 
 const { isApiReady, waitForApi } = useWebview()
 
@@ -26,7 +30,7 @@ onMounted(async () => {
       <v-container>
         <v-alert v-if="!apiAvailable" class="mb-3" text="致命错误: 后端API不可用" type="error" variant="tonal"></v-alert>
         <template v-else>
-          <v-alert class="mb-3" text="还在开发中! 如有疑问请加群: 829270254" type="info" variant="tonal"></v-alert>
+          <v-alert class="mb-3" :text="alert.text" :type="alert.type" variant="tonal"></v-alert>
           <RouterView />
         </template>
       </v-container>
