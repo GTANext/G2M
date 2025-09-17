@@ -18,8 +18,10 @@ interface GameData {
     name?: string
     customExecutable?: string
     addedTime?: number | string
+    deletedTime?: number | string
     exe?: string
     index?: number
+    status?: string
 }
 
 interface DirectorySelectionOptions {
@@ -44,6 +46,8 @@ export function useWebview() {
     const isApiReady = ref(false)
 
     const games = ref<GameData[]>([])
+    const deletedGames = ref<GameData[]>([])
+    const allGames = ref<GameData[]>([])
     const isGamesLoading = ref(false)
     const selectedGameType = ref<string>('')
     const gameDirectory = ref<string>('')
@@ -166,6 +170,14 @@ export function useWebview() {
         return await callApiMethod<GameData[]>('get_games')
     }
 
+    const getDeletedGames = async (): Promise<GameData[]> => {
+        return await callApiMethod<GameData[]>('get_deleted_games')
+    }
+
+    const getAllGames = async (): Promise<GameData[]> => {
+        return await callApiMethod<GameData[]>('get_all_games')
+    }
+
     const getGameInfo = async (options: GameInfoOptions): Promise<GameData | null> => {
         try {
             // 直接传递数字ID而不是对象
@@ -190,6 +202,14 @@ export function useWebview() {
 
     const deleteGame = async (options: DeleteGameOptions) => {
         return await callApiMethod<{ success: boolean; message: string }>('delete_game', options)
+    }
+
+    const softDeleteGame = async (options: DeleteGameOptions) => {
+        return await callApiMethod<{ success: boolean; message: string }>('soft_delete_game', options)
+    }
+
+    const restoreGame = async (options: DeleteGameOptions) => {
+        return await callApiMethod<{ success: boolean; message: string }>('restore_game', options)
     }
 
     const launchGame = async (gameData: GameData) => {
@@ -219,6 +239,42 @@ export function useWebview() {
             showMessage('加载游戏列表失败', 'error')
         } finally {
             isGamesLoading.value = false
+        }
+    }
+
+    const loadDeletedGames = async () => {
+        try {
+            const loadedDeletedGames = await getDeletedGames()
+            deletedGames.value = loadedDeletedGames.map(game => ({
+                ...game,
+                addedTime: game.addedTime && !isNaN(Number(game.addedTime))
+                    ? Number(game.addedTime)
+                    : Date.now(),
+                deletedTime: game.deletedTime && !isNaN(Number(game.deletedTime))
+                    ? Number(game.deletedTime)
+                    : undefined
+            }))
+        } catch (error) {
+            console.error('加载已删除游戏列表失败:', error)
+            showMessage('加载已删除游戏列表失败', 'error')
+        }
+    }
+
+    const loadAllGames = async () => {
+        try {
+            const loadedAllGames = await getAllGames()
+            allGames.value = loadedAllGames.map(game => ({
+                ...game,
+                addedTime: game.addedTime && !isNaN(Number(game.addedTime))
+                    ? Number(game.addedTime)
+                    : Date.now(),
+                deletedTime: game.deletedTime && !isNaN(Number(game.deletedTime))
+                    ? Number(game.deletedTime)
+                    : undefined
+            }))
+        } catch (error) {
+            console.error('加载所有游戏列表失败:', error)
+            showMessage('加载所有游戏列表失败', 'error')
         }
     }
 
@@ -361,6 +417,49 @@ export function useWebview() {
         }
     }
 
+    const softDeleteGameHandler = async (gameData: GameData & { index: number }) => {
+        try {
+            // 添加 status 字段到游戏数据中
+            const updatedGameData = {
+                ...gameData,
+                status: 'deleted'
+            };
+
+            const result = await updateGame(updatedGameData);
+
+            if (result.success) {
+                showMessage('游戏已标记为删除', 'success', 2000)
+                await loadGames()
+                await loadDeletedGames()
+                closeEditGameDialog()
+            } else {
+                showMessage(result.message || '标记游戏删除失败', 'error')
+            }
+        } catch (error) {
+            console.error('标记游戏删除失败:', error)
+            showMessage('标记游戏删除失败', 'error')
+        }
+    }
+
+    const restoreGameHandler = async (index: number) => {
+        try {
+            const result = await restoreGame({ index: Number(index) })
+
+            if (result.success) {
+                showMessage(result.message || '游戏恢复成功', 'success', 2000)
+                await loadGames()
+                await loadDeletedGames()
+            } else {
+                showMessage(result.message || '恢复游戏失败', 'error')
+            }
+            return result;
+        } catch (error) {
+            console.error('恢复游戏失败:', error)
+            showMessage('恢复游戏失败', 'error')
+            throw error;
+        }
+    }
+
     const launchGameHandler = async (game: GameData) => {
         try {
             const result = await launchGame(game)
@@ -432,6 +531,8 @@ export function useWebview() {
         isApiAvailable,
         isApiReady,
         games,
+        deletedGames,
+        allGames,
         isGamesLoading,
         selectedGameType,
         gameDirectory,
@@ -445,6 +546,8 @@ export function useWebview() {
         gameImages,
         waitForApi,
         loadGames,
+        loadDeletedGames,
+        loadAllGames,
         loadGameInfo,
         selectDirectoryHandler,
         selectEditDirectoryHandler,
@@ -454,6 +557,8 @@ export function useWebview() {
         closeEditGameDialog,
         saveGameEdit,
         deleteGameHandler,
+        softDeleteGameHandler,
+        restoreGameHandler,
         launchGameHandler,
         selectGameExecutableHandler,
         openAddGameDialog,

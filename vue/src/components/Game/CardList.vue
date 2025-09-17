@@ -1,5 +1,5 @@
 <script setup>
-import {onMounted} from 'vue'
+import {onMounted, ref} from 'vue'
 import {useRouter} from 'vue-router'
 import {useWebview} from '@/composables/useWebview'
 
@@ -29,6 +29,11 @@ const props = defineProps({
 
 const router = useRouter()
 
+// 添加确认对话框的状态
+const showDeleteConfirmDialog = ref(false)
+const gameToDelete = ref(null)
+const gameToDeleteIndex = ref(null)
+
 const {
   // 状态
   games,
@@ -51,7 +56,7 @@ const {
   showGameEdit,
   closeEditGameDialog,
   saveGameEdit,
-  deleteGameHandler,
+  softDeleteGameHandler, // 改为使用软删除方法
   launchGameHandler,
   formatAddedTime,
   getGameImage,
@@ -70,6 +75,49 @@ onMounted(async () => {
 
 const viewGameDetails = (gameId) => {
   router.push(`/game/${gameId}`)
+}
+
+// 删除游戏处理函数
+const confirmDeleteGame = (game, index) => {
+  gameToDelete.value = game
+  gameToDeleteIndex.value = index
+  showDeleteConfirmDialog.value = true
+}
+
+const executeDeleteGame = () => {
+  if (gameToDeleteIndex.value !== null && gameToDelete.value !== null) {
+    // 直接传递完整的游戏数据对象
+    softDeleteGameHandler({
+      ...gameToDelete.value,
+      index: gameToDeleteIndex.value,
+      status: 'deleted'
+    })
+  }
+  showDeleteConfirmDialog.value = false
+  gameToDelete.value = null
+  gameToDeleteIndex.value = null
+}
+
+const cancelDeleteGame = () => {
+  showDeleteConfirmDialog.value = false
+  gameToDelete.value = null
+  gameToDeleteIndex.value = null
+}
+
+// 防止事件冒泡的处理函数
+const handleDirectoryButtonClick = (event) => {
+  event.stopPropagation()
+  selectDirectoryHandler()
+}
+
+const handleEditDirectoryButtonClick = (event) => {
+  event.stopPropagation()
+  selectEditDirectoryHandler()
+}
+
+const handleCustomExecutableButtonClick = (event) => {
+  event.stopPropagation()
+  selectCustomExecutable()
 }
 </script>
 
@@ -109,7 +157,6 @@ const viewGameDetails = (gameId) => {
         </v-card-subtitle>
 
         <v-card-actions>
-          <!-- 查看详情按钮 -->
           <v-btn
               v-if="showViewDetailsBtn"
               color="orange-lighten-2"
@@ -119,7 +166,6 @@ const viewGameDetails = (gameId) => {
             查看详情
           </v-btn>
 
-          <!-- 启动游戏按钮 -->
           <v-btn
               v-if="showLaunchGameBtn"
               color="green-lighten-2"
@@ -131,7 +177,6 @@ const viewGameDetails = (gameId) => {
 
           <v-spacer></v-spacer>
 
-          <!-- 游戏类型标签 -->
           <v-chip
               v-if="showTypeTag"
               :color="game?.type === 'GTA3' ? 'blue' : game?.type === 'GTAVC' ? 'green' : 'orange'"
@@ -141,7 +186,6 @@ const viewGameDetails = (gameId) => {
             {{ game?.type || '未知' }}
           </v-chip>
 
-          <!-- 设置按钮 -->
           <v-btn
               v-if="showSettingsBtn"
               icon
@@ -150,12 +194,11 @@ const viewGameDetails = (gameId) => {
             <v-icon>mdi-cog</v-icon>
           </v-btn>
 
-          <!-- 删除按钮 -->
           <v-btn
               v-if="showDeleteBtn"
               icon
               color="error"
-              @click="() => { showGameEdit(game, index); deleteGameHandler(); }"
+              @click="() => confirmDeleteGame(game, index)"
           >
             <v-icon>mdi-delete</v-icon>
           </v-btn>
@@ -164,7 +207,6 @@ const viewGameDetails = (gameId) => {
     </v-col>
   </v-row>
 
-  <!-- 编辑对话框 -->
   <v-dialog v-model="showEditGameDialog" max-width="500px">
     <v-card title="编辑游戏">
       <v-card-text>
@@ -195,12 +237,16 @@ const viewGameDetails = (gameId) => {
             variant="outlined"
             density="comfortable"
             readonly
-            @click="selectEditDirectoryHandler"
+            @click="handleEditDirectoryButtonClick"
             class="mt-2"
             v-if="currentGame"
         >
           <template v-slot:append>
-            <v-btn @click="selectEditDirectoryHandler" variant="text" icon="mdi-folder-open">
+            <v-btn 
+              @click="handleEditDirectoryButtonClick" 
+              variant="text" 
+              icon="mdi-folder-open"
+            >
             </v-btn>
           </template>
         </v-text-field>
@@ -215,7 +261,11 @@ const viewGameDetails = (gameId) => {
             v-if="currentGame"
         >
           <template v-slot:append>
-            <v-btn @click="selectCustomExecutable" variant="text" icon="mdi-file-find">
+            <v-btn 
+              @click="handleCustomExecutableButtonClick" 
+              variant="text" 
+              icon="mdi-file-find"
+            >
             </v-btn>
           </template>
         </v-text-field>
@@ -242,7 +292,7 @@ const viewGameDetails = (gameId) => {
         </v-btn>
         <v-spacer></v-spacer>
         <v-btn
-            @click="deleteGameHandler"
+            @click="() => confirmDeleteGame(currentGame, currentGameIndex)"
             color="error"
             variant="text"
             v-if="currentGameIndex !== null"
@@ -262,7 +312,6 @@ const viewGameDetails = (gameId) => {
     </v-card>
   </v-dialog>
 
-  <!-- 添加游戏对话框 -->
   <v-dialog v-model="showAddGameDialog" max-width="500px">
     <v-card title="添加游戏">
       <v-card-text>
@@ -291,11 +340,15 @@ const viewGameDetails = (gameId) => {
             variant="outlined"
             density="comfortable"
             readonly
-            @click="selectDirectoryHandler"
+            @click="handleDirectoryButtonClick"
             class="mt-2"
         >
           <template v-slot:append>
-            <v-btn @click="selectDirectoryHandler" variant="text" icon="mdi-folder-open">
+            <v-btn 
+              @click="handleDirectoryButtonClick" 
+              variant="text" 
+              icon="mdi-folder-open"
+            >
             </v-btn>
           </template>
         </v-text-field>
@@ -316,7 +369,27 @@ const viewGameDetails = (gameId) => {
     </v-card>
   </v-dialog>
 
-  <!-- 没有游戏时的表单 -->
+  <v-dialog v-model="showDeleteConfirmDialog" max-width="400px">
+    <v-card>
+      <v-card-title class="text-h6">
+        确认删除
+      </v-card-title>
+      <v-card-text>
+        确定要删除游戏 "{{ gameToDelete?.name || gameToDelete?.type || '未知游戏' }}" 吗？此操作将标记游戏为已删除状态。
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn @click="cancelDeleteGame" variant="text">
+          取消
+        </v-btn>
+        <v-btn @click="executeDeleteGame" color="error" variant="tonal">
+          确认删除
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  
   <div v-if="!isGamesLoading && (!games || games.length === 0)">
     <v-card class="mt-4" title="添加游戏">
       <v-card-text>
@@ -345,11 +418,15 @@ const viewGameDetails = (gameId) => {
             variant="outlined"
             density="comfortable"
             readonly
-            @click="selectDirectoryHandler"
+            @click="handleDirectoryButtonClick"
             class="mt-2"
         >
           <template v-slot:append>
-            <v-btn @click="selectDirectoryHandler" variant="text" icon="mdi-folder-open">
+            <v-btn 
+              @click="handleDirectoryButtonClick" 
+              variant="text" 
+              icon="mdi-folder-open"
+            >
             </v-btn>
           </template>
         </v-text-field>

@@ -3,5 +3,5 @@
 </script>
 
 <template>
-    
+    <GameBinList />
 </template>

@@ -21,8 +21,8 @@ declare module 'vue-router/auto-routes' {
     '/': RouteRecordInfo<'/', '/', Record<never, never>, Record<never, never>>,
     '/[...error]': RouteRecordInfo<'/[...error]', '/:error(.*)', { error: ParamValue<true> }, { error: ParamValue<false> }>,
     '/about': RouteRecordInfo<'/about', '/about', Record<never, never>, Record<never, never>>,
+    '/bin': RouteRecordInfo<'/bin', '/bin', Record<never, never>, Record<never, never>>,
     '/game/[id]': RouteRecordInfo<'/game/[id]', '/game/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
     '/games': RouteRecordInfo<'/games', '/games', Record<never, never>, Record<never, never>>,
-    '/mod': RouteRecordInfo<'/mod', '/mod', Record<never, never>, Record<never, never>>,
   }
 }

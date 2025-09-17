@@ -3,5 +3,7 @@
 </script>
 
 <template>
-  <GameCardList />
+  <GameCardList
+    :show-settings-btn="false"
+  />
 </template>

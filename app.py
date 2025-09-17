@@ -12,9 +12,8 @@ from core.game.get_list import GameListManager
 from core.game.update import GameUpdater
 from core.game.delete import GameDeleter
 from core.config import ConfigManager
-from core.constants import CONFIG_FILE_PATH, GAME_EXECUTABLES
-from tkinter import filedialog
-import tkinter as tk
+from core.constants import CONFIG_FILE_PATH, GAME_EXECUTABLES, GAME_STATUS
+import webview
 
 class GTANext:
     def __init__(self):
@@ -40,7 +39,7 @@ class GTANext:
                 return True
         except WindowsError:
             pass
-        
+
         # 检查系统级别的安装
         try:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
@@ -49,7 +48,7 @@ class GTANext:
                 return True
         except WindowsError:
             pass
-            
+
         # 检查另一种系统级别安装
         try:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
@@ -58,13 +57,13 @@ class GTANext:
                 return True
         except WindowsError:
             pass
-        
+
         # 如果以上方法都失败，则认为未安装
         return False
 
     def check_dotnet_version(self):
         try:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
                                 r"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full") as key:
                 release = winreg.QueryValueEx(key, "Release")[0]
                 if release >= 528040:
@@ -90,8 +89,9 @@ class GTANext:
             directory = game_data['directory']
             name = game_data.get('name')
             custom_executable = game_data.get('customExecutable')
+            status = game_data.get('status')  # 获取状态参数
             result = self.game_updater.update_game(
-                index, game_type, directory, name, custom_executable)
+                index, game_type, directory, name, custom_executable, status)
             return result
         except Exception as e:
             return {"success": False, "message": f"更新游戏信息时出错: {str(e)}"}
@@ -112,11 +112,77 @@ class GTANext:
         except Exception as e:
             return {"success": False, "message": f"删除游戏时出错: {str(e)}"}
 
+    def soft_delete_game(self, game_data):
+        """软删除游戏"""
+        try:
+            # 如果传入的是索引而不是字典，先获取游戏完整信息
+            if isinstance(game_data, int) or isinstance(game_data, str):
+                # 获取所有游戏
+                game_list_config = self.config_manager.load_game_list()
+                games = game_list_config.get("games", [])
+                index = int(game_data)
+
+                # 检查索引是否有效
+                if index < 0 or index >= len(games):
+                    return {"success": False, "message": "游戏索引无效"}
+
+                # 获取游戏信息并添加状态
+                game_data = games[index].copy()
+                game_data["index"] = index
+
+            # 确保包含状态参数
+            game_data["status"] = GAME_STATUS['DELETED']
+
+            # 调用 update_game 方法来更新游戏状态为已删除
+            result = self.update_game(game_data)
+            return result
+        except Exception as e:
+            return {"success": False, "message": f"删除游戏时出错: {str(e)}"}
+
+    def restore_game(self, game_data):
+        """恢复已删除的游戏"""
+        try:
+            # 如果传入的是索引而不是字典，先获取游戏完整信息
+            if isinstance(game_data, int) or isinstance(game_data, str):
+                # 获取所有游戏
+                game_list_config = self.config_manager.load_game_list()
+                games = game_list_config.get("games", [])
+                index = int(game_data)
+
+                # 检查索引是否有效
+                if index < 0 or index >= len(games):
+                    return {"success": False, "message": "游戏索引无效"}
+
+                # 获取游戏信息并添加状态
+                game_data = games[index].copy()
+                game_data["index"] = index
+
+            # 确保包含状态参数
+            game_data["status"] = GAME_STATUS['ACTIVE']
+
+            # 调用 update_game 方法来更新游戏状态为激活
+            result = self.update_game(game_data)
+            return result
+        except Exception as e:
+            return {"success": False, "message": f"恢复游戏时出错: {str(e)}"}
+
     def select_directory(self):
-        return self.game_manager.select_directory()
+        # 使用 webview 提供的目录选择对话框
+        try:
+            directories = webview.windows[0].create_file_dialog(
+                webview.FileDialog.FOLDER)
+            if directories:
+                return directories[0]  # 返回选择的目录路径
+            return ""
+        except Exception as e:
+            print(f"选择目录时出错: {e}")
+            return ""
 
     def get_games(self):
         return self.game_list_manager.get_games()
+
+    def get_deleted_games(self):
+        return self.game_list_manager.get_deleted_games()
 
     def get_game_info(self, game_id):
         try:
@@ -161,16 +227,15 @@ class GTANext:
 
     def select_game_executable(self, game_data):
         try:
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-            file_path = filedialog.askopenfilename(
-                title="选择游戏可执行文件",
-                initialdir=game_data.get('directory', ''),
-                filetypes=[("Executable files", "*.exe"), ("All files", "*.*")]
+            file_types = ('Executable files (*.exe)', 'exe')
+            files = webview.windows[0].create_file_dialog(
+                webview.FileDialog.OPEN,
+                directory=game_data.get('directory', ''),
+                file_types=(file_types,)
             )
-            root.destroy()
-            return file_path if file_path else None
+            if files:
+                return files[0]  # 返回选择的文件路径
+            return None
         except Exception as e:
             print(f"选择游戏可执行文件时出错: {e}")
             return None

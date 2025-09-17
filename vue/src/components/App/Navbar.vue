@@ -18,11 +18,18 @@ const items = [
     icon: 'mdi-gamepad-variant', 
     route: '/games' 
   },
+  // { 
+  //   title: '模组',
+  //   value: 'mods',
+  //   icon: 'mdi-gamepad-circle',
+  //   route: '/mod' 
+  // },
   { 
-    title: '模组',
-    value: 'mods',
-    icon: 'mdi-gamepad-circle',
-    route: '/mod' },
+    title: '回收站', 
+    value: 'bin', 
+    icon: 'mdi-delete', 
+    route: '/bin' 
+  },
   { 
     title: '关于', 
     value: 'about', 
@@ -38,7 +45,7 @@ const onItemClick = (item) => {
 // 计算当前选中的项目
 const selectedItem = computed(() => {
   const currentItem = items.find(item => item.route === route.path)
-  return currentItem ? currentItem.value : 'home'
+  return currentItem ? currentItem.value : null
 })
 </script>
 

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 ui_path = 'assets/ui/'
 config_path = 'assets/bocchi/'
@@ -47,4 +48,10 @@ GAME_EXECUTABLES = {
     'GTA3': 'gta3.exe',
     'GTAVC': 'gta-vc.exe',
     'GTASA': 'gta-sa.exe'
+}
+
+# 游戏状态
+GAME_STATUS = {
+    'ACTIVE': 'active',
+    'DELETED': 'deleted'
 }

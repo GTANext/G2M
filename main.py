@@ -5,18 +5,34 @@
 # @Discription: GTANext ModLoader 主程序入口
 
 import os
+import sys
 from app import GTANext
 import winreg
 import webview
 import tkinter as tk
 from tkinter import messagebox
 from core.constants import BASE_CONFIG
+import platform
 
 def check_environment():
     """检查运行环境是否满足要求"""
     api = GTANext()
     
     print("正在检查运行环境...")
+    
+    # 检查操作系统版本
+    if platform.system() == "Windows":
+        version = platform.version()
+        # Windows 7
+        major, minor, _ = map(int, version.split('.'))
+        if major < 6 or (major == 6 and minor <= 1):
+            root = tk.Tk()
+            root.withdraw()
+            message = "本程序不支持 Windows 7 及以下版本操作系统。\n请升级到 Windows 10 或更高版本以运行此程序。"
+            messagebox.showerror("操作系统不兼容", message)
+            root.destroy()
+            return False
+    
     webview2_installed = api.is_webview2_installed()
     dotnet_installed = api.check_dotnet_version()
     
