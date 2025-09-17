@@ -5,18 +5,18 @@ ui_path = 'assets/ui/'
 config_path = 'assets/bocchi/'
 
 BASE_CONFIG = {
-    "title": "GTANext ModInstall",
+    "title": "GTANext ModInstaller",
     "version": "test_0.0.1",
     "author": "鼠子Tomoriゞ",
-    "url": "https://github.com/GTANext/ModInstall",
-    "description": "GTANext ModInstall",
+    "url": "https://github.com/GTANext/ModInstaller",
+    "description": "GTANext ModInstaller",
     "license": "MIT",
     "webview": {
-        "title": "[测试版] GTANext ModInstall丨Powered by 鼠子Tomoriゞ",
-        "width": 1280,
-        "height": 720,
+        "title": "[测试版] GTANext ModInstaller丨Powered by 鼠子Tomoriゞ",
+        "width": 1080,
+        "height": 600,
         "html": ui_path + "index.html",
-        "devTitle": "GTANext ModInstall丨DEV MODE",
+        "devTitle": "GTANext ModInstaller丨DEV MODE",
         "devUrl": "http://localhost:8000"
     }
 }

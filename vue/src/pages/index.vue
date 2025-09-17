@@ -7,7 +7,7 @@ const {
 </script>
 
 <template>
-  <v-card title="欢迎使用 ModLoader" subtitle="可视化安装 III.VC.SA 的 Mod / Cleo" class="mb-1">
+  <v-card title="欢迎使用 GMI" subtitle="可视化安装 III.VC.SA 的 Mod / Cleo" class="mb-1">
     <template v-slot:append>
       <v-btn
         icon="mdi-github"
@@ -17,8 +17,8 @@ const {
     </template>
   </v-card>
 
-  <GameCardList 
+  <!-- <GameCardList 
   :show-view-details-btn="false"
   :show-launch-game-btn="true"
-  />
+  /> -->
 </template>

@@ -10,9 +10,27 @@ class GameManager:
         self.directory = ''
 
     def select_directory(self):
-        """选择游戏目录 - 简化版本，返回空字符串让前端处理"""
+        """选择游戏目录"""
         # 不在 Python 端处理目录选择，让前端调用 JavaScript 的目录选择
         return ""
+
+    def _generate_game_id(self, game_list_config):
+        """递增方式生成唯一的游戏ID, 不重复使用已删除的ID"""
+        games = game_list_config.get("games", [])
+        if not games:
+            return 1
+        
+        # 获取现有最大的ID数字并加1
+        max_id = 0
+        for game in games:
+            game_id = game.get("id", 0)
+            try:
+                id_num = int(game_id)
+                max_id = max(max_id, id_num)
+            except (ValueError, TypeError):
+                continue
+        
+        return max_id + 1
 
     def add_game(self, game_type, directory, name=None):
         """添加游戏到列表"""
@@ -31,8 +49,12 @@ class GameManager:
             if "games" not in game_list_config:
                 game_list_config["games"] = []
 
+            # 生成唯一ID
+            game_id = self._generate_game_id(game_list_config)
+
             # 创建游戏对象
             game_data = {
+                "id": game_id,  # 使用递增数字ID
                 "type": game_type,
                 "directory": directory,
                 "addedTime": int(time.time()),  # 添加时间（Unix时间戳）
@@ -58,7 +80,7 @@ class GameManager:
             # 保存游戏列表
             self.config_manager.save_game_list(game_list_config)
 
-            return {"success": True, "message": f"游戏 '{game_data['name']}' 添加成功"}
+            return {"success": True, "message": f"游戏 '{game_data['name']}' 添加成功", "id": game_data["id"]}
         except Exception as e:
             return {"success": False, "message": f"添加游戏时出错: {str(e)}"}
 

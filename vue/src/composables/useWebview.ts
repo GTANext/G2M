@@ -12,7 +12,7 @@ declare global {
 }
 
 interface GameData {
-    id?: number
+    id?: number | string
     type: string
     directory: string
     name?: string

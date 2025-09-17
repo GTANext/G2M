@@ -73,8 +73,13 @@ onMounted(async () => {
   await loadGames()
 })
 
-const viewGameDetails = (gameId) => {
-  router.push(`/game/${gameId}`)
+const viewGameDetails = (game) => {
+  if (game.id !== undefined && game.id !== null) {
+    router.push(`/game/${game.id}`)
+    // window.motyf({ content: `游戏详情已打开/game/${game.id}`, type: "info" })
+  } else {
+    window.motyf({ content: "无法获取游戏ID", type: "error" })
+  }
 }
 
 // 删除游戏处理函数
@@ -158,10 +163,10 @@ const handleCustomExecutableButtonClick = (event) => {
 
         <v-card-actions>
           <v-btn
-              v-if="showViewDetailsBtn"
-              color="orange-lighten-2"
-              variant="text"
-              @click="() => viewGameDetails(game.id)"
+            v-if="showViewDetailsBtn"
+            color="orange-lighten-2"
+            variant="text"
+            @click="() => viewGameDetails(game)"
           >
             查看详情
           </v-btn>

@@ -74,7 +74,7 @@ const selectCustomExecutable = async () => {
 }
 
 const goBack = () => {
-    router.push('/')
+    router.push('/games')
 }
 </script>
 
