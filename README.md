@@ -20,3 +20,28 @@ pnpm install
 pnpm run dev
 pnpm run build
 ```
+
+## 技术栈
+
+### 后端
+
+- Python
+- PyWebview
+
+### 前端
+
+- Vue3
+- scss
+- TypeScript
+
+### UI
+
+- MotyfJS
+- Vuetify3
+- ArcoDesign
+
+### 其他
+
+- PNPM
+- Vite6
+- PyInstaller
