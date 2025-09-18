@@ -5,20 +5,33 @@ ui_path = 'assets/ui/'
 config_path = 'assets/bocchi/'
 
 BASE_CONFIG = {
-    "title": "GTANext ModInstaller",
-    "version": "test_0.0.1",
+    "title": "GTAModx Manager",
+    "version": "dev",
     "author": "鼠子Tomoriゞ",
-    "url": "https://github.com/GTANext/ModInstaller",
-    "description": "GTANext ModInstaller",
-    "license": "MIT",
-    "webview": {
-        "title": "[测试版] GTANext ModInstaller丨Powered by 鼠子Tomoriゞ",
-        "width": 1080,
-        "height": 600,
-        "html": ui_path + "index.html",
-        "devTitle": "GTANext ModInstaller丨DEV MODE",
-        "devUrl": "http://localhost:8000"
-    }
+    "url": "https://github.com/GTANext/Manager",
+    "description": "可视化安装 III.VC.SA Mod/Cleo",
+    "license": "MIT"
+}
+
+BASE_CONFIG["webview"] = {
+    "title": BASE_CONFIG["title"] + "丨Powered by 鼠子Tomoriゞ",
+    "width": 1080,
+    "height": 600,
+    "html": ui_path + "index.html",
+    "devTitle": BASE_CONFIG["title"] + "丨DEV MODE",
+    "devUrl": "http://localhost:8000"
+}
+
+# 下载配置
+DOWNLOAD_CONFIG = {
+    'baseUrl': 'https://gtamodx-manager-r2.miomoe.cn/',
+}
+
+DOWNLOAD_CONFIG['game'] = {
+    'url': DOWNLOAD_CONFIG['baseUrl'] + 'game/',
+    'GTA3': 'Grand Theft Auto III.zip',
+    'GTAVC': 'Grand Theft Auto Vice City.zip',
+    'GTASA': 'Grand Theft Auto San Andreas.zip',
 }
 
 # 配置文件路径
