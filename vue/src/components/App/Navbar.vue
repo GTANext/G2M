@@ -51,7 +51,7 @@ const selectedItem = computed(() => {
 
 <template>
   <v-app-bar :elevation="2">
-    <v-app-bar-title>GTANext ModLoader</v-app-bar-title>
+    <v-app-bar-title>GTAModx Manager</v-app-bar-title>
     <template v-slot:append>
       <v-btn icon="mdi-github" href="https://github.com/GTANext/ModLoader" target="_blank"></v-btn>
     </template>

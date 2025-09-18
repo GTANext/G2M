@@ -13,6 +13,7 @@ from core.game.update import GameUpdater
 from core.game.delete import GameDeleter
 from core.config import ConfigManager
 from core.constants import CONFIG_FILE_PATH, GAME_EXECUTABLES, GAME_STATUS
+from core.mod.detector import ModDetector
 import webview
 
 class GTANext:
@@ -239,3 +240,22 @@ class GTANext:
         except Exception as e:
             print(f"选择游戏可执行文件时出错: {e}")
             return None
+
+    def detect_prerequisite_mods(self, game_data):
+        """检测游戏目录中的前置mod文件"""
+        try:
+            # 处理可能传入的字典对象或直接目录
+            if isinstance(game_data, dict):
+                if 'directory' in game_data:
+                    game_directory = game_data['directory']
+                else:
+                    return {"success": False, "message": "缺少游戏目录参数"}
+            else:
+                game_directory = game_data
+            
+            # 调用ModDetector进行检测
+            result = ModDetector.detect_prerequisite_mods(game_directory)
+            return {"success": True, "data": result}
+            
+        except Exception as e:
+            return {"success": False, "message": f"检测mod时出错: {str(e)}"}

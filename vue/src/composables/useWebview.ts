@@ -57,6 +57,8 @@ export function useWebview() {
     const showEditGameDialog = ref(false)
     const currentGame = ref<GameData | null>(null)
     const currentGameIndex = ref<number | null>(null)
+    const isDetectingMods = ref(false)
+    const modDetectionResult = ref<any>(null)
 
     const gameTypes = [
         { value: 'GTA3', title: 'GTA III' },
@@ -222,6 +224,10 @@ export function useWebview() {
 
     const selectGameExecutable = async (options?: ExecutableSelectionOptions) => {
         return await callApiMethod<string | null>('select_game_executable', options)
+    }
+
+    const detectPrerequisiteMods = async (gameData: GameData) => {
+        return await callApiMethod<{ success: boolean; data?: any; message?: string }>('detect_prerequisite_mods', gameData)
     }
 
     const loadGames = async () => {
@@ -486,6 +492,31 @@ export function useWebview() {
         }
     }
 
+    const detectPrerequisiteModsHandler = async (gameData: GameData, silent: boolean = false) => {
+        isDetectingMods.value = true
+        modDetectionResult.value = null
+        try {
+            const result = await detectPrerequisiteMods(gameData)
+            modDetectionResult.value = result
+            if (!silent) {
+                if (result.success) {
+                    showMessage('前置mod检测完成', 'success', 2000)
+                } else {
+                    showMessage(result.message || '前置mod检测失败', 'error')
+                }
+            }
+            return result
+        } catch (error) {
+            console.error('前置mod检测失败:', error)
+            if (!silent) {
+                showMessage('前置mod检测失败', 'error')
+            }
+            return { success: false, message: '前置mod检测失败' }
+        } finally {
+            isDetectingMods.value = false
+        }
+    }
+
     const selectGameExecutableHandler = async (game: GameData) => {
         try {
             const executable = await selectGameExecutable({
@@ -552,6 +583,8 @@ export function useWebview() {
         showEditGameDialog,
         currentGame,
         currentGameIndex,
+        isDetectingMods,
+        modDetectionResult,
         gameTypes,
         gameImages,
         waitForApi,
@@ -562,6 +595,8 @@ export function useWebview() {
         selectDirectoryHandler,
         selectEditDirectoryHandler,
         selectCustomExecutable,
+        detectPrerequisiteMods,
+        detectPrerequisiteModsHandler,
         addGameHandler,
         showGameEdit,
         closeEditGameDialog,
