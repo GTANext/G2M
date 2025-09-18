@@ -25,7 +25,7 @@ const items = [
   //   route: '/mod' 
   // },
   { 
-    title: '回收站', 
+    title: '删除', 
     value: 'bin', 
     icon: 'mdi-delete', 
     route: '/bin' 
@@ -53,6 +53,9 @@ const selectedItem = computed(() => {
   <v-app-bar :elevation="2">
     <v-app-bar-title>GTAModx Manager</v-app-bar-title>
     <template v-slot:append>
+      <v-btn v-for="item in items" :key="item.value" :to="item.route">
+        {{ item.title }}
+      </v-btn>
       <v-btn icon="mdi-github" href="https://github.com/GTANext/ModLoader" target="_blank"></v-btn>
     </template>
   </v-app-bar>
