@@ -1,6 +1,6 @@
-# GTANext ModLoader
+# GTAModx Manager
 
-> 可视化安装GTA III.VC.SA Mod和Cleo
+> Mod/Cleo管理器 for GTA III.VC.SA
 
 当前开发进度: 10%
 
