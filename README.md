@@ -11,7 +11,7 @@
 
 ```bash
 python dev.py
-python Manager build.spec
+pyinstaller build.spec
 ```
 
 ```bash
