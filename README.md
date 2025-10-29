@@ -16,9 +16,5 @@ pnpm run g2m
 ### 后端
 
 - Rust
-
-### 前端
-
 - Vue3
-- scss
 - TypeScript
