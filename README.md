@@ -13,8 +13,6 @@ pnpm run g2m
 
 ## 技术栈
 
-### 后端
-
 - Rust
 - Vue3
 - TypeScript
