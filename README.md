@@ -1,47 +1,7 @@
-# GTAModx Manager
+# Tauri + Vue + TypeScript
 
-> Mod/Cleo管理器 for GTA III.VC.SA
+This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
 
-当前开发进度: 10%
+## Recommended IDE Setup
 
-> 最开始是拿`electron`开发的build后一看体积500Mb+, 果断放弃, 使用`PyWebview`&`Vue3`进行构建  
-> 由于我是`PHPer`, 加上想转`Python`开发所以代码质量可能是一大坨QwQ
-
-## 快速开始
-
-```bash
-python dev.py
-pyinstaller build.spec
-```
-
-```bash
-cd vue
-pnpm install
-pnpm run dev
-pnpm run build
-```
-
-## 技术栈
-
-### 后端
-
-- Python
-- PyWebview
-
-### 前端
-
-- Vue3
-- scss
-- TypeScript
-
-### UI
-
-- MotyfJS
-- Vuetify3
-- ArcoDesign
-
-### 其他
-
-- PNPM
-- Vite6
-- PyInstaller
+- [VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
