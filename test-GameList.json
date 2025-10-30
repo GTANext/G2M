@@ -1,0 +1,28 @@
+{
+  "games": [
+    {
+      "id": 1,
+      "name": "Grand Theft Auto III",
+      "time": "2025-01-30T10:00:00Z",
+      "dir": "C:\\Games\\GTA3",
+      "exe": "gta3.exe",
+      "img": null
+    },
+    {
+      "id": 2,
+      "name": "Grand Theft Auto: Vice City",
+      "time": "2025-01-30T10:05:00Z",
+      "dir": "C:\\Games\\GTAVC",
+      "exe": "gta-vc.exe",
+      "img": "/images/gtavc-custom.jpg"
+    },
+    {
+      "id": 3,
+      "name": "Grand Theft Auto: San Andreas",
+      "time": "2025-01-30T10:10:00Z",
+      "dir": "C:\\Games\\GTASA",
+      "exe": "gtasa.exe",
+      "img": null
+    }
+  ]
+}

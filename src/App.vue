@@ -1,5 +1,16 @@
 <script setup>
-
+import { message } from 'ant-design-vue';
+const info = () => {
+  message.success({
+    content: () => '感谢使用G2M',
+    style: {
+      marginTop: '10vh',
+    },
+  });
+};
+// onMounted(() => {
+//   info();
+// });
 </script>
 
 <template>
@@ -20,8 +31,7 @@
 
 .main-content {
   flex: 1;
-  padding-top: 30px; /* 与标题栏高度一致 */
-  height: calc(100vh - 30px);
+  padding-top: 40px;
   overflow: auto;
 }
 </style>

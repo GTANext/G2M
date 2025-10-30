@@ -59,6 +59,9 @@ declare global {
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
   const useFetch: typeof import('@vueuse/core').useFetch
+  const useGameApi: typeof import('./composables/api/useGameApi').useGameApi
+  const useGameForm: typeof import('./composables/ui/useGameForm').useGameForm
+  const useGameList: typeof import('./composables/ui/useGameList').useGameList
   const useId: typeof import('vue').useId
   const useModel: typeof import('vue').useModel
   const useMouse: typeof import('@vueuse/core').useMouse
@@ -137,6 +140,9 @@ declare module 'vue' {
     readonly useCssModule: UnwrapRef<typeof import('vue')['useCssModule']>
     readonly useCssVars: UnwrapRef<typeof import('vue')['useCssVars']>
     readonly useFetch: UnwrapRef<typeof import('@vueuse/core')['useFetch']>
+    readonly useGameApi: UnwrapRef<typeof import('./composables/api/useGameApi')['useGameApi']>
+    readonly useGameForm: UnwrapRef<typeof import('./composables/ui/useGameForm')['useGameForm']>
+    readonly useGameList: UnwrapRef<typeof import('./composables/ui/useGameList')['useGameList']>
     readonly useId: UnwrapRef<typeof import('vue')['useId']>
     readonly useModel: UnwrapRef<typeof import('vue')['useModel']>
     readonly useMouse: UnwrapRef<typeof import('@vueuse/core')['useMouse']>
@@ -144,7 +150,6 @@ declare module 'vue' {
     readonly useRouter: UnwrapRef<typeof import('vue-router')['useRouter']>
     readonly useSlots: UnwrapRef<typeof import('vue')['useSlots']>
     readonly useTemplateRef: UnwrapRef<typeof import('vue')['useTemplateRef']>
-    readonly useWindowControl: UnwrapRef<typeof import('./composables/api/useWindowControl')['useWindowControl']>
     readonly watch: UnwrapRef<typeof import('vue')['watch']>
     readonly watchEffect: UnwrapRef<typeof import('vue')['watchEffect']>
     readonly watchPostEffect: UnwrapRef<typeof import('vue')['watchPostEffect']>

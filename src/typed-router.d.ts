@@ -30,6 +30,27 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/[...error]': RouteRecordInfo<
+      '/[...error]',
+      '/:error(.*)',
+      { error: ParamValue<true> },
+      { error: ParamValue<false> },
+      | never
+    >,
+    '/game/add': RouteRecordInfo<
+      '/game/add',
+      '/game/add',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/game/info': RouteRecordInfo<
+      '/game/info',
+      '/game/info',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
   }
 
   /**
@@ -46,6 +67,24 @@ declare module 'vue-router/auto-routes' {
     'src/pages/index.vue': {
       routes:
         | '/'
+      views:
+        | never
+    }
+    'src/pages/[...error].vue': {
+      routes:
+        | '/[...error]'
+      views:
+        | never
+    }
+    'src/pages/game/add.vue': {
+      routes:
+        | '/game/add'
+      views:
+        | never
+    }
+    'src/pages/game/info.vue': {
+      routes:
+        | '/game/info'
       views:
         | never
     }

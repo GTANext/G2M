@@ -1,5 +1,5 @@
 <script setup>
-import { useWindowControl } from '@/composables/api/useWindowControl'
+import { useWindowControl } from '@/composables/api/useApp'
 import { useNavigation } from '@/composables/ui/useNavigation'
 import {
     AppstoreOutlined,
@@ -16,7 +16,7 @@ const { navItems, isActive, handleNavClick } = useNavigation()
 <template>
     <a-layout-header class="custom-titlebar" data-tauri-drag-region>
         <div class="titlebar-content">
-            <div class="titlebar-left" data-tauri-drag-region>
+            <div class="titlebar-left">
                 <div class="app-info">
                     <AppstoreOutlined class="app-icon" />
                     <span class="app-name">G2M</span>
@@ -24,8 +24,8 @@ const { navItems, isActive, handleNavClick } = useNavigation()
                 </div>
             </div>
 
-            <div class="titlebar-center" data-tauri-drag-region="false">
-                <a-space size="small">
+            <div class="titlebar-center">
+                <a-space size="small" class="no-drag">
                     <a-button v-for="item in navItems" :key="item.key"
                         :type="!isActive(item.route) ? 'text' : 'default'" @click="handleNavClick(item)">
                         <template #icon>
@@ -36,8 +36,8 @@ const { navItems, isActive, handleNavClick } = useNavigation()
                 </a-space>
             </div>
 
-            <div class="titlebar-right" data-tauri-drag-region="false">
-                <a-space size="small">
+            <div class="titlebar-right">
+                <a-space size="small" class="no-drag">
                     <a-button type="text" size="small" title="设置">
                         <template #icon>
                             <SettingOutlined />
@@ -72,6 +72,8 @@ const { navItems, isActive, handleNavClick } = useNavigation()
     right: 0;
     z-index: 1000;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    /* 全局拖拽设置 */
+    -webkit-app-region: drag;
 }
 
 .titlebar-content {
@@ -122,6 +124,11 @@ const { navItems, isActive, handleNavClick } = useNavigation()
     opacity: 0.8;
 }
 
+/* 按钮区域禁止拖拽，确保可以正常点击 */
+.no-drag {
+    -webkit-app-region: no-drag;
+}
+
 :deep(.ant-btn-text) {
     color: #fff;
 }
@@ -133,15 +140,6 @@ const { navItems, isActive, handleNavClick } = useNavigation()
 
 .close-btn:hover {
     background: #ff4d4f !important;
-}
-
-.custom-titlebar[data-tauri-drag-region] {
-    -webkit-app-region: drag;
-}
-
-.titlebar-center[data-tauri-drag-region="false"],
-.titlebar-right[data-tauri-drag-region="false"] {
-    -webkit-app-region: no-drag;
 }
 
 /* 响应式设计 */

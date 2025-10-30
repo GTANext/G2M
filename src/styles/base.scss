@@ -1,0 +1,29 @@
+body:before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -520;
+    pointer-events: none
+}
+
+body:before {
+    background: linear-gradient(90deg,#f795331a,#f370551a 15%,#ef4e7b1a 30%,#a166ab1a,#5073b81a,#1098ad1a,#07b39b1a 86%,#6dba821a)
+}
+
+#nprogress {
+    .bar {
+        background: #ffcc00 !important;
+    }
+
+    .peg {
+        box-shadow: 0 0 10px #ffcc00, 0 0 5px #ffcc00 !important;
+    }
+
+    .spinner-icon {
+        border-top-color: #ffcc00 !important;
+        border-left-color: #ffcc00 !important;
+    }
+}
