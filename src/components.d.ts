@@ -11,8 +11,12 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AppError: typeof import('./components/App/Error.vue')['default']
     AppNavbar: typeof import('./components/App/Navbar.vue')['default']
+    G2MHeader: typeof import('./components/G2M/Header.vue')['default']
+    GameAddDialog: typeof import('./components/Game/AddDialog.vue')['default']
     GameEditDialog: typeof import('./components/Game/EditDialog.vue')['default']
+    GameInfoTab1: typeof import('./components/Game/Info/Tab1.vue')['default']
     GameList: typeof import('./components/Game/List.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

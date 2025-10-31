@@ -19,6 +19,10 @@ import { Empty } from 'ant-design-vue'
 import { useGameListView } from '@/composables'
 import { useGameForm } from '@/composables'
 
+// 导入对话框组件
+import GameEditDialog from './EditDialog.vue'
+import GameAddDialog from './AddDialog.vue'
+
 // 编辑对话框状态
 const editDialogVisible = ref(false)
 const currentEditGame = ref(null)
@@ -88,23 +92,18 @@ const handleEditComplete = () => {
 
 // 显示添加游戏对话框
 const showAddGame = () => {
-  resetForm()
   addGameVisible.value = true
 }
 
-// 提交添加游戏表单
-const handleAddGameSubmit = async () => {
-  const success = await submitForm()
-  if (success) {
-    addGameVisible.value = false
-    refreshGames()
-  }
+// 添加游戏完成后刷新列表
+const handleAddGameComplete = () => {
+  addGameVisible.value = false
+  refreshGames()
 }
 
 // 取消添加游戏
 const handleAddGameCancel = () => {
   addGameVisible.value = false
-  resetForm()
 }
 
 // 页面加载时获取游戏列表
@@ -117,34 +116,24 @@ onMounted(() => {
 
 <template>
   <div class="game-list-container">
-    <div class="page-header">
-      <div class="header-content">
-        <div class="title-section">
-          <h1 class="page-title">
-            已添加游戏
-          </h1>
-          <p class="page-description">
-            管理您的 GTA 游戏收藏
-          </p>
-        </div>
-        <div class="action-section">
-          <a-space>
-            <a-button type="default" @click="refreshGames" :loading="loadingState.loading">
-              <template #icon>
-                <ReloadOutlined />
-              </template>
-              刷新
-            </a-button>
-            <a-button type="primary" size="large" @click="showAddGame">
-              <template #icon>
-                <PlusOutlined />
-              </template>
-              添加游戏
-            </a-button>
-          </a-space>
-        </div>
-      </div>
-    </div>
+    <G2MHeader title="已添加游戏">
+      <template #right>
+        <a-space>
+          <a-button type="default" @click="refreshGames" :loading="loadingState.loading">
+            <template #icon>
+              <ReloadOutlined />
+            </template>
+            刷新
+          </a-button>
+          <a-button type="primary" size="large" @click="showAddGame">
+            <template #icon>
+              <PlusOutlined />
+            </template>
+            添加游戏
+          </a-button>
+        </a-space>
+      </template>
+    </G2MHeader>
 
     <div class="filter-section">
       <a-row :gutter="16">
@@ -265,134 +254,17 @@ onMounted(() => {
     <a-alert v-if="loadingState.error" type="error" show-icon :message="loadingState.error.message" closable
       class="error-alert" />
 
-    <!-- 编辑游戏对话框 -->
     <GameEditDialog
       v-model:visible="editDialogVisible"
       :game-info="currentEditGame"
       @success="handleEditComplete"
     />
 
-    <!-- 添加游戏对话框 -->
-    <a-modal
-      v-model:open="addGameVisible"
-      title="添加游戏"
-      width="800px"
-      :footer="null"
+    <GameAddDialog
+      v-model:visible="addGameVisible"
+      @success="handleAddGameComplete"
       @cancel="handleAddGameCancel"
-    >
-      <div class="add-game-content">
-        <div class="add-game-header">
-          <h3 class="add-game-title">
-            <AppstoreOutlined class="title-icon" />
-            添加新游戏
-          </h3>
-          <p class="add-game-description">
-            选择游戏文件夹，系统将自动检测支持的 GTA 游戏并填充信息
-          </p>
-        </div>
-
-        <a-form ref="formRef" :model="formData" :rules="rules" layout="vertical" @finish="handleAddGameSubmit">
-          <a-form-item label="游戏目录" name="dir" class="form-item">
-            <a-input-group compact>
-              <a-input v-model:value="formData.dir" placeholder="请选择游戏安装目录" readonly class="folder-input" />
-              <a-button type="primary" @click="selectFolder" :loading="formLoadingState.loading" class="folder-button">
-                <template #icon>
-                  <FolderOpenOutlined />
-                </template>
-                选择文件夹
-              </a-button>
-            </a-input-group>
-          </a-form-item>
-
-          <div v-if="formData.dir" class="detection-section">
-            <a-spin :spinning="isDetecting" tip="正在检测游戏...">
-              <a-alert v-if="isAutoDetected" type="success" show-icon class="detection-alert">
-                <template #icon>
-                  <CheckCircleOutlined />
-                </template>
-                <template #message>
-                  <span class="detection-title">自动检测成功</span>
-                </template>
-                <template #description>
-                  <div class="detection-info">
-                    <p><strong>游戏类型:</strong> {{ getGameTypeName(detectionResult?.type || '') }}</p>
-                    <p><strong>主程序:</strong> {{ detectionResult?.executable }}</p>
-                    <p class="detection-note">系统已自动填充游戏信息，您可以根据需要进行修改</p>
-                  </div>
-                </template>
-              </a-alert>
-
-              <a-alert v-else-if="detectionResult && !isAutoDetected" type="info" show-icon class="detection-alert">
-                <template #message>
-                  <span class="detection-title">未检测到支持的游戏</span>
-                </template>
-                <template #description>
-                  <div class="detection-info">
-                    <p>在所选目录中未找到支持的 GTA 游戏，请手动填写游戏信息</p>
-                  </div>
-                </template>
-              </a-alert>
-            </a-spin>
-          </div>
-
-          <a-row :gutter="16">
-            <a-col :span="12">
-              <a-form-item label="游戏名称" name="name">
-                <a-input v-model:value="formData.name" placeholder="请输入游戏名称" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="12">
-              <a-form-item label="启动程序" name="exe">
-                <a-input v-model:value="formData.exe" placeholder="例如: gta3.exe" />
-              </a-form-item>
-            </a-col>
-          </a-row>
-
-          <a-form-item label="游戏封面" class="image-form-item">
-            <div class="image-upload-section">
-              <div v-if="imagePreview" class="image-preview-container">
-                <img :src="imagePreview" alt="游戏封面预览" class="image-preview" />
-                <div class="image-actions">
-                  <a-button type="text" @click="selectImage" :loading="uploadingImage">
-                    <template #icon>
-                      <UploadOutlined />
-                    </template>
-                    更换图片
-                  </a-button>
-                  <a-button type="text" danger @click="clearImage">
-                    <template #icon>
-                      <DeleteOutlined />
-                    </template>
-                    删除图片
-                  </a-button>
-                </div>
-              </div>
-              <div v-else class="image-upload-placeholder" @click="selectImage">
-                <div class="upload-content">
-                  <PictureOutlined class="upload-icon" />
-                  <p class="upload-text">点击选择游戏封面</p>
-                  <p class="upload-hint">支持 JPG、PNG 格式</p>
-                </div>
-              </div>
-            </div>
-          </a-form-item>
-
-          <div class="form-actions">
-            <a-space>
-              <a-button @click="handleAddGameCancel">
-                取消
-              </a-button>
-              <a-button type="primary" html-type="submit" :loading="formLoadingState.loading">
-                <template #icon>
-                  <CheckCircleOutlined />
-                </template>
-                添加游戏
-              </a-button>
-            </a-space>
-          </div>
-        </a-form>
-      </div>
-    </a-modal>
+    />
   </div>
 </template>
 
@@ -401,39 +273,7 @@ onMounted(() => {
   padding: 24px;
 }
 
-.page-header {
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.title-section {
-  flex: 1;
-}
-
-.page-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #1890ff;
-  margin: 0 0 8px 0;
-}
-
-.page-description {
-  color: #666;
-  margin: 0;
-  font-size: 16px;
-}
-
-.action-section {
-  flex-shrink: 0;
-}
+/* 页面头部样式已移至 base.scss */
 
 .filter-section {
   margin-bottom: 24px;
@@ -507,11 +347,10 @@ onMounted(() => {
 .game-type-badge {
   background: rgba(24, 144, 255, 0.9);
   color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
-  backdrop-filter: blur(4px);
 }
 
 .game-info {
@@ -523,230 +362,34 @@ onMounted(() => {
 }
 
 .game-name {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: #333;
   margin: 0;
+  color: #333;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .game-details {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  font-size: 12px;
+  color: #666;
 }
 
-.game-path,
-.game-exe,
-.game-date {
-  font-size: 13px;
-  color: #666;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.game-details p {
+  margin: 4px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.game-path {
-  font-family: 'Courier New', monospace;
-}
-
 .game-actions {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.game-card:hover .game-actions {
-  opacity: 1;
+  padding: 0 16px 16px;
+  display: flex;
+  justify-content: center;
 }
 
 .error-alert {
-  margin-top: 24px;
-}
-
-/* 添加游戏对话框样式 */
-.add-game-content {
-  padding: 8px 0;
-}
-
-.add-game-header {
-  margin-bottom: 24px;
-  text-align: center;
-}
-
-.add-game-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1890ff;
-  margin: 0 0 8px 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.title-icon {
-  font-size: 24px;
-}
-
-.add-game-description {
-  color: #666;
-  margin: 0;
-  font-size: 14px;
-}
-
-.form-item {
-  margin-bottom: 20px;
-}
-
-.folder-input {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.folder-button {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.detection-section {
-  margin: 20px 0;
-}
-
-.detection-alert {
-  border-radius: 8px;
-}
-
-.detection-title {
-  font-weight: 600;
-}
-
-.detection-info p {
-  margin: 4px 0;
-}
-
-.detection-note {
-  color: #666;
-  font-style: italic;
-}
-
-.image-form-item {
-  margin-bottom: 24px;
-}
-
-.image-upload-section {
-  border: 2px dashed #d9d9d9;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: border-color 0.3s ease;
-}
-
-.image-upload-section:hover {
-  border-color: #1890ff;
-}
-
-.image-preview-container {
-  position: relative;
-}
-
-.image-preview {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  display: block;
-}
-
-.image-actions {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-  padding: 16px;
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-}
-
-.image-actions .ant-btn {
-  color: white;
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.image-actions .ant-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-.image-upload-placeholder {
-  height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.image-upload-placeholder:hover {
-  background-color: #fafafa;
-}
-
-.upload-content {
-  text-align: center;
-}
-
-.upload-icon {
-  font-size: 48px;
-  color: #d9d9d9;
-  margin-bottom: 16px;
-}
-
-.upload-text {
-  font-size: 16px;
-  color: #666;
-  margin: 0 0 4px 0;
-}
-
-.upload-hint {
-  font-size: 12px;
-  color: #999;
-  margin: 0;
-}
-
-.form-actions {
-  text-align: right;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
-}
-
-@media (max-width: 768px) {
-  .game-list-container {
-    padding: 16px;
-  }
-  
-  .header-content {
-    flex-direction: column;
-    gap: 16px;
-    align-items: stretch;
-  }
-  
-  .games-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .game-actions {
-    position: static;
-    opacity: 1;
-    margin-top: 12px;
-  }
+  margin-top: 16px;
 }
 </style>

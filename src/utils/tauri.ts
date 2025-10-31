@@ -55,7 +55,7 @@ const mockGames: GameInfo[] = [
     exe: "gta3.exe",
     img: "/images/gta3.jpg",
     time: "2024-01-15T10:30:00.000Z",
-    game_type: "gta3"
+    type: "gta3"
   },
   {
     id: 2,
@@ -64,7 +64,7 @@ const mockGames: GameInfo[] = [
     exe: "gta-vc.exe",
     img: "/images/gtavc.jpg",
     time: "2024-01-16T14:20:00.000Z",
-    game_type: "gtavc"
+    type: "gtavc"
   },
   {
     id: 3,
@@ -73,7 +73,7 @@ const mockGames: GameInfo[] = [
     exe: "gta_sa.exe",
     img: "/images/gtasa.jpg",
     time: "2024-01-17T09:15:00.000Z",
-    game_type: "gtasa"
+    type: "gtasa"
   }
 ];
 
@@ -107,7 +107,7 @@ const mockApi = {
       return {
         success: true,
         game_type: 'gtasa',
-        executable: 'gtasa.exe',
+        executable: 'gta_sa.exe',
         game_name: 'Grand Theft Auto: San Andreas'
       };
     } else {
@@ -138,7 +138,7 @@ const mockApi = {
       exe: params.exe,
       img: params.img,
       time: new Date().toISOString(),
-      game_type: params.game_type
+      type: params.type
     };
     mockGames.push(newGame);
     return { success: true };

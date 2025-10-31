@@ -201,7 +201,7 @@ const handleFinish = (values) => {
 
         <a-form-item label="游戏封面" name="img">
           <a-input-group compact>
-            <a-input v-model:value="formData.img" placeholder="请输入游戏封面路径（可选）" size="large"
+            <a-input v-model:value="formData.img" placeholder="点击按钮选择自定义游戏封面" size="large"
               style="width: calc(100% - 120px)" />
             <a-button type="primary" size="large" :loading="selectingImage" @click="selectImageFileHandler"
               style="width: 120px">

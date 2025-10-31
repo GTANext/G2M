@@ -9,9 +9,9 @@ use crate::game::{GameInfo, GameList, GameDetectionResult, ApiResponse, CopyImag
 // 根据exe文件名识别游戏类型
 fn detect_game_type_from_exe(exe_name: &str) -> Option<String> {
     match exe_name.to_lowercase().as_str() {
-        "gta3.exe" => Some("GTA3".to_string()),
-        "gta-vc.exe" => Some("GTAVC".to_string()),
-        "gtasa.exe" | "gta-sa.exe" | "gta_sa.exe" => Some("GTASA".to_string()),
+        "gta3.exe" => Some("gta3".to_string()),
+        "gta-vc.exe" => Some("gtavc".to_string()),
+        "gtasa.exe" | "gta-sa.exe" | "gta_sa.exe" => Some("gtasa".to_string()),
         _ => None,
     }
 }
@@ -140,7 +140,7 @@ pub async fn launch_game(game_dir: String, executable: String, run_as_admin: Opt
             // 检查是否是权限错误 (os error 740)
             if e.raw_os_error() == Some(740) {
                 Ok(ApiResponse::error(
-                    "启动游戏需要管理员权限。请尝试以管理员身份运行游戏，或者右键点击游戏图标选择\"以管理员身份运行\"。".to_string()
+                    "启动游戏需要管理员权限。请尝试以管理员身份运行G2M。".to_string()
                 ))
             } else {
                 Ok(ApiResponse::error(format!("启动游戏失败: {}", e)))

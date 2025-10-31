@@ -1,24 +1,13 @@
 <script setup>
-import { message } from 'ant-design-vue';
-const info = () => {
-  message.success({
-    content: () => '感谢使用G2M',
-    style: {
-      marginTop: '10vh',
-    },
-  });
-};
-// onMounted(() => {
-//   info();
-// });
+
 </script>
 
 <template>
   <div class="app-container">
     <AppNavbar />
-    <main class="main-content">
-      <RouterView />
-    </main>
+      <main class="main-content">
+        <RouterView />
+      </main>
   </div>
 </template>
 

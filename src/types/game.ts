@@ -6,7 +6,7 @@ export interface GameInfo {
   dir: string;  // 游戏目录路径
   exe: string;  // 启动程序文件名
   img?: string; // 游戏图片
-  game_type?: 'gta3' | 'gtavc' | 'gtasa'; // 游戏类型
+  type?: 'gta3' | 'gtavc' | 'gtasa'; // 游戏类型
 }
 
 // 游戏检测结果接口
@@ -47,7 +47,7 @@ export interface AddGameFormData {
   dir: string;
   exe: string;
   img?: string;
-  game_type?: 'gta3' | 'gtavc' | 'gtasa';
+  type?: 'gta3' | 'gtavc' | 'gtasa';
 }
 
 // 表单验证规则接口

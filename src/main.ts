@@ -1,5 +1,4 @@
 import './styles/main.scss'
-import 'sober'
 import { createApp } from "vue";
 import router from "./router";
 import Antd from 'ant-design-vue';
@@ -7,8 +6,6 @@ import 'ant-design-vue/dist/reset.css';
 import App from "./App.vue";
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-import * as NProgress from 'nprogress';
-import 'nprogress/nprogress.css';
 
 // 初始化 Tauri
 async function initApp() {
@@ -29,25 +26,6 @@ async function initApp() {
   app.use(pinia);
   app.use(Antd);
   app.use(router);
-
-  // 配置 NProgress 选项
-  NProgress.configure({
-    easing: 'ease',
-    speed: 1000,
-    showSpinner: true,
-    trickleSpeed: 1000,
-    minimum: 0.4,
-    parent: 'body'
-  });
-
-  // 路由守卫中使用 NProgress
-  router.beforeEach(() => {
-    NProgress.start();
-  });
-
-  router.afterEach(() => {
-    NProgress.done();
-  });
 
   app.mount("#app");
 }

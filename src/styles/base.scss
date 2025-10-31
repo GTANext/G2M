@@ -27,3 +27,93 @@ body:before {
         border-left-color: #ffcc00 !important;
     }
 }
+
+/* 通用页面头部样式 */
+.page-header {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease;
+
+    &:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.header-left {
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+.header-right {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.page-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: #1890ff;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.back-button {
+    font-size: 16px;
+    padding: 8px 16px;
+    height: auto;
+    border: none;
+    background: transparent;
+    color: #666;
+    transition: all 0.3s ease;
+
+    &:hover {
+        color: #1890ff;
+        background: rgba(24, 144, 255, 0.05);
+    }
+
+    &:focus {
+        color: #1890ff;
+        background: rgba(24, 144, 255, 0.05);
+    }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .page-header {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .header-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .header-left,
+    .header-right {
+        flex: none;
+    }
+
+    .page-title {
+        font-size: 24px;
+        text-align: center;
+    }
+
+    .back-button {
+        font-size: 14px;
+        padding: 6px 12px;
+    }
+}

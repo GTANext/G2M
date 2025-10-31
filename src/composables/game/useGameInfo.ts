@@ -19,12 +19,22 @@ export function useGameInfo(gameId: any) {
     gameData.value = data;
   };
 
-  // 获取游戏类型名称 - 完全移除类型检查
+  // 获取游戏类型名称 - 支持大小写兼容
   const getGameTypeName = computed(() => {
     const gameType = gameData.value?.type;
     if (!gameType) return '未知游戏';
+    
+    // 先尝试直接匹配
     // @ts-ignore - 忽略类型检查
-    return (GAME_TYPE_NAMES as any)[gameType] || '未知游戏';
+    let typeName = (GAME_TYPE_NAMES as any)[gameType];
+    
+    // 如果直接匹配失败，尝试小写匹配
+    if (!typeName) {
+      // @ts-ignore - 忽略类型检查
+      typeName = (GAME_TYPE_NAMES as any)[gameType.toLowerCase()];
+    }
+    
+    return typeName || '未知游戏';
   });
 
   // 获取游戏图片
@@ -42,18 +52,23 @@ export function useGameInfo(gameId: any) {
     // 如果没有自定义图片，根据游戏类型返回默认图片
     const gameType = gameData.value?.type;
     if (gameType) {
-      // 默认图片映射（与游戏列表保持一致）
+      // 默认图片映射 - 支持大小写兼容
       const iconMap: Record<string, string> = {
         'GTA3': '/images/gta3.jpg',
         'GTAVC': '/images/gtavc.jpg', 
         'GTASA': '/images/gtasa.jpg',
-        // 兼容旧的小写格式
         'gta3': '/images/gta3.jpg',
         'gtavc': '/images/gtavc.jpg',
         'gtasa': '/images/gtasa.jpg'
       };
       
-      return iconMap[gameType] || '/images/null.svg';
+      // 先尝试直接匹配，如果失败则尝试小写匹配
+      let gameImage = iconMap[gameType];
+      if (!gameImage) {
+        gameImage = iconMap[gameType.toLowerCase()];
+      }
+      
+      return gameImage || '/images/null.svg';
     }
     
     // 最后的退路
