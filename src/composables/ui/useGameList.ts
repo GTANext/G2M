@@ -1,163 +1,72 @@
-import { ref, onMounted, computed, type Ref } from 'vue';
-import { message } from 'ant-design-vue';
-import type { GameInfo } from '@/types';
+import { ref, computed, onMounted } from 'vue';
 import { useGameApi } from '@/composables/api/useGameApi';
+import { isTauriEnvironment } from '@/utils/tauri';
 
-export function useGameList(selectedGameType?: Ref<string>) {
+export function useGameList() {
   const gameApi = useGameApi();
-
+  
   // 游戏列表
-  const gameList = ref<GameInfo[]>([]);
-
-  // 搜索关键词
-  const searchKeyword = ref('');
-
-  // 过滤后的游戏列表
-  const filteredGameList = computed(() => {
-    let filtered = gameList.value;
-
-    // 按搜索关键词筛选
-    if (searchKeyword.value) {
-      const keyword = searchKeyword.value.toLowerCase();
-      filtered = filtered.filter(game =>
-        game.name.toLowerCase().includes(keyword) ||
-        game.dir.toLowerCase().includes(keyword)
-      );
-    }
-
-    // 按游戏类型筛选
-    if (selectedGameType?.value) {
-      filtered = filtered.filter(game => {
-        const gameType = getGameTypeFromExecutable(game.exe);
-        return gameType === selectedGameType.value;
-      });
-    }
-
-    return filtered;
-  });
-
-  // 是否为空列表
-  const isEmpty = computed(() => gameList.value.length === 0);
-
-  // 是否正在加载
+  const games = ref([]);
+  
+  // 加载状态
   const isLoading = computed(() => gameApi.loadingState.loading);
-
-  // 加载游戏列表
-  const loadGameList = async () => {
+  const error = computed(() => gameApi.loadingState.error);
+  
+  // 获取游戏列表
+  const fetchGames = async () => {
     try {
-      const games = await gameApi.getGames();
-      gameList.value = games || [];
+      const gameList = await gameApi.getGames();
+      games.value = gameList || [];
     } catch (error) {
-      console.error('加载游戏列表失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '加载游戏列表时发生未知错误';
-      message.error(`加载游戏列表失败: ${errorMessage}`);
+      console.error('获取游戏列表失败:', error);
     }
   };
-
+  
   // 刷新游戏列表
-  const refreshGameList = async () => {
-    await loadGameList();
+  const refreshGames = async () => {
+    await fetchGames();
   };
-
-  // 格式化游戏添加时间
-  const formatGameTime = (timeString: string): string => {
+  
+  // 启动游戏
+  const launchGame = async (game: any) => {
     try {
-      const date = new Date(timeString);
-      return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (error) {
-      return '未知时间';
-    }
-  };
-
-  // 获取游戏封面
-  const getGameIcon = (game: GameInfo): string => {
-    if (game.img) {
-      return game.img;
-    }
-
-    // 优先使用 game_type 字段，其次根据可执行文件推断
-    const gameType = game.game_type || getGameTypeFromExecutable(game.exe);
-    const coverMap: Record<string, string> = {
-      'gta3': '/images/gta3.jpg',
-      'gtavc': '/images/gtavc.jpg',
-      'gtasa': '/images/gtasa.jpg'
-    };
-
-    return coverMap[gameType] || '/images/null.svg';
-  };
-
-  // 根据可执行文件名判断游戏类型
-  const getGameTypeFromExecutable = (executable: string): string => {
-    const exeMap: Record<string, string> = {
-      'gta3.exe': 'gta3',
-      'gta-vc.exe': 'gtavc',
-      'gtasa.exe': 'gtasa'
-    };
-    return exeMap[executable.toLowerCase()] || 'unknown';
-  };
-
-  // 启动游戏（预留功能）
-  const launchGame = async (game: GameInfo) => {
-    try {
-      // 这里可以调用 Tauri 命令来启动游戏
-      message.info(`启动游戏: ${game.name}`);
-      // TODO: 实现游戏启动逻辑
+      const response = await gameApi.launchGame(game.dir, game.exe);
+      if (!response.success) {
+        throw new Error(response.error || '启动游戏失败');
+      }
     } catch (error) {
       console.error('启动游戏失败:', error);
-      message.error('启动游戏失败');
+      throw error;
     }
   };
-
-  // 删除游戏（预留功能）
-  const deleteGame = async (gameId: number) => {
+  
+  // 打开游戏文件夹
+  const openGameFolder = async (game: any) => {
     try {
-      // TODO: 实现删除游戏逻辑
-      message.info('删除游戏功能待实现');
+      const response = await gameApi.openGameFolder(game.dir);
+      if (!response.success) {
+        throw new Error(response.error || '打开游戏文件夹失败');
+      }
     } catch (error) {
-      console.error('删除游戏失败:', error);
-      message.error('删除游戏失败');
+      console.error('打开游戏文件夹失败:', error);
+      throw error;
     }
   };
-
-  // 编辑游戏（预留功能）
-  const editGame = async (game: GameInfo) => {
-    try {
-      // TODO: 实现编辑游戏逻辑
-      message.info('编辑游戏功能待实现');
-    } catch (error) {
-      console.error('编辑游戏失败:', error);
-      message.error('编辑游戏失败');
-    }
-  };
-
-  // 组件挂载时加载游戏列表
+  
+  // 组件挂载时获取游戏列表
   onMounted(() => {
-    loadGameList();
+    if (isTauriEnvironment()) {
+      fetchGames();
+    }
   });
-
+  
   return {
-    // 状态
-    gameList,
-    searchKeyword,
-    filteredGameList,
-    isEmpty,
+    games,
     isLoading,
-    loadingState: gameApi.loadingState,
-
-    // 方法
-    loadGameList,
-    refreshGameList,
-    formatGameTime,
-    getGameIcon,
-    getGameTypeFromExecutable,
+    error,
+    fetchGames,
+    refreshGames,
     launchGame,
-    deleteGame,
-    editGame
+    openGameFolder
   };
 }

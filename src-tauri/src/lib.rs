@@ -1,6 +1,23 @@
-mod game_manager;
+#[path = "game/index.rs"]
+mod game;
 
-use game_manager::{select_game_folder, detect_game, save_game, get_games, get_game_by_id, update_game, check_duplicate_directory};
+use game::{
+    select_game_folder, 
+    detect_game, 
+    save_game, 
+    get_games, 
+    get_game_by_id, 
+    update_game, 
+    delete_game, 
+    check_duplicate_directory, 
+    copy_game_image, 
+    select_image_file, 
+    process_image_upload, 
+    save_base64_image, 
+    copy_image_to_custom_dir, 
+    launch_game, 
+    open_game_folder
+};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -9,7 +26,7 @@ fn greet(name: &str) -> String {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+pub fn run() -> () {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -22,7 +39,15 @@ pub fn run() {
             get_games,
             get_game_by_id,
             update_game,
-            check_duplicate_directory
+            delete_game,
+            check_duplicate_directory,
+            copy_game_image,
+            select_image_file,
+            process_image_upload,
+            save_base64_image,
+            copy_image_to_custom_dir,
+            launch_game,
+            open_game_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,52 +1,22 @@
+
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { 
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
   ArrowLeftOutlined,
   PlayCircleOutlined,
   FolderOpenOutlined,
-  EditOutlined,
-  AppstoreOutlined,
-  InfoCircleOutlined,
-  CheckCircleOutlined,
-  LoadingOutlined
+  EditOutlined
 } from '@ant-design/icons-vue'
-import { useGameApi } from '@/composables'
-import { message } from 'ant-design-vue'
 
-const router = useRouter()
+import { useGameInfo } from '@/composables/game/useGameInfo'
+import { useGameActions } from '@/composables/game/useGameActions'
+import { formatTime } from '@/utils/format'
+import { isTauriEnvironment } from '@/utils/tauri'
+import GameEditDialog from '@/components/Game/EditDialog.vue'
+
 const route = useRoute()
-const { getGameById, updateGame } = useGameApi()
-
-// 页面状态
-const loading = ref(false)
-const gameInfo = ref(null)
-const activeTab = ref('info')
-
-// 编辑表单数据
-const editForm = ref({
-  name: '',
-  dir: '',
-  exe: '',
-  img: ''
-})
-
-// 表单验证规则
-const rules = {
-  name: [
-    { required: true, message: '请输入游戏名称', trigger: 'blur' }
-  ],
-  dir: [
-    { required: true, message: '请选择游戏目录', trigger: 'blur' }
-  ],
-  exe: [
-    { required: true, message: '请输入启动程序', trigger: 'blur' }
-  ]
-}
-
-// 编辑状态
-const isEditing = ref(false)
-const editFormRef = ref()
+const router = useRouter()
 
 // 获取游戏ID
 const gameId = computed(() => {
@@ -54,208 +24,93 @@ const gameId = computed(() => {
   return id ? parseInt(id, 10) : null
 })
 
-// 获取游戏类型名称
-const getGameTypeName = (game) => {
-  // 优先使用 game_type 字段
-  if (game.game_type) {
-    const typeMap = {
-      'gta3': 'GTA III',
-      'gtavc': 'GTA Vice City',
-      'gtasa': 'GTA San Andreas'
-    }
-    return typeMap[game.game_type] || '未知'
-  }
-  
-  // 兼容旧数据，根据可执行文件推断
-  if (!game.exe) return '未知'
-  const lowerExe = game.exe.toLowerCase()
-  if (lowerExe.includes('gta3') || lowerExe.includes('gta_3')) return 'GTA III'
-  if (lowerExe.includes('gtavc') || lowerExe.includes('vice')) return 'GTA Vice City'
-  if (lowerExe.includes('gtasa') || lowerExe.includes('san')) return 'GTA San Andreas'
-  return '其他'
+// 使用组合式函数
+const {
+  loading: infoLoading,
+  gameInfo,
+  getGameTypeName,
+  getGameImage,
+  handleImageError,
+  loadGameInfo
+} = useGameInfo(gameId)
+
+const {
+  loading: actionLoading,
+  launchGame,
+  openGameFolder,
+  saveEdit
+} = useGameActions()
+
+// 编辑对话框状态和函数
+const editDialogVisible = ref(false)
+
+const startEdit = () => {
+  editDialogVisible.value = true
 }
 
-// 格式化时间
-const formatTime = (timeStr) => {
-  if (!timeStr) return '未知'
-  try {
-    return new Date(timeStr).toLocaleString('zh-CN')
-  } catch {
-    return timeStr
-  }
+const cancelEdit = () => {
+  editDialogVisible.value = false
 }
 
-// 获取游戏图片
-const getGameImage = (game) => {
-  // 如果游戏有自定义图片，优先使用
-  if (game.img) {
-    return game.img
-  }
-  
-  // 优先使用 game_type 字段，其次根据可执行文件推断
-  const gameType = game.game_type || getGameTypeFromExecutable(game.exe)
-  const imageMap = {
-    'gta3': '/images/gta3.jpg',
-    'gtavc': '/images/gtavc.jpg', 
-    'gtasa': '/images/gtasa.jpg'
-  }
-  
-  return imageMap[gameType] || '/images/null.svg'
-}
-
-// 根据可执行文件获取游戏类型
-const getGameTypeFromExecutable = (exe) => {
-  if (!exe) return 'unknown'
-  const lowerExe = exe.toLowerCase()
-  if (lowerExe.includes('gta3') || lowerExe.includes('gta_3')) return 'gta3'
-  if (lowerExe.includes('gtavc') || lowerExe.includes('vice')) return 'gtavc'
-  if (lowerExe.includes('gtasa') || lowerExe.includes('san')) return 'gtasa'
-  return 'unknown'
-}
-
-// 处理图片加载错误
-const handleImageError = (event) => {
-  // 如果图片加载失败，显示默认图片
-  event.target.src = '/images/null.svg'
-}
-
-// 加载游戏信息
-const loadGameInfo = async () => {
-  if (!gameId.value) {
-    message.error('游戏ID不能为空')
-    router.push('/')
-    return
-  }
-
-  loading.value = true
-  try {
-    const response = await getGameById(gameId.value)
-    if (response.success && response.data) {
-      gameInfo.value = response.data
-      // 初始化编辑表单
-      editForm.value = {
-        name: response.data.name || '',
-        dir: response.data.dir || '',
-        exe: response.data.exe || '',
-        img: response.data.img || ''
-      }
-    } else {
-      message.error(response.error || '获取游戏信息失败')
-      router.push('/')
-    }
-  } catch (error) {
-    console.error('加载游戏信息失败:', error)
-    message.error('加载游戏信息失败')
-    router.push('/')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 返回游戏列表
+// 页面操作
 const goBack = () => {
   router.push('/')
 }
 
-// 启动游戏
-const launchGame = () => {
-  if (!gameInfo.value) return
-  // TODO: 实现启动游戏逻辑
-  message.info(`启动游戏: ${gameInfo.value.name}`)
+const handleLaunchGame = () => {
+  launchGame(gameInfo.value)
 }
 
-// 打开游戏目录
-const openGameFolder = () => {
-  if (!gameInfo.value) return
-  // TODO: 实现打开文件夹逻辑
-  message.info(`打开目录: ${gameInfo.value.dir}`)
+const handleOpenFolder = () => {
+  openGameFolder(gameInfo.value)
 }
 
-// 开始编辑
-const startEdit = () => {
-  isEditing.value = true
-  activeTab.value = 'edit'
+const handleStartEdit = () => {
+  startEdit()
 }
 
-// 取消编辑
-const cancelEdit = () => {
-  isEditing.value = false
-  // 重置表单数据
-  if (gameInfo.value) {
-    editForm.value = {
-      name: gameInfo.value.name || '',
-      dir: gameInfo.value.dir || '',
-      exe: gameInfo.value.exe || '',
-      img: gameInfo.value.img || ''
-    }
-  }
+const handleCancelEdit = () => {
+  cancelEdit()
 }
 
-// 保存编辑
-const saveEdit = async () => {
-  if (!editFormRef.value) return
-  
-  try {
-    await editFormRef.value.validate()
-    
-    loading.value = true
-    const response = await updateGame(gameId.value, editForm.value)
-    
-    if (response.success) {
-      message.success('游戏信息更新成功')
-      // 更新本地数据
-      gameInfo.value = { ...gameInfo.value, ...editForm.value }
-      isEditing.value = false
-      activeTab.value = 'info'
-    } else {
-      message.error(response.error || '更新游戏信息失败')
-    }
-  } catch (error) {
-    console.error('保存游戏信息失败:', error)
-    message.error('保存游戏信息失败')
-  } finally {
-    loading.value = false
+const handleSaveEdit = async (editForm) => {
+  const success = await saveEdit(gameId.value, editForm, gameInfo.value)
+  if (success) {
+    editDialogVisible.value = false
+    // 重新加载游戏信息以获取最新数据
+    loadGameInfo()
   }
 }
 
 // 页面加载时获取游戏信息
 onMounted(() => {
-  loadGameInfo()
+  if (isTauriEnvironment()) {
+    loadGameInfo()
+  }
 })
 </script>
 
 <template>
   <div class="game-info-container">
-    <!-- 页面头部 -->
     <div class="page-header">
       <div class="header-content">
         <div class="header-left">
-          <a-button 
-            type="text" 
-            @click="goBack"
-            class="back-button"
-          >
+          <a-button type="text" @click="goBack" class="back-button">
             <template #icon>
               <ArrowLeftOutlined />
             </template>
             返回游戏列表
           </a-button>
         </div>
-        <div class="header-right" v-if="gameInfo && !loading">
+        <div class="header-right" v-if="gameInfo && !infoLoading">
           <a-space>
-            <a-button 
-              type="primary" 
-              @click="launchGame"
-              :loading="loading"
-            >
+            <a-button type="primary" @click="handleLaunchGame" :loading="actionLoading.launch">
               <template #icon>
                 <PlayCircleOutlined />
               </template>
               启动游戏
             </a-button>
-            <a-button 
-              @click="openGameFolder"
-            >
+            <a-button @click="handleOpenFolder" :loading="actionLoading.openFolder">
               <template #icon>
                 <FolderOpenOutlined />
               </template>
@@ -266,38 +121,28 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 加载状态 -->
-    <div v-if="loading" class="loading-container">
+    <div v-if="infoLoading" class="loading-container">
       <a-spin size="large" tip="正在加载游戏信息..." />
     </div>
 
-    <!-- 游戏信息内容 -->
-    <div v-else-if="gameInfo" class="game-content">
-      <!-- 游戏封面和基本信息卡片 -->
+    <div v-else-if="gameInfo" class="game-info-content">
       <a-card class="game-summary-card">
-        <!-- 游戏封面 -->
         <div class="game-cover-section">
           <div class="game-cover-container">
-            <img
-              :src="getGameImage(gameInfo)"
-              :alt="gameInfo.name"
-              class="game-cover-large"
-              @error="handleImageError"
-            />
+            <img :src="getGameImage" :alt="gameInfo.name" class="game-cover-large" @error="handleImageError" />
             <div class="cover-gradient">
               <div class="cover-info">
                 <h1 class="game-title">{{ gameInfo.name }}</h1>
                 <div class="game-badges">
                   <a-tag color="blue" class="game-type-tag">
-                    {{ getGameTypeName(gameInfo) }}
+                    {{ getGameTypeName }}
                   </a-tag>
                 </div>
               </div>
             </div>
           </div>
         </div>
-        
-        <!-- 游戏元信息 -->
+
         <div class="game-meta-section">
           <div class="meta-item">
             <span class="meta-label">添加时间:</span>
@@ -314,160 +159,64 @@ onMounted(() => {
         </div>
       </a-card>
 
-      <!-- Tab 内容 -->
-      <a-card class="tab-content-card">
-        <a-tabs v-model:activeKey="activeTab" type="card">
-          <!-- 游戏信息 Tab -->
-          <a-tab-pane key="info" tab="游戏信息">
-            <template #tab>
-              <InfoCircleOutlined />
-              游戏信息
-            </template>
-            
-            <div class="info-content">
-              <a-descriptions 
-                :column="1" 
-                bordered
-                size="large"
-              >
-                <a-descriptions-item label="游戏名称">
-                  {{ gameInfo.name }}
-                </a-descriptions-item>
-                <a-descriptions-item label="游戏类型">
-                  {{ getGameTypeName(gameInfo) }}
-                </a-descriptions-item>
-                <a-descriptions-item label="安装目录">
-                  <div class="path-item">
-                    <span class="path-text" :title="gameInfo.dir">
-                      {{ gameInfo.dir }}
-                    </span>
-                    <a-button 
-                      type="link" 
-                      size="small"
-                      @click="openGameFolder"
-                    >
-                      <template #icon>
-                        <FolderOpenOutlined />
-                      </template>
-                      打开
-                    </a-button>
-                  </div>
-                </a-descriptions-item>
-                <a-descriptions-item label="启动程序">
-                  {{ gameInfo.exe }}
-                </a-descriptions-item>
-                <a-descriptions-item label="添加时间">
-                  {{ formatTime(gameInfo.time) }}
-                </a-descriptions-item>
-              </a-descriptions>
-
-              <div class="action-buttons">
-                <a-space>
-                  <a-button 
-                    type="primary" 
-                    size="large"
-                    @click="launchGame"
-                  >
-                    <template #icon>
-                      <PlayCircleOutlined />
-                    </template>
-                    启动游戏
-                  </a-button>
-                  <a-button 
-                    size="large"
-                    @click="startEdit"
-                  >
-                    <template #icon>
-                      <EditOutlined />
-                    </template>
-                    编辑信息
-                  </a-button>
-                </a-space>
+      <a-card class="info-content-card">
+        <div class="info-content">
+          <a-descriptions :column="1" bordered size="large">
+            <a-descriptions-item label="游戏名称">
+              {{ gameInfo.name }}
+            </a-descriptions-item>
+            <a-descriptions-item label="游戏类型">
+              {{ getGameTypeName }}
+            </a-descriptions-item>
+            <a-descriptions-item label="安装目录">
+              <div class="path-item">
+                <span class="path-text" :title="gameInfo.dir">
+                  {{ gameInfo.dir }}
+                </span>
+                <a-button type="link" size="small" @click="handleOpenFolder" :loading="actionLoading.openFolder">
+                  <template #icon>
+                    <FolderOpenOutlined />
+                  </template>
+                  打开
+                </a-button>
               </div>
-            </div>
-          </a-tab-pane>
+            </a-descriptions-item>
+            <a-descriptions-item label="启动程序">
+              {{ gameInfo.exe }}
+            </a-descriptions-item>
+            <a-descriptions-item label="添加时间">
+              {{ formatTime(gameInfo.time) }}
+            </a-descriptions-item>
+          </a-descriptions>
 
-          <!-- 编辑信息 Tab -->
-          <a-tab-pane key="edit" tab="编辑信息">
-            <template #tab>
-              <EditOutlined />
-              编辑信息
-            </template>
-            
-            <div class="edit-content">
-              <a-form
-                ref="editFormRef"
-                :model="editForm"
-                :rules="rules"
-                layout="vertical"
-                @finish="saveEdit"
-              >
-                <a-form-item label="游戏名称" name="name">
-                  <a-input
-                    v-model:value="editForm.name"
-                    placeholder="请输入游戏名称"
-                    size="large"
-                  />
-                </a-form-item>
-
-                <a-form-item label="游戏目录" name="dir">
-                  <a-input
-                    v-model:value="editForm.dir"
-                    placeholder="请输入游戏安装目录"
-                    size="large"
-                    readonly
-                  />
-                  <div class="form-help">
-                    <p>游戏目录通常不建议修改，如需修改请重新添加游戏</p>
-                  </div>
-                </a-form-item>
-
-                <a-form-item label="启动程序" name="exe">
-                  <a-input
-                    v-model:value="editForm.exe"
-                    placeholder="请输入游戏主程序文件名"
-                    size="large"
-                  />
-                  <div class="form-help">
-                    <p>支持的游戏主程序：gta3.exe, gtavc.exe, gta_sa.exe 等</p>
-                  </div>
-                </a-form-item>
-
-                <a-form-item label="游戏图标" name="img">
-                  <a-input
-                    v-model:value="editForm.img"
-                    placeholder="请输入游戏图标路径（可选）"
-                    size="large"
-                  />
-                </a-form-item>
-
-                <div class="form-actions">
-                  <a-space>
-                    <a-button 
-                      type="primary" 
-                      html-type="submit"
-                      size="large"
-                      :loading="loading"
-                    >
-                      <template #icon>
-                        <CheckCircleOutlined />
-                      </template>
-                      保存修改
-                    </a-button>
-                    <a-button 
-                      size="large"
-                      @click="cancelEdit"
-                    >
-                      取消
-                    </a-button>
-                  </a-space>
-                </div>
-              </a-form>
-            </div>
-          </a-tab-pane>
-        </a-tabs>
+          <div class="action-buttons">
+            <a-space>
+              <a-button type="primary" size="large" @click="handleLaunchGame" :loading="actionLoading.launch">
+                <template #icon>
+                  <PlayCircleOutlined />
+                </template>
+                启动游戏
+              </a-button>
+              <a-button size="large" @click="handleStartEdit">
+                <template #icon>
+                  <EditOutlined />
+                </template>
+                编辑信息
+              </a-button>
+            </a-space>
+          </div>
+        </div>
       </a-card>
     </div>
+
+    <!-- 编辑对话框 -->
+    <GameEditDialog
+      v-model:visible="editDialogVisible"
+      :game-info="gameInfo"
+      :loading="actionLoading"
+      @save="handleSaveEdit"
+      @cancel="handleCancelEdit"
+    />
   </div>
 </template>
 
@@ -478,6 +227,14 @@ onMounted(() => {
   margin: 0 auto;
 }
 
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+/* 页面头部样式 */
 .page-header {
   margin-bottom: 24px;
 }
@@ -494,39 +251,36 @@ onMounted(() => {
   height: auto;
 }
 
-.loading-container {
+/* 游戏信息内容样式 */
+.game-info-content {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .game-summary-card {
-  margin-bottom: 24px;
+  border-radius: 12px;
   overflow: hidden;
-  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .game-cover-section {
-  margin: -24px -24px 0 -24px;
+  position: relative;
+  height: 300px;
+  overflow: hidden;
 }
 
 .game-cover-container {
   position: relative;
   width: 100%;
-  height: 300px;
-  overflow: hidden;
+  height: 100%;
 }
 
 .game-cover-large {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.game-cover-large:hover {
-  transform: scale(1.02);
+  object-position: center;
 }
 
 .cover-gradient {
@@ -534,13 +288,11 @@ onMounted(() => {
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.8) 0%,
-    rgba(0, 0, 0, 0.4) 50%,
-    rgba(0, 0, 0, 0) 100%
-  );
-  padding: 32px 24px 24px 24px;
+  height: 50%;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  display: flex;
+  align-items: flex-end;
+  padding: 24px;
 }
 
 .cover-info {
@@ -548,11 +300,11 @@ onMounted(() => {
 }
 
 .game-title {
-  margin: 0 0 12px 0;
-  font-size: 32px;
-  font-weight: 700;
   color: white;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0 0 12px 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .game-badges {
@@ -561,46 +313,48 @@ onMounted(() => {
 }
 
 .game-type-tag {
-  background: rgba(24, 144, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
+  font-size: 14px;
+  padding: 4px 12px;
+  border-radius: 16px;
 }
 
 .game-meta-section {
-  padding: 24px 0 0 0;
+  padding: 20px 24px;
+  background: #f8f9fa;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
 }
 
 .meta-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.meta-item:last-child {
-  border-bottom: none;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
 }
 
 .meta-label {
-  font-weight: 600;
+  font-size: 12px;
   color: #666;
-  min-width: 100px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .meta-value {
+  font-size: 14px;
   color: #333;
-  flex: 1;
-  text-align: right;
+  font-weight: 500;
   word-break: break-all;
 }
 
-.tab-content-card {
-  min-height: 500px;
+.info-content-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .info-content {
-  padding: 16px 0;
+  padding: 24px;
 }
 
 .path-item {
@@ -612,6 +366,11 @@ onMounted(() => {
 .path-text {
   flex: 1;
   word-break: break-all;
+  font-family: 'Courier New', monospace;
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
 }
 
 .action-buttons {
@@ -619,23 +378,28 @@ onMounted(() => {
   text-align: center;
 }
 
-.edit-content {
-  padding: 16px 0;
-  max-width: 600px;
-}
-
-.form-help {
-  margin-top: 8px;
-}
-
-.form-help p {
-  margin: 0;
-  color: #666;
-  font-size: 12px;
-}
-
-.form-actions {
-  margin-top: 32px;
-  text-align: center;
+@media (max-width: 768px) {
+  .game-info-container {
+    padding: 16px;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+  
+  .game-title {
+    font-size: 24px;
+  }
+  
+  .game-meta-section {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .meta-item {
+    min-width: auto;
+  }
 }
 </style>

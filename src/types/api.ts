@@ -1,3 +1,10 @@
+// API 响应通用接口
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
 // Tauri 命令调用的通用类型
 export type TauriCommand<T = any> = (...args: any[]) => Promise<T>;
 

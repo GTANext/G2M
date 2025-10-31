@@ -5,8 +5,8 @@ export interface GameInfo {
   time: string; // ISO 8601 格式的添加时间
   dir: string;  // 游戏目录路径
   exe: string;  // 启动程序文件名
-  img?: string; // 游戏图标路径（可选）
-  game_type?: 'gta3' | 'gtavc' | 'gtasa'; // 游戏类型（可选）
+  img?: string; // 游戏图片
+  game_type?: 'gta3' | 'gtavc' | 'gtasa'; // 游戏类型
 }
 
 // 游戏检测结果接口
@@ -15,13 +15,6 @@ export interface GameDetectionResult {
   game_type?: 'gta3' | 'gtavc' | 'gtasa';
   executable?: string;
   game_name?: string;
-  error?: string;
-}
-
-// API 响应通用接口
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
   error?: string;
 }
 

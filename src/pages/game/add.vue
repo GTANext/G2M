@@ -1,11 +1,26 @@
 <script setup lang="ts">
-// 添加游戏页面
+import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+// 页面加载时重定向到游戏列表页面
+onMounted(() => {
+  router.replace('/game')
+})
 </script>
 
 <template>
-  <GameAdd />
+  <div class="redirect-container">
+    <a-spin size="large" tip="正在跳转到游戏列表..." />
+  </div>
 </template>
 
 <style scoped>
-/* 页面级样式 */
+.redirect-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
 </style>

@@ -58,6 +58,27 @@ export default defineConfig(async () => ({
     }
   },
 
+  build: {
+    rollupOptions: {
+      external: (id: string) => {
+        // 在Tauri环境中外部化Tauri API
+        if (process.env.TAURI_PLATFORM) {
+          return id.startsWith('@tauri-apps/');
+        }
+        return false;
+      }
+    }
+  },
+
+  optimizeDeps: {
+    exclude: ['@tauri-apps/api']
+  },
+
+  define: {
+    // 在Web环境中定义Tauri相关的全局变量
+    '__TAURI__': 'undefined'
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

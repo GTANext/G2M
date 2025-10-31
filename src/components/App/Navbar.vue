@@ -70,7 +70,7 @@ const { navItems, isActive, handleNavClick } = useNavigation()
     top: 0;
     left: 0;
     right: 0;
-    z-index: 1000;
+    z-index: 1145141919810;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     /* 全局拖拽设置 */
     -webkit-app-region: drag;

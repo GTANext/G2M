@@ -62,14 +62,15 @@ declare global {
   const useGameApi: typeof import('./composables/api/useGameApi').useGameApi
   const useGameForm: typeof import('./composables/ui/useGameForm').useGameForm
   const useGameList: typeof import('./composables/ui/useGameList').useGameList
+  const useGameListView: typeof import('./composables/ui/useGameListView').useGameListView
   const useId: typeof import('vue').useId
+  const useImageHandler: typeof import('./composables/useImageHandler').useImageHandler
   const useModel: typeof import('vue').useModel
   const useMouse: typeof import('@vueuse/core').useMouse
   const useRoute: typeof import('vue-router').useRoute
   const useRouter: typeof import('vue-router').useRouter
   const useSlots: typeof import('vue').useSlots
   const useTemplateRef: typeof import('vue').useTemplateRef
-  const useWindowControl: typeof import('./composables/api/useWindowControl').useWindowControl
   const watch: typeof import('vue').watch
   const watchEffect: typeof import('vue').watchEffect
   const watchPostEffect: typeof import('vue').watchPostEffect
@@ -80,6 +81,9 @@ declare global {
   // @ts-ignore
   export type { Component, Slot, Slots, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, ShallowRef, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from 'vue'
   import('vue')
+  // @ts-ignore
+  export type { ImageProcessResult } from './composables/useImageHandler'
+  import('./composables/useImageHandler')
 }
 
 // for vue template auto import
@@ -143,7 +147,9 @@ declare module 'vue' {
     readonly useGameApi: UnwrapRef<typeof import('./composables/api/useGameApi')['useGameApi']>
     readonly useGameForm: UnwrapRef<typeof import('./composables/ui/useGameForm')['useGameForm']>
     readonly useGameList: UnwrapRef<typeof import('./composables/ui/useGameList')['useGameList']>
+    readonly useGameListView: UnwrapRef<typeof import('./composables/ui/useGameListView')['useGameListView']>
     readonly useId: UnwrapRef<typeof import('vue')['useId']>
+    readonly useImageHandler: UnwrapRef<typeof import('./composables/useImageHandler')['useImageHandler']>
     readonly useModel: UnwrapRef<typeof import('vue')['useModel']>
     readonly useMouse: UnwrapRef<typeof import('@vueuse/core')['useMouse']>
     readonly useRoute: UnwrapRef<typeof import('vue-router')['useRoute']>
