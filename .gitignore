@@ -26,3 +26,5 @@ dist-ssr
 
 TestApp
 G2M_OLD
+
+src-tauri/G2M/Config/*
