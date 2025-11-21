@@ -2,7 +2,7 @@
 import { NConfigProvider, NGlobalStyle, NMessageProvider, NDialogProvider, NNotificationProvider } from 'naive-ui'
 import { computed } from 'vue'
 
-// Naive UI 主题配置 - 简洁风格
+// Naive UI 主题配置
 const themeOverrides = computed(() => ({
   common: {
     borderRadius: '8px',

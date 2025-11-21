@@ -136,7 +136,7 @@ onMounted(async () => {
     <template #description>正在加载游戏信息...</template>
   </NSpin>
 
-  <div v-else-if="gameInfo" class="game-info-content">
+  <div v-else-if="gameInfo">
     <NAlert v-if="hasMissingModLoaders" type="warning" title="缺少必要的MOD加载器" description="请前往前置安装页面查看详情。"
       style="margin-bottom: 16px;" />
     <NAlert v-else-if="modLoaderLoading" type="info" title="正在检查 MOD 前置环境" style="margin-bottom: 16px;" />
@@ -144,12 +144,13 @@ onMounted(async () => {
     <NCard :bordered="false">
       <NTabs v-model:value="activeKey" type="line" animated>
         <NTabPane name="1" tab="基本信息">
+          <GameInfoTab1 :game-info="gameInfo" />
         </NTabPane>
         <NTabPane name="2" tab="前置安装">
           <GameInfoTab2 :game-info="gameInfo" />
         </NTabPane>
         <NTabPane name="3" tab="MOD管理">
-          <NSkeleton :rows="5" animated />
+          <GameInfoTab3 :game-info="gameInfo" />
         </NTabPane>
       </NTabs>
     </NCard>
@@ -160,8 +161,5 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.game-info-content {
-  max-width: 1200px;
-  margin: 0 auto;
-}
+
 </style>

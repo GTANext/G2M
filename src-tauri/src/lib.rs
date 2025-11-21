@@ -18,7 +18,12 @@ use game::{
     launch_game, 
     open_game_folder,
     check_mod_loaders,
-    install_mod_prerequisites
+    install_mod_prerequisites,
+    download_game,
+    extract_game,
+    get_download_records,
+    get_extract_records,
+    select_extract_folder
 };
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -51,7 +56,12 @@ pub fn run() -> () {
             launch_game,
             open_game_folder,
             check_mod_loaders,
-            install_mod_prerequisites
+            install_mod_prerequisites,
+            download_game,
+            extract_game,
+            get_download_records,
+            get_extract_records,
+            select_extract_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

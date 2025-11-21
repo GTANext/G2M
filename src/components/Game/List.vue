@@ -192,7 +192,7 @@ onMounted(() => {
             <p class="game-date">添加时间: {{ formatGameTime(game.time) }}</p>
           </div>
 
-          <div class="game-actions" @click.stop>
+          <!-- <div class="game-actions" @click.stop>
             <NSpace>
               <NTooltip>
                 <template #trigger>
@@ -238,7 +238,7 @@ onMounted(() => {
                 删除游戏
               </NTooltip>
             </NSpace>
-          </div>
+          </div> -->
         </NCard>
       </NGridItem>
     </NGrid>
