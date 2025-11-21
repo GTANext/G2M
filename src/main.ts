@@ -1,6 +1,7 @@
 import './styles/main.scss'
 import { createApp } from "vue";
 import router from "./router";
+import naive from 'naive-ui'
 import Antd from 'ant-design-vue';
 import 'ant-design-vue/dist/reset.css';
 import App from "./App.vue";
@@ -25,6 +26,7 @@ async function initApp() {
 
   app.use(pinia);
   app.use(Antd);
+  app.use(naive);
   app.use(router);
 
   app.mount("#app");

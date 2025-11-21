@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { NCard, NSpace } from 'naive-ui'
+
 interface Props {
   title?: string
 }
@@ -7,7 +9,7 @@ defineProps<Props>()
 </script>
 
 <template>
-  <a-card class="page-header-card" :bordered="true">
+  <NCard class="page-header-card" :bordered="false">
     <div class="header-content">
       <div class="header-left">
         <slot name="left">
@@ -15,15 +17,17 @@ defineProps<Props>()
         </slot>
       </div>
       <div class="header-right">
-        <slot name="right"></slot>
+        <NSpace>
+          <slot name="right"></slot>
+        </NSpace>
       </div>
     </div>
-  </a-card>
+  </NCard>
 </template>
 
 <style scoped>
 .page-header-card {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .header-content {
@@ -41,39 +45,25 @@ defineProps<Props>()
 
 .header-right {
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .page-title {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 600;
-  color: #1890ff;
+  color: #333;
   margin: 0;
   line-height: 1.2;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
-  .page-header-card {
-    margin-bottom: 16px;
-  }
-
   .header-content {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
   }
 
-  .header-left,
-  .header-right {
-    flex: none;
-  }
-
   .page-title {
-    font-size: 24px;
-    text-align: center;
+    font-size: 20px;
   }
 }
 </style>

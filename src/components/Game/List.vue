@@ -7,21 +7,25 @@ import {
   EditOutlined,
   DeleteOutlined,
   FolderOpenOutlined,
-    SearchOutlined,
-  ReloadOutlined,
-  AppstoreOutlined,
-  CheckCircleOutlined,
-  ArrowLeftOutlined,
-  PictureOutlined,
-  UploadOutlined
+  SearchOutlined,
+  ReloadOutlined
 } from '@ant-design/icons-vue'
-import { Empty } from 'ant-design-vue'
+import { NCard, NButton, NInput, NSelect, NGrid, NGridItem, NSpin, NEmpty, NTag, NTooltip, NAlert } from 'naive-ui'
 import { useGameListView } from '@/composables'
 import { useGameForm } from '@/composables'
 
 // 导入对话框组件
 import GameEditDialog from './EditDialog.vue'
 import GameAddDialog from './AddDialog.vue'
+
+// 游戏类型选项
+const gameTypeOptions = [
+  { label: '全部游戏', value: '' },
+  { label: 'GTA III', value: 'gta3' },
+  { label: 'GTA Vice City', value: 'gtavc' },
+  { label: 'GTA San Andreas', value: 'gtasa' },
+  { label: '其他', value: 'other' }
+]
 
 // 编辑对话框状态
 const editDialogVisible = ref(false)
@@ -38,21 +42,21 @@ const {
   filteredGameList: filteredGames,
   searchKeyword: searchQuery,
   loadingState,
-  
+
   // 数据操作方法
   loadGameList: loadGames,
   refreshGameList: refreshGames,
   formatGameTime,
   getGameTypeFromExecutable,
-  
+
   // 路由导航方法
   goToGameInfo,
-  
+
   // 游戏操作方法
   launchGame,
   confirmDelete,
   openGameFolder,
-  
+
   // 图片处理方法
   getGameIcon,
   handleImageError
@@ -115,202 +119,161 @@ onMounted(() => {
 </script>
 
 <template>
-    <G2MHeader title="已添加游戏">
-      <template #right>
-        <a-space>
-          <a-button type="default" @click="refreshGames" :loading="loadingState.loading">
-            <template #icon>
-              <ReloadOutlined />
-            </template>
-            刷新
-          </a-button>
-          <a-button type="primary" size="large" @click="showAddGame">
-            <template #icon>
-              <PlusOutlined />
-            </template>
-            添加游戏
-          </a-button>
-        </a-space>
+  <G2MHeader title="已添加游戏">
+    <template #right>
+      <NButton @click="refreshGames" :loading="loadingState.loading">
+        <template #icon>
+          <ReloadOutlined />
+        </template>
+        刷新
+      </NButton>
+      <NButton type="primary" @click="showAddGame">
+        <template #icon>
+          <PlusOutlined />
+        </template>
+        添加游戏
+      </NButton>
+    </template>
+  </G2MHeader>
+
+  <NCard class="filter-section" :bordered="false">
+    <NGrid :cols="2" :x-gap="16">
+      <NGridItem>
+        <NInput v-model:value="searchQuery" placeholder="搜索游戏名称..." clearable>
+          <template #prefix>
+            <SearchOutlined />
+          </template>
+        </NInput>
+      </NGridItem>
+      <NGridItem>
+        <NSelect v-model:value="selectedGameType" placeholder="筛选游戏类型" clearable :options="gameTypeOptions" />
+      </NGridItem>
+    </NGrid>
+  </NCard>
+
+  <div class="games-content">
+    <NSpin v-if="loadingState.loading" size="large" style="display: flex; justify-content: center; padding: 40px;">
+      <template #description>正在加载游戏列表...</template>
+    </NSpin>
+
+    <NEmpty v-else-if="!games.length" description="还没有添加任何游戏" style="padding: 40px;">
+      <template #extra>
+        <NButton type="primary" @click="showAddGame">
+          <template #icon>
+            <PlusOutlined />
+          </template>
+          添加第一个游戏
+        </NButton>
       </template>
-    </G2MHeader>
+    </NEmpty>
 
-    <div class="filter-section">
-      <a-row :gutter="16">
-        <a-col :span="12">
-          <a-input v-model:value="searchQuery" placeholder="搜索游戏名称..." size="large" allow-clear>
-            <template #prefix>
-              <SearchOutlined />
-            </template>
-          </a-input>
-        </a-col>
-        <a-col :span="12">
-          <a-select v-model:value="selectedGameType" placeholder="筛选游戏类型" size="large" allow-clear style="width: 100%">
-            <a-select-option value="">全部游戏</a-select-option>
-            <a-select-option value="gta3">GTA III</a-select-option>
-            <a-select-option value="gtavc">GTA Vice City</a-select-option>
-            <a-select-option value="gtasa">GTA San Andreas</a-select-option>
-            <a-select-option value="other">其他</a-select-option>
-          </a-select>
-        </a-col>
-      </a-row>
-    </div>
+    <NEmpty v-else-if="!filteredGames.length" description="没有找到匹配的游戏" style="padding: 40px;">
+      <template #extra>
+        <NButton @click="searchQuery = ''">清除筛选条件</NButton>
+      </template>
+    </NEmpty>
 
-    <div class="games-content">
-      <div v-if="loadingState.loading" class="loading-container">
-        <a-spin size="large" tip="正在加载游戏列表..." />
-      </div>
-
-      <div v-else-if="!games.length" class="empty-container">
-        <a-empty description="还没有添加任何游戏" :image="Empty.PRESENTED_IMAGE_SIMPLE">
-          <a-button type="primary" @click="showAddGame">
-            <template #icon>
-              <PlusOutlined />
-            </template>
-            添加第一个游戏
-          </a-button>
-        </a-empty>
-      </div>
-
-      <div v-else-if="!filteredGames.length" class="empty-container">
-        <a-empty description="没有找到匹配的游戏" :image="Empty.PRESENTED_IMAGE_SIMPLE">
-          <a-button @click="searchQuery = ''">
-            清除筛选条件
-          </a-button>
-        </a-empty>
-      </div>
-
-      <div v-else class="games-grid">
-        <div v-for="game in filteredGames" :key="game.id" class="game-card" @click="goToGameInfo(game)">
+    <NGrid v-else :cols="3" :x-gap="16" :y-gap="16" class="games-grid">
+      <NGridItem v-for="game in filteredGames" :key="game.id">
+        <NCard class="game-card" hoverable @click="goToGameInfo(game)">
           <div class="game-cover-container">
             <img :src="getGameIcon(game)" :alt="game.name" class="game-cover" @error="handleImageError" />
-            <div class="cover-overlay">
-              <div class="game-type-badge">
-                {{ getGameTypeFromExecutable(game.exe) }}
-              </div>
-            </div>
+            <NTag type="info" class="game-type-badge" size="small">
+              {{ getGameTypeFromExecutable(game.exe) }}
+            </NTag>
           </div>
 
           <div class="game-info">
-            <div class="game-header">
-              <h3 class="game-name" :title="game.name">
-                {{ game.name }}
-              </h3>
-            </div>
-
-            <div class="game-details">
-              <p class="game-path" :title="game.dir">
-                <FolderOpenOutlined />
-                {{ game.dir }}
-              </p>
-              <p class="game-date">
-                <strong>添加时间:</strong> {{ formatGameTime(game.time) }}
-              </p>
-            </div>
+            <h3 class="game-name" :title="game.name">{{ game.name }}</h3>
+            <p class="game-path" :title="game.dir">
+              <FolderOpenOutlined />
+              {{ game.dir }}
+            </p>
+            <p class="game-date">添加时间: {{ formatGameTime(game.time) }}</p>
           </div>
 
           <div class="game-actions" @click.stop>
-            <a-space>
-              <a-tooltip title="启动游戏">
-                <a-button type="primary" shape="circle" @click="launchGame(game)" :loading="loadingState.loading">
-                  <template #icon>
-                    <PlayCircleOutlined />
-                  </template>
-                </a-button>
-              </a-tooltip>
+            <NSpace>
+              <NTooltip>
+                <template #trigger>
+                  <NButton circle type="primary" @click="launchGame(game)" :loading="loadingState.loading">
+                    <template #icon>
+                      <PlayCircleOutlined />
+                    </template>
+                  </NButton>
+                </template>
+                启动游戏
+              </NTooltip>
 
-              <a-tooltip title="打开游戏目录">
-                <a-button shape="circle" @click="openGameFolder(game)">
-                  <template #icon>
-                    <FolderOpenOutlined />
-                  </template>
-                </a-button>
-              </a-tooltip>
+              <NTooltip>
+                <template #trigger>
+                  <NButton circle @click="openGameFolder(game)">
+                    <template #icon>
+                      <FolderOpenOutlined />
+                    </template>
+                  </NButton>
+                </template>
+                打开游戏目录
+              </NTooltip>
 
-              <a-tooltip title="编辑游戏信息">
-                <a-button shape="circle" @click="editGame(game)">
-                  <template #icon>
-                    <EditOutlined />
-                  </template>
-                </a-button>
-              </a-tooltip>
+              <NTooltip>
+                <template #trigger>
+                  <NButton circle @click="editGame(game)">
+                    <template #icon>
+                      <EditOutlined />
+                    </template>
+                  </NButton>
+                </template>
+                编辑游戏信息
+              </NTooltip>
 
-              <a-tooltip title="删除游戏">
-                <a-button danger shape="circle" @click="confirmDelete(game)">
-                  <template #icon>
-                    <DeleteOutlined />
-                  </template>
-                </a-button>
-              </a-tooltip>
-            </a-space>
+              <NTooltip>
+                <template #trigger>
+                  <NButton circle type="error" @click="confirmDelete(game)">
+                    <template #icon>
+                      <DeleteOutlined />
+                    </template>
+                  </NButton>
+                </template>
+                删除游戏
+              </NTooltip>
+            </NSpace>
           </div>
-        </div>
-      </div>
-    </div>
+        </NCard>
+      </NGridItem>
+    </NGrid>
+  </div>
 
-    <a-alert v-if="loadingState.error" type="error" show-icon :message="loadingState.error.message" closable
-      class="error-alert" />
+  <NAlert v-if="loadingState.error" type="error" :title="loadingState.error.message" closable
+    style="margin-top: 16px;" />
 
-    <GameEditDialog
-      v-model:visible="editDialogVisible"
-      :game-info="currentEditGame"
-      @success="handleEditComplete"
-    />
+  <GameEditDialog v-model:visible="editDialogVisible" :game-info="currentEditGame" @success="handleEditComplete" />
 
-    <GameAddDialog
-      v-model:visible="addGameVisible"
-      @success="handleAddGameComplete"
-      @cancel="handleAddGameCancel"
-    />
+  <GameAddDialog v-model:visible="addGameVisible" @success="handleAddGameComplete" @cancel="handleAddGameCancel" />
 </template>
 
 <style scoped>
 .filter-section {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .games-content {
   min-height: 400px;
 }
 
-.loading-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
-}
-
-.empty-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
-}
-
-.games-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 24px;
-}
-
 .game-card {
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
   cursor: pointer;
-  position: relative;
-}
-
-.game-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .game-cover-container {
   position: relative;
   height: 180px;
   overflow: hidden;
+  border-radius: 8px 8px 0 0;
+  margin: -16px -16px 12px -16px;
 }
 
 .game-cover {
@@ -320,65 +283,47 @@ onMounted(() => {
   object-position: center;
 }
 
-.cover-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.3) 100%);
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding: 12px;
-}
-
 .game-type-badge {
-  background: rgba(24, 144, 255, 0.9);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
+  position: absolute;
+  top: 12px;
+  right: 12px;
 }
 
 .game-info {
-  padding: 16px;
-}
-
-.game-header {
-  margin-bottom: 12px;
+  flex: 1;
 }
 
 .game-name {
   font-size: 16px;
   font-weight: 600;
-  margin: 0;
+  margin: 0 0 8px 0;
   color: #333;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.game-details {
+.game-path {
   font-size: 12px;
-  color: #666;
-}
-
-.game-details p {
+  color: #999;
   margin: 4px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.game-date {
+  font-size: 12px;
+  color: #999;
+  margin: 4px 0 0 0;
 }
 
 .game-actions {
-  padding: 0 16px 16px;
-  display: flex;
-  justify-content: center;
-}
-
-.error-alert {
-  margin-top: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
 }
 </style>

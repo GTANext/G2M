@@ -1,4 +1,5 @@
 <script setup>
+import { NCard, NGrid, NGridItem, NTag, NSpin, NCheckbox, NButton, NModal, NResult, NSpace } from 'naive-ui'
 import { useGameInfo } from '@/composables/game/useGameInfo'
 
 // Props
@@ -218,148 +219,128 @@ onMounted(() => {
     <!-- MOD 环境状态概览 -->
     <div class="status-overview">
       <h3>前置安装</h3>
-      <div class="status-grid">
-        <div class="status-item" :class="{ 'status-ok': modStatus.dinput8, 'status-missing': !modStatus.dinput8 }">
-          <div class="status-icon">
-            <i class="fas fa-cog"></i>
-          </div>
-          <div class="status-content">
-            <div class="status-title">dinput8.dll</div>
-            <div class="status-desc">基础输入库</div>
-            <div class="status-badge">
-              <span v-if="modStatus.dinput8" class="badge-ok">已安装</span>
-              <span v-else class="badge-missing">缺少</span>
+      <NGrid :cols="4" :x-gap="12" :y-gap="12">
+        <NGridItem>
+          <NCard :bordered="true" :class="{ 'status-ok': modStatus.dinput8, 'status-missing': !modStatus.dinput8 }">
+            <div class="status-content">
+              <div class="status-title">dinput8.dll</div>
+              <div class="status-desc">基础输入库</div>
+              <NTag :type="modStatus.dinput8 ? 'success' : 'error'" size="small" style="margin-top: 8px;">
+                {{ modStatus.dinput8 ? '已安装' : '缺少' }}
+              </NTag>
             </div>
-          </div>
-        </div>
+          </NCard>
+        </NGridItem>
 
-        <div class="status-item" :class="{ 'status-ok': modStatus.cleo, 'status-missing': !modStatus.cleo }">
-          <div class="status-icon">
-            <i class="fas fa-code"></i>
-          </div>
-          <div class="status-content">
-            <div class="status-title">CLEO</div>
-            <div class="status-desc">脚本执行引擎</div>
-            <div class="status-badge">
-              <span v-if="modStatus.cleo" class="badge-ok">已安装</span>
-              <span v-else class="badge-missing">缺少</span>
+        <NGridItem>
+          <NCard :bordered="true" :class="{ 'status-ok': modStatus.cleo, 'status-missing': !modStatus.cleo }">
+            <div class="status-content">
+              <div class="status-title">CLEO</div>
+              <div class="status-desc">脚本执行引擎</div>
+              <NTag :type="modStatus.cleo ? 'success' : 'error'" size="small" style="margin-top: 8px;">
+                {{ modStatus.cleo ? '已安装' : '缺少' }}
+              </NTag>
             </div>
-          </div>
-        </div>
+          </NCard>
+        </NGridItem>
 
-        <div class="status-item"
-          :class="{ 'status-ok': modStatus.cleo_redux, 'status-missing': !modStatus.cleo_redux }">
-          <div class="status-icon">
-            <i class="fas fa-rocket"></i>
-          </div>
-          <div class="status-content">
-            <div class="status-title">CLEO Redux</div>
-            <div class="status-desc">现代脚本引擎</div>
-            <div class="status-badge">
-              <span v-if="modStatus.cleo_redux" class="badge-ok">已安装</span>
-              <span v-else class="badge-missing">缺少</span>
+        <NGridItem>
+          <NCard :bordered="true"
+            :class="{ 'status-ok': modStatus.cleo_redux, 'status-missing': !modStatus.cleo_redux }">
+            <div class="status-content">
+              <div class="status-title">CLEO Redux</div>
+              <div class="status-desc">现代脚本引擎</div>
+              <NTag :type="modStatus.cleo_redux ? 'success' : 'error'" size="small" style="margin-top: 8px;">
+                {{ modStatus.cleo_redux ? '已安装' : '缺少' }}
+              </NTag>
             </div>
-          </div>
-        </div>
+          </NCard>
+        </NGridItem>
 
-        <div class="status-item" :class="{ 'status-ok': modStatus.modloader, 'status-missing': !modStatus.modloader }">
-          <div class="status-icon">
-            <i class="fas fa-puzzle-piece"></i>
-          </div>
-          <div class="status-content">
-            <div class="status-title">ModLoader</div>
-            <div class="status-desc">MOD 加载器</div>
-            <div class="status-badge">
-              <span v-if="modStatus.modloader" class="badge-ok">已安装</span>
-              <span v-else class="badge-missing">缺少</span>
+        <NGridItem>
+          <NCard :bordered="true" :class="{ 'status-ok': modStatus.modloader, 'status-missing': !modStatus.modloader }">
+            <div class="status-content">
+              <div class="status-title">ModLoader</div>
+              <div class="status-desc">MOD 加载器</div>
+              <NTag :type="modStatus.modloader ? 'success' : 'error'" size="small" style="margin-top: 8px;">
+                {{ modStatus.modloader ? '已安装' : '缺少' }}
+              </NTag>
             </div>
-          </div>
-        </div>
-      </div>
+          </NCard>
+        </NGridItem>
+      </NGrid>
 
-      <div v-if="isLoading" class="loading-status">
-        <a-spin size="small" />
-        <span>检查 MOD 环境状态...</span>
-      </div>
+      <NSpin v-if="isLoading" size="small" style="margin-top: 16px;">
+        <template #description>检查 MOD 环境状态...</template>
+      </NSpin>
     </div>
 
     <!-- MOD 组件选择 -->
     <div v-if="!allComponentsInstalled" class="component-selection">
       <h4>选择要安装的组件</h4>
-      <div class="component-list">
-        <div v-for="component in availableComponents" :key="component.key" class="component-card" :class="{
-          'installed': component.installed,
-          'selected': selectedComponents.includes(component.key)
-        }">
-          <div class="component-header">
-            <a-checkbox :checked="selectedComponents.includes(component.key)" @change="toggleComponent(component.key)"
-              :disabled="component.installed">
-              <strong>{{ component.name }}</strong>
-            </a-checkbox>
-            <div class="component-status">
-              <a-tag v-if="component.installed" color="success">已安装</a-tag>
-              <a-tag v-else color="default">未安装</a-tag>
+      <NGrid :cols="1" :x-gap="12" :y-gap="12" class="component-list">
+        <NGridItem v-for="component in availableComponents" :key="component.key">
+          <NCard :bordered="true" :class="{ 'installed': component.installed }">
+            <div class="component-header">
+              <NCheckbox :checked="selectedComponents.includes(component.key)"
+                @update:checked="toggleComponent(component.key)" :disabled="component.installed">
+                <strong>{{ component.name }}</strong>
+              </NCheckbox>
+              <NTag v-if="component.installed" type="success" size="small">已安装</NTag>
+              <NTag v-else type="default" size="small">未安装</NTag>
             </div>
-          </div>
-          <div class="component-description">
-            {{ component.description }}
-          </div>
-        </div>
-      </div>
+            <div class="component-description">
+              {{ component.description }}
+            </div>
+          </NCard>
+        </NGridItem>
+      </NGrid>
 
       <div class="install-actions">
         <div class="install-summary">
           <p>已选择 {{ selectedCount }} 个组件进行安装</p>
-          <div v-if="selectedCount > 0" class="selected-components">
-            <a-tag v-for="key in selectedComponents" :key="key" color="blue">
+          <NSpace v-if="selectedCount > 0" size="small" style="margin-top: 8px;">
+            <NTag v-for="key in selectedComponents" :key="key" type="info" size="small">
               {{ getComponentName(key) }}
-            </a-tag>
-          </div>
+            </NTag>
+          </NSpace>
         </div>
 
         <div class="install-buttons">
-          <a-button type="primary" :loading="isInstalling" :disabled="selectedCount === 0" @click="handleInstall">
-            <template #icon>
-              <i class="fas fa-download"></i>
-            </template>
+          <NButton type="primary" :loading="isInstalling" :disabled="selectedCount === 0" @click="handleInstall">
             安装选中组件
-          </a-button>
+          </NButton>
         </div>
       </div>
     </div>
 
     <!-- 安装结果模态框 -->
-    <a-modal v-model:open="showResult" title="安装结果" :footer="null" width="600px">
+    <NModal v-model:show="showResult" preset="card" title="安装结果" style="width: 600px">
       <div v-if="installResult" class="install-result">
-        <div class="result-header">
-          <a-result :status="installResult.success ? 'success' : 'error'"
-            :title="installResult.success ? '安装成功' : '安装失败'" :sub-title="installResult.message" />
-        </div>
+        <NResult :status="installResult.success ? 'success' : 'error'" :title="installResult.success ? '安装成功' : '安装失败'"
+          :description="installResult.message" />
 
         <div v-if="installResult.details && installResult.details.length > 0" class="result-details">
           <h4>详细信息：</h4>
           <div class="detail-list">
             <div v-for="(detail, index) in installResult.details" :key="index" class="detail-item"
               :class="{ 'success': detail.includes('成功'), 'error': detail.includes('失败') }">
-              <i class="fas" :class="detail.includes('成功') ? 'fa-check-circle' : 'fa-times-circle'"></i>
               {{ detail }}
             </div>
           </div>
         </div>
 
         <div class="result-actions">
-          <a-button type="primary" @click="closeResult">
-            确定
-          </a-button>
+          <NButton type="primary" @click="closeResult">确定</NButton>
         </div>
       </div>
-    </a-modal>
+    </NModal>
   </div>
 </template>
 
 <style scoped>
 .mod-installer {
-  padding: 16px;
+  padding: 0;
 }
 
 .status-overview {
@@ -368,148 +349,65 @@ onMounted(() => {
 
 .status-overview h3 {
   margin-bottom: 16px;
-  color: #1890ff;
   font-size: 18px;
   font-weight: 600;
-}
-
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.status-item {
-  display: flex;
-  align-items: center;
-  padding: 12px;
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
-  transition: all 0.3s ease;
-}
-
-.status-item.status-ok {
-  background-color: #f6ffed;
-  border-color: #b7eb8f;
-}
-
-.status-item.status-missing {
-  background-color: #fff2f0;
-  border-color: #ffccc7;
-}
-
-.status-icon {
-  font-size: 24px;
-  margin-right: 12px;
-  width: 32px;
-  text-align: center;
-}
-
-.status-ok .status-icon {
-  color: #52c41a;
-}
-
-.status-missing .status-icon {
-  color: #ff4d4f;
+  color: #333;
 }
 
 .status-content {
-  flex: 1;
+  text-align: center;
 }
 
 .status-title {
   font-weight: 600;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+  font-size: 14px;
 }
 
 .status-desc {
   font-size: 12px;
-  color: #666;
-  margin-bottom: 4px;
+  color: #999;
+  margin-bottom: 8px;
 }
 
-.status-badge {
-  margin-top: 4px;
+.status-ok {
+  border-color: #18a058 !important;
 }
 
-.badge-ok {
-  color: #52c41a;
-  background-color: #f6ffed;
-  border: 1px solid #b7eb8f;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
+.status-missing {
+  border-color: #d03050 !important;
 }
 
-.badge-missing {
-  color: #ff4d4f;
-  background-color: #fff2f0;
-  border: 1px solid #ffccc7;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-}
-
-.loading-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #666;
-  font-size: 14px;
+.component-selection {
+  margin-top: 24px;
 }
 
 .component-selection h4 {
   margin-bottom: 16px;
-  color: #262626;
   font-size: 16px;
-}
-
-.component-list {
-  margin-bottom: 16px;
-}
-
-.component-card {
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
-  padding: 16px;
-  margin-bottom: 12px;
-  transition: all 0.3s ease;
-}
-
-.component-card:hover {
-  border-color: #1890ff;
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
-}
-
-.component-card.installed {
-  background-color: #f6ffed;
-  border-color: #b7eb8f;
-}
-
-.component-card.selected {
-  border-color: #1890ff;
-  background-color: #f0f9ff;
+  font-weight: 600;
+  color: #333;
 }
 
 .component-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 8px;
 }
 
 .component-description {
   color: #666;
   font-size: 13px;
-  line-height: 1.4;
-  margin-left: 24px;
+  line-height: 1.5;
+  margin-top: 8px;
 }
 
 .install-actions {
+  margin-top: 24px;
   padding: 16px;
-  background-color: #fafafa;
-  border-radius: 6px;
+  background: #fafafa;
+  border-radius: 8px;
 }
 
 .install-summary {
@@ -519,21 +417,12 @@ onMounted(() => {
 .install-summary p {
   margin-bottom: 8px;
   font-weight: 500;
-}
-
-.selected-components {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  color: #333;
 }
 
 .install-buttons {
   display: flex;
   justify-content: flex-end;
-}
-
-.install-result {
-  text-align: center;
 }
 
 .result-details {
@@ -543,32 +432,31 @@ onMounted(() => {
 
 .result-details h4 {
   margin-bottom: 12px;
-  color: #262626;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .detail-list {
-  background-color: #fafafa;
+  background: #fafafa;
   border-radius: 6px;
   padding: 12px;
 }
 
 .detail-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   padding: 4px 0;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .detail-item.success {
-  color: #52c41a;
+  color: #18a058;
 }
 
 .detail-item.error {
-  color: #ff4d4f;
+  color: #d03050;
 }
 
 .result-actions {
   margin-top: 16px;
+  text-align: center;
 }
 </style>
