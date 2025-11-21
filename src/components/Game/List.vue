@@ -10,7 +10,6 @@ import {
   SearchOutlined,
   ReloadOutlined
 } from '@ant-design/icons-vue'
-import { NCard, NButton, NInput, NSelect, NGrid, NGridItem, NSpin, NEmpty, NTag, NTooltip, NAlert } from 'naive-ui'
 import { useGameListView } from '@/composables'
 import { useGameForm } from '@/composables'
 
@@ -48,6 +47,7 @@ const {
   refreshGameList: refreshGames,
   formatGameTime,
   getGameTypeFromExecutable,
+  getGameTypeName,
 
   // 路由导航方法
   goToGameInfo,
@@ -74,7 +74,6 @@ const {
   selectFolder,
   submitForm,
   resetForm,
-  getGameTypeName,
   imagePreview,
   uploadingImage,
   selectImage,
@@ -179,7 +178,7 @@ onMounted(() => {
           <div class="game-cover-container">
             <img :src="getGameIcon(game)" :alt="game.name" class="game-cover" @error="handleImageError" />
             <NTag type="info" class="game-type-badge" size="small">
-              {{ getGameTypeFromExecutable(game.exe) }}
+              {{ getGameTypeName(game.type) || getGameTypeFromExecutable(game.exe) }}
             </NTag>
           </div>
 

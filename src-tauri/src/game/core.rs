@@ -197,7 +197,7 @@ pub async fn save_game(
     dir: String,
     exe: String,
     img: Option<String>,
-    _type: Option<String>, // 忽略传入的type参数，使用自动识别
+    r#type: Option<String>, // 优先使用传入的type参数，如果没有则自动识别
     app_handle: tauri::AppHandle,
 ) -> Result<ApiResponse<()>, String> {
     // 获取配置目录
@@ -243,8 +243,12 @@ pub async fn save_game(
         game_list.games.iter().map(|g| g.id).max().unwrap_or(0) + 1
     };
 
-    // 根据exe文件名自动识别游戏类型
-    let detected_type = detect_game_type_from_exe(&exe);
+    // 优先使用传入的type参数，如果没有则根据exe文件名自动识别
+    let game_type = if let Some(t) = r#type {
+        Some(t)
+    } else {
+        detect_game_type_from_exe(&exe)
+    };
 
     // 创建新游戏信息
     let new_game = GameInfo {
@@ -254,7 +258,7 @@ pub async fn save_game(
         dir,
         exe,
         img,
-        r#type: detected_type,
+        r#type: game_type,
         deleted: false, // 新游戏默认未删除
     };
 

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { NCard, NSpace } from 'naive-ui'
-
 interface Props {
   title?: string
 }

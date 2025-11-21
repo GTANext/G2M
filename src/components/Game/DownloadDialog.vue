@@ -1,12 +1,10 @@
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted, computed } from 'vue'
 import { DownloadOutlined } from '@ant-design/icons-vue'
-import { Modal, Button, Space, Progress, Typography, Alert } from 'ant-design-vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useMessage } from '@/composables/ui/useMessage'
 
-const { Text } = Typography
 const { showError, showSuccess } = useMessage()
 
 const props = defineProps({
@@ -21,6 +19,12 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible', 'success', 'cancel'])
+
+// 使用 computed 来同步 visible
+const visibleModel = computed({
+  get: () => props.visible,
+  set: (val) => emit('update:visible', val)
+})
 
 const gameNames = {
   gta3: 'Grand Theft Auto III',
@@ -124,67 +128,48 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Modal
-    :open="visible"
-    @update:open="$emit('update:visible', $event)"
-    :title="`下载 ${gameNames[gameType] || '游戏'}`"
-    :width="600"
-    :maskClosable="false"
-    :keyboard="false"
-    :footer="null"
-  >
+  <a-modal v-model:open="visibleModel" :title="`下载 ${gameNames[gameType] || '游戏'}`" :width="600" :maskClosable="false"
+    :keyboard="false" :footer="null">
     <div class="download-dialog-content">
-      <Alert
-        v-if="isDownloading"
-        type="info"
-        message="正在下载游戏文件到 G2M/Download 目录..."
+      <a-alert v-if="isDownloading" type="info" message="正在下载游戏文件到 G2M/Download 目录..."
         :description="`已下载: ${formatBytes(downloadedBytes)}${totalBytes > 0 ? ' / ' + formatBytes(totalBytes) : ''}`"
-        show-icon
-        style="margin-bottom: 16px;"
-      />
+        show-icon style="margin-bottom: 16px;" />
 
       <div v-if="isDownloading" class="progress-section">
-        <Progress
-          :percent="Math.round(downloadProgress)"
-          :status="isDownloading ? 'active' : 'success'"
+        <a-progress :percent="Math.round(downloadProgress)" :status="isDownloading ? 'active' : 'success'"
           :stroke-color="{
             '0%': '#108ee9',
             '100%': '#87d068',
-          }"
-        />
+          }" />
         <div class="progress-info">
-          <Text type="secondary" style="font-size: 12px;">
+          <a-typography-text type="secondary" style="font-size: 12px;">
             {{ Math.round(downloadProgress) }}% - {{ formatBytes(downloadedBytes) }}
             <span v-if="totalBytes > 0">/ {{ formatBytes(totalBytes) }}</span>
-          </Text>
+          </a-typography-text>
         </div>
       </div>
 
       <div v-else class="info-section">
-        <Text type="secondary">
-          游戏将下载到 G2M/Download 目录，下载完成后可以在下载页面选择解压。
-        </Text>
+        <a-typography-text type="secondary">
+          游戏将下载到 G2M/Download 目录，下载完成后选择游戏，点击解压。
+        </a-typography-text>
       </div>
 
       <div class="dialog-footer">
-        <Space>
-          <Button @click="handleCancel" :disabled="isDownloading">
+        <a-space>
+          <a-button @click="handleCancel" :disabled="isDownloading">
             取消
-          </Button>
-          <Button
-            type="primary"
-            @click="startDownload"
-            :loading="isDownloading"
-          >
+          </a-button>
+          <a-button type="primary" @click="startDownload" :loading="isDownloading">
             <template #icon>
               <DownloadOutlined />
             </template>
             开始下载
-          </Button>
-        </Space>
+          </a-button>
+        </a-space>
       </div>
     </div>
-  </Modal>
+  </a-modal>
 </template>
 
 <style scoped>

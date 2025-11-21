@@ -200,6 +200,17 @@ export function useGameListView() {
       };
       return exeMap[exe.toLowerCase()] || '未知游戏';
     },
+    getGameTypeName: (gameType: string) => {
+      const typeMap: Record<string, string> = {
+        'gta3': 'GTA III',
+        'gtavc': 'GTA Vice City',
+        'gtasa': 'GTA San Andreas',
+        'GTA3': 'GTA III',
+        'GTAVC': 'GTA Vice City',
+        'GTASA': 'GTA San Andreas'
+      };
+      return gameType ? (typeMap[gameType] || null) : null;
+    },
     goToAddGame: () => {
       // 路由导航需要在组件中实现
       console.log('导航到添加游戏页面');

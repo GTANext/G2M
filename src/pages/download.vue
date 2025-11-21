@@ -138,7 +138,7 @@ onMounted(() => {
         </div>
 
         <div class="game-actions">
-          <NButton v-if="getGameDownloadStatus(game.type) === 'not_downloaded'" type="primary" block
+          <NButton v-if="getGameDownloadStatus(game.type) === 'not_downloaded'" type="info" block
             @click="handleDownload(game.type)" :disabled="!isTauriEnvironment()">
             <template #icon>
               <DownloadOutlined />

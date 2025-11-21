@@ -1,12 +1,11 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onUnmounted } from 'vue'
 import { FileZipOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
-import { Modal, Button, Space, Typography, Alert, Form, Input, FormItem } from 'ant-design-vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { useMessage } from '@/composables/ui/useMessage'
 import { useGameApi } from '@/composables/api/useGameApi'
 
-const { Text } = Typography
 const { showError, showSuccess } = useMessage()
 const { saveGame } = useGameApi()
 
@@ -27,39 +26,26 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'success', 'cancel'])
 
+// 使用 computed 来同步 visible
+const visibleModel = computed({
+  get: () => props.visible,
+  set: (val) => emit('update:visible', val)
+})
+
 const gameNames = {
   gta3: 'Grand Theft Auto III',
   gtavc: 'Grand Theft Auto Vice City',
   gtasa: 'Grand Theft Auto San Andreas'
 }
 
-const gameExeMap = {
-  gta3: 'gta3.exe',
-  gtavc: 'gtavc.exe',
-  gtasa: 'gta_sa.exe'
-}
-
 const extractPath = ref('')
-const gameName = ref('')
-const gameDir = ref('')
-const gameExe = ref('')
 const isExtracting = ref(false)
-const extractFormRef = ref()
+const extractProgress = ref(0)
+const currentFile = ref('')
+const totalFiles = ref(0)
+const extractedFiles = ref(0)
 
-// 初始化表单数据
-const initFormData = () => {
-  if (props.downloadRecord) {
-    // 如果已有解压记录，使用之前的设置
-    gameName.value = props.downloadRecord.game_name || gameNames[props.gameType] || ''
-    gameDir.value = props.downloadRecord.game_dir || ''
-    gameExe.value = props.downloadRecord.game_exe || gameExeMap[props.gameType] || ''
-  } else {
-    // 否则使用默认值
-    gameName.value = gameNames[props.gameType] || ''
-    gameExe.value = gameExeMap[props.gameType] || ''
-    gameDir.value = ''
-  }
-}
+let progressListener = null
 
 // 选择解压目录
 const selectExtractFolder = async () => {
@@ -67,10 +53,6 @@ const selectExtractFolder = async () => {
     const response = await invoke('select_extract_folder')
     if (response?.success && response?.data) {
       extractPath.value = response.data
-      // 自动设置游戏目录
-      if (!gameDir.value) {
-        gameDir.value = response.data
-      }
     } else {
       if (response?.error) {
         showError('选择文件夹失败', { detail: response.error })
@@ -84,36 +66,59 @@ const selectExtractFolder = async () => {
 // 开始解压
 const startExtract = async () => {
   try {
-    await extractFormRef.value?.validate()
-    
+    if (!extractPath.value) {
+      showError('请选择解压位置')
+      return
+    }
+
     if (!props.downloadRecord || !props.downloadRecord.zip_path) {
       showError('下载记录不存在')
       return
     }
-    
+
+    if (!props.gameType) {
+      showError('游戏类型不存在')
+      return
+    }
+
     isExtracting.value = true
+    extractProgress.value = 0
+    currentFile.value = ''
+    totalFiles.value = 0
+    extractedFiles.value = 0
+
+    // 监听解压进度事件
+    if (!progressListener) {
+      progressListener = await listen('extract-progress', (event) => {
+        const progress = event.payload
+        extractProgress.value = progress.percentage || 0
+        extractedFiles.value = progress.current || 0
+        totalFiles.value = progress.total || 0
+        currentFile.value = progress.current_file || ''
+      })
+    }
 
     // 调用解压命令
     const extractResponse = await invoke('extract_game', {
       request: {
         zip_path: props.downloadRecord.zip_path,
         extract_to: extractPath.value,
-        game_name: gameName.value,
-        game_dir: gameDir.value,
-        game_exe: gameExe.value
+        game_type: props.gameType
       }
     })
 
     if (extractResponse?.success) {
+      // 获取返回的游戏信息
+      const gameInfo = extractResponse.data
+
       // 解压成功后，自动添加游戏到列表
       try {
-        const gameType = props.gameType
         const saveResponse = await saveGame({
-          name: gameName.value,
-          dir: gameDir.value,
-          exe: gameExe.value,
+          name: gameInfo.game_name || gameNames[props.gameType] || '',
+          dir: gameInfo.game_dir || '',
+          exe: gameInfo.game_exe || '',
           img: '',
-          type: gameType
+          type: gameInfo.game_type || props.gameType
         })
 
         if (saveResponse?.success) {
@@ -132,13 +137,13 @@ const startExtract = async () => {
     }
   } catch (error) {
     console.error('解压失败:', error)
-    if (error?.errorFields) {
-      // 表单验证错误
-      return
-    }
     showError('解压失败', { detail: error.message || error })
   } finally {
     isExtracting.value = false
+    if (progressListener) {
+      progressListener()
+      progressListener = null
+    }
   }
 }
 
@@ -156,129 +161,97 @@ const handleCancel = () => {
 // 重置对话框
 const resetDialog = () => {
   extractPath.value = ''
-  gameName.value = ''
-  gameDir.value = ''
-  gameExe.value = ''
+  extractProgress.value = 0
+  currentFile.value = ''
+  totalFiles.value = 0
+  extractedFiles.value = 0
+  if (progressListener) {
+    progressListener()
+    progressListener = null
+  }
 }
 
-// 监听 visible 和 downloadRecord 变化
-watch(() => props.visible, (newVisible) => {
-  if (newVisible) {
-    initFormData()
-  } else {
-    resetDialog()
+// 格式化文件大小
+const formatBytes = (bytes) => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+}
+
+onUnmounted(() => {
+  if (progressListener) {
+    progressListener()
   }
 })
 
-watch(() => props.downloadRecord, () => {
-  if (props.visible) {
-    initFormData()
+// 监听 visible 变化
+watch(() => props.visible, (newVisible) => {
+  if (!newVisible) {
+    resetDialog()
   }
 })
 </script>
 
 <template>
-  <Modal
-    :open="visible"
-    @update:open="$emit('update:visible', $event)"
-    :title="`解压 ${gameNames[gameType] || '游戏'}`"
-    :width="600"
-    :maskClosable="false"
-    :keyboard="false"
-    :footer="null"
-  >
+  <a-modal v-model:open="visibleModel" :title="`解压 ${gameNames[gameType] || '游戏'}`" :width="600" :maskClosable="false"
+    :keyboard="false" :footer="null">
     <div class="extract-dialog-content">
-      <Alert
-        v-if="downloadRecord"
-        type="info"
-        :message="`ZIP 文件: ${downloadRecord.zip_path.split(/[/\\]/).pop()}`"
-        :description="`下载日期: ${new Date(downloadRecord.download_date).toLocaleString()}`"
-        show-icon
-        style="margin-bottom: 16px;"
-      />
+      <a-alert v-if="downloadRecord" type="info" :message="`ZIP 文件: ${downloadRecord.zip_path.split(/[/\\]/).pop()}`"
+        :description="`下载日期: ${new Date(downloadRecord.download_date).toLocaleString()}`" show-icon
+        style="margin-bottom: 16px;" />
 
-      <Form
-        ref="extractFormRef"
-        :model="{ extractPath, gameName, gameDir, gameExe }"
-        layout="vertical"
-      >
-        <FormItem
-          label="解压位置"
-          name="extractPath"
-          :rules="[{ required: true, message: '请选择解压位置' }]"
-        >
+      <a-form layout="vertical">
+        <a-form-item label="解压位置">
           <div class="path-selector">
-            <Input
-              v-model:value="extractPath"
-              placeholder="请选择解压位置"
-              readonly
-              style="flex: 1"
-            />
-            <Button @click="selectExtractFolder" :disabled="isExtracting">
+            <a-input v-model:value="extractPath" placeholder="请选择解压位置" readonly style="flex: 1" />
+            <a-button @click="selectExtractFolder" :disabled="isExtracting">
               <template #icon>
                 <FolderOpenOutlined />
               </template>
               选择位置
-            </Button>
+            </a-button>
           </div>
-        </FormItem>
+          <a-typography-text type="secondary" style="font-size: 12px; display: block; margin-top: 4px;">
+            将在选择的位置自动创建游戏文件夹（如：{{ gameNames[gameType] }}），如果文件夹已存在则创建为 {{ gameNames[gameType] }}-1、{{
+              gameNames[gameType] }}-2 等
+          </a-typography-text>
+        </a-form-item>
+      </a-form>
 
-        <FormItem
-          label="游戏名称"
-          name="gameName"
-          :rules="[{ required: true, message: '请输入游戏名称' }]"
-        >
-          <Input v-model:value="gameName" placeholder="请输入游戏名称" />
-        </FormItem>
+      <a-alert v-if="isExtracting" type="info"
+        :message="`正在解压游戏文件... (${extractedFiles}${totalFiles > 0 ? ' / ' + totalFiles : ''})`"
+        :description="currentFile ? `当前文件: ${currentFile.split(/[/\\]/).pop()}` : ''" show-icon
+        style="margin-top: 16px;" />
 
-        <FormItem
-          label="游戏目录"
-          name="gameDir"
-          :rules="[{ required: true, message: '请输入游戏目录' }]"
-        >
-          <Input v-model:value="gameDir" placeholder="游戏目录路径" />
-          <Text type="secondary" style="font-size: 12px; display: block; margin-top: 4px;">
-            通常与解压位置相同
-          </Text>
-        </FormItem>
-
-        <FormItem
-          label="启动程序"
-          name="gameExe"
-          :rules="[{ required: true, message: '请输入启动程序' }]"
-        >
-          <Input v-model:value="gameExe" placeholder="例如: gta3.exe" />
-        </FormItem>
-      </Form>
-
-      <Alert
-        v-if="isExtracting"
-        type="info"
-        message="正在解压游戏文件..."
-        show-icon
-        style="margin-top: 16px;"
-      />
+      <div v-if="isExtracting" style="margin-top: 16px;">
+        <a-progress :percent="Math.round(extractProgress)" :status="isExtracting ? 'active' : 'success'" :stroke-color="{
+          '0%': '#108ee9',
+          '100%': '#87d068',
+        }" />
+        <div style="text-align: center; margin-top: 8px;">
+          <a-typography-text type="secondary" style="font-size: 12px;">
+            {{ Math.round(extractProgress) }}% - {{ extractedFiles }}{{ totalFiles > 0 ? ' / ' + totalFiles : '' }} 个文件
+          </a-typography-text>
+        </div>
+      </div>
 
       <div class="dialog-footer">
-        <Space>
-          <Button @click="handleCancel" :disabled="isExtracting">
+        <a-space>
+          <a-button @click="handleCancel" :disabled="isExtracting">
             取消
-          </Button>
-          <Button
-            type="primary"
-            @click="startExtract"
-            :loading="isExtracting"
-            :disabled="!extractPath || !gameName || !gameDir || !gameExe"
-          >
+          </a-button>
+          <a-button type="primary" @click="startExtract" :loading="isExtracting" :disabled="!extractPath">
             <template #icon>
               <FileZipOutlined />
             </template>
             解压并添加游戏
-          </Button>
-        </Space>
+          </a-button>
+        </a-space>
       </div>
     </div>
-  </Modal>
+  </a-modal>
 </template>
 
 <style scoped>
@@ -300,4 +273,3 @@ watch(() => props.downloadRecord, () => {
   border-top: 1px solid #f0f0f0;
 }
 </style>
-

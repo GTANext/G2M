@@ -24,9 +24,15 @@ pub struct DownloadGameRequest {
 pub struct ExtractGameRequest {
     pub zip_path: String,
     pub extract_to: String,
-    pub game_name: String,
-    pub game_dir: String,
-    pub game_exe: String,
+    pub game_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExtractProgress {
+    pub current: usize,
+    pub total: usize,
+    pub percentage: f64,
+    pub current_file: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -254,59 +260,106 @@ pub async fn download_game(
     Ok(ApiResponse::success(zip_path.to_string_lossy().to_string()))
 }
 
+// 获取游戏类型对应的文件夹名
+fn get_game_folder_name(game_type: &str) -> &str {
+    match game_type {
+        "gta3" => "Grand Theft Auto III",
+        "gtavc" => "Grand Theft Auto Vice City",
+        "gtasa" => "Grand Theft Auto San Andreas",
+        _ => "Unknown Game",
+    }
+}
+
+// 获取游戏类型对应的可执行文件名
+fn get_game_exe_name(game_type: &str) -> &str {
+    match game_type {
+        "gta3" => "gta3.exe",
+        "gtavc" => "gtavc.exe",
+        "gtasa" => "gta_sa.exe",
+        _ => "",
+    }
+}
+
+// 查找可用的游戏目录名（处理重复）
+fn find_available_game_dir(base_path: &Path, game_type: &str) -> PathBuf {
+    let folder_name = get_game_folder_name(game_type);
+    let mut game_dir = base_path.join(folder_name);
+    let mut counter = 1;
+    
+    while game_dir.exists() {
+        let new_name = format!("{}-{}", folder_name, counter);
+        game_dir = base_path.join(new_name);
+        counter += 1;
+    }
+    
+    game_dir
+}
+
+// 解压结果结构
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExtractResult {
+    pub game_dir: String,
+    pub game_name: String,
+    pub game_exe: String,
+    pub game_type: String,
+}
+
 // 解压游戏命令
 #[tauri::command]
 pub async fn extract_game(
+    window: Window,
     app_handle: AppHandle,
     request: ExtractGameRequest,
-) -> Result<ApiResponse<String>, String> {
+) -> Result<ApiResponse<ExtractResult>, String> {
     let zip_path = Path::new(&request.zip_path);
-    let extract_to = Path::new(&request.extract_to);
+    let base_extract_path = Path::new(&request.extract_to);
 
     // 验证 ZIP 文件是否存在
     if !zip_path.exists() {
         return Ok(ApiResponse::error("ZIP 文件不存在".to_string()));
     }
 
-    // 创建解压目录
-    std::fs::create_dir_all(extract_to)
-        .map_err(|e| format!("创建解压目录失败: {}", e))?;
+    // 确保基础目录存在
+    std::fs::create_dir_all(base_extract_path)
+        .map_err(|e| format!("创建基础目录失败: {}", e))?;
 
-    // 解压文件
-    match extract_zip(zip_path, extract_to).await {
+    // 查找可用的游戏目录（处理重复）
+    let game_dir = find_available_game_dir(base_extract_path, &request.game_type);
+    let game_dir_str = game_dir.to_string_lossy().to_string();
+
+    // 创建游戏目录
+    std::fs::create_dir_all(&game_dir)
+        .map_err(|e| format!("创建游戏目录失败: {}", e))?;
+
+    // 解压文件（带进度）
+    match extract_zip_with_progress(&window, zip_path, &game_dir).await {
         Ok(_) => {
-            // 从下载记录中获取 game_type
-            let download_log = read_download_log(&app_handle)?;
-            let game_type = download_log.downloads
-                .iter()
-                .find(|r| r.zip_path == request.zip_path)
-                .map(|r| r.game_type.clone())
-                .unwrap_or_else(|| {
-                    // 如果找不到，从文件名推断
-                    request.zip_path.split('/').last()
-                        .and_then(|name| {
-                            if name.contains("III") { Some("gta3".to_string()) }
-                            else if name.contains("Vice City") { Some("gtavc".to_string()) }
-                            else if name.contains("San Andreas") { Some("gtasa".to_string()) }
-                            else { None }
-                        })
-                        .unwrap_or_else(|| "unknown".to_string())
-                });
+            // 获取游戏信息
+            let game_name = get_game_folder_name(&request.game_type).to_string();
+            let game_exe = get_game_exe_name(&request.game_type).to_string();
             
             // 记录解压信息到解压日志（支持多次解压）
             let mut extract_log = read_extract_log(&app_handle)?;
             extract_log.extracts.push(ExtractRecord {
-                game_type,
+                game_type: request.game_type.clone(),
                 zip_path: request.zip_path.clone(),
-                extract_path: request.extract_to.clone(),
+                extract_path: game_dir_str.clone(),
                 extract_date: Utc::now().to_rfc3339(),
-                game_name: request.game_name.clone(),
-                game_dir: request.game_dir.clone(),
-                game_exe: request.game_exe.clone(),
+                game_name: game_name.clone(),
+                game_dir: game_dir_str.clone(),
+                game_exe: game_exe.clone(),
             });
             write_extract_log(&app_handle, &extract_log)?;
 
-            Ok(ApiResponse::success(extract_to.to_string_lossy().to_string()))
+            // 返回游戏目录和信息
+            let result = ExtractResult {
+                game_dir: game_dir_str,
+                game_name,
+                game_exe,
+                game_type: request.game_type,
+            };
+
+            Ok(ApiResponse::success(result))
         }
         Err(e) => {
             Ok(ApiResponse::error(format!("解压失败: {}", e)))
@@ -378,21 +431,36 @@ async fn download_file(
 }
 
 // 解压 ZIP 文件
-async fn extract_zip(zip_path: &Path, extract_to: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    // 使用 tokio 的异步运行时执行同步操作
+async fn extract_zip_with_progress(
+    window: &Window,
+    zip_path: &Path,
+    extract_to: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     let zip_path = zip_path.to_path_buf();
     let extract_to = extract_to.to_path_buf();
+    let window_clone = window.clone();
     
     let result = tokio::task::spawn_blocking(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let file = File::open(&zip_path)?;
         let mut archive = ZipArchive::new(file)?;
+        let total = archive.len();
 
-        for i in 0..archive.len() {
+        for i in 0..total {
             let mut file = archive.by_index(i)?;
+            let file_name = file.name().to_string();
             let outpath = match file.enclosed_name() {
                 Some(path) => extract_to.join(path),
                 None => continue,
             };
+
+            // 发送进度事件
+            let progress = ExtractProgress {
+                current: i + 1,
+                total,
+                percentage: ((i + 1) as f64 / total as f64) * 100.0,
+                current_file: file_name.clone(),
+            };
+            let _ = window_clone.emit("extract-progress", &progress);
 
             // 创建目录
             if file.name().ends_with('/') {

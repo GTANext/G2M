@@ -1,5 +1,4 @@
 <script setup>
-import { NCard, NGrid, NGridItem, NTag, NSpin, NCheckbox, NButton, NModal, NResult, NSpace } from 'naive-ui'
 import { useGameInfo } from '@/composables/game/useGameInfo'
 
 // Props
@@ -36,7 +35,7 @@ const availableComponents = computed(() => {
     {
       key: 'dinput8',
       name: 'dinput8.dll',
-      description: '基础输入库，大多数 MOD 的必需组件',
+      description: 'plugins scripts 加载器',
       installed: modStatus.value.dinput8
     }
   ]
@@ -81,6 +80,11 @@ const allComponentsInstalled = computed(() => {
 
 // 方法
 const toggleComponent = (key) => {
+  // dinput8 不能取消选择
+  if (key === 'dinput8') {
+    return
+  }
+
   const index = selectedComponents.value.indexOf(key)
   if (index > -1) {
     selectedComponents.value.splice(index, 1)
@@ -128,6 +132,19 @@ const loadModStatus = async () => {
         }
         return !isInstalled
       })
+
+      // 如果 dinput8 未安装，确保它在选中列表中（且不能取消）
+      if (!modStatus.value.dinput8) {
+        if (!selectedComponents.value.includes('dinput8')) {
+          selectedComponents.value.unshift('dinput8')
+        }
+      } else {
+        // 如果 dinput8 已安装，从选中列表中移除
+        const dinput8Index = selectedComponents.value.indexOf('dinput8')
+        if (dinput8Index > -1) {
+          selectedComponents.value.splice(dinput8Index, 1)
+        }
+      }
     } else {
       // 如果返回的状态无效，使用默认状态
       console.warn('检查 MOD 状态返回无效结果，使用默认状态')
@@ -136,6 +153,10 @@ const loadModStatus = async () => {
         cleo: false,
         cleo_redux: false,
         modloader: false
+      }
+      // 确保 dinput8 默认选中
+      if (!selectedComponents.value.includes('dinput8')) {
+        selectedComponents.value.unshift('dinput8')
       }
     }
   } catch (error) {
@@ -146,6 +167,10 @@ const loadModStatus = async () => {
       cleo: false,
       cleo_redux: false,
       modloader: false
+    }
+    // 确保 dinput8 默认选中
+    if (!selectedComponents.value.includes('dinput8')) {
+      selectedComponents.value.unshift('dinput8')
     }
   } finally {
     isLoading.value = false
@@ -215,16 +240,17 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="mod-installer">
-    <!-- MOD 环境状态概览 -->
-    <div class="status-overview">
-      <h3>前置安装</h3>
+  <div style="display: flex; flex-direction: column; gap: 24px;">
+    <div>
+      <h3 style="margin-bottom: 16px; font-size: 18px; font-weight: 600; color: #333;">
+        前置安装
+      </h3>
       <NGrid :cols="4" :x-gap="12" :y-gap="12">
         <NGridItem>
-          <NCard :bordered="true" :class="{ 'status-ok': modStatus.dinput8, 'status-missing': !modStatus.dinput8 }">
-            <div class="status-content">
-              <div class="status-title">dinput8.dll</div>
-              <div class="status-desc">基础输入库</div>
+          <NCard :bordered="true" :style="{ borderColor: modStatus.dinput8 ? '#18a058' : '#d03050' }">
+            <div style="text-align: center;">
+              <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">dinput8.dll</div>
+              <div style="font-size: 12px; color: #999; margin-bottom: 8px;">基础输入库</div>
               <NTag :type="modStatus.dinput8 ? 'success' : 'error'" size="small" style="margin-top: 8px;">
                 {{ modStatus.dinput8 ? '已安装' : '缺少' }}
               </NTag>
@@ -233,10 +259,10 @@ onMounted(() => {
         </NGridItem>
 
         <NGridItem>
-          <NCard :bordered="true" :class="{ 'status-ok': modStatus.cleo, 'status-missing': !modStatus.cleo }">
-            <div class="status-content">
-              <div class="status-title">CLEO</div>
-              <div class="status-desc">脚本执行引擎</div>
+          <NCard :bordered="true" :style="{ borderColor: modStatus.cleo ? '#18a058' : '#d03050' }">
+            <div style="text-align: center;">
+              <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO</div>
+              <div style="font-size: 12px; color: #999; margin-bottom: 8px;">脚本执行引擎</div>
               <NTag :type="modStatus.cleo ? 'success' : 'error'" size="small" style="margin-top: 8px;">
                 {{ modStatus.cleo ? '已安装' : '缺少' }}
               </NTag>
@@ -245,11 +271,10 @@ onMounted(() => {
         </NGridItem>
 
         <NGridItem>
-          <NCard :bordered="true"
-            :class="{ 'status-ok': modStatus.cleo_redux, 'status-missing': !modStatus.cleo_redux }">
-            <div class="status-content">
-              <div class="status-title">CLEO Redux</div>
-              <div class="status-desc">现代脚本引擎</div>
+          <NCard :bordered="true" :style="{ borderColor: modStatus.cleo_redux ? '#18a058' : '#d03050' }">
+            <div style="text-align: center;">
+              <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO Redux</div>
+              <div style="font-size: 12px; color: #999; margin-bottom: 8px;">现代脚本引擎</div>
               <NTag :type="modStatus.cleo_redux ? 'success' : 'error'" size="small" style="margin-top: 8px;">
                 {{ modStatus.cleo_redux ? '已安装' : '缺少' }}
               </NTag>
@@ -258,10 +283,10 @@ onMounted(() => {
         </NGridItem>
 
         <NGridItem>
-          <NCard :bordered="true" :class="{ 'status-ok': modStatus.modloader, 'status-missing': !modStatus.modloader }">
-            <div class="status-content">
-              <div class="status-title">ModLoader</div>
-              <div class="status-desc">MOD 加载器</div>
+          <NCard :bordered="true" :style="{ borderColor: modStatus.modloader ? '#18a058' : '#d03050' }">
+            <div style="text-align: center;">
+              <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">ModLoader</div>
+              <div style="font-size: 12px; color: #999; margin-bottom: 8px;">MOD 加载器</div>
               <NTag :type="modStatus.modloader ? 'success' : 'error'" size="small" style="margin-top: 8px;">
                 {{ modStatus.modloader ? '已安装' : '缺少' }}
               </NTag>
@@ -275,30 +300,32 @@ onMounted(() => {
       </NSpin>
     </div>
 
-    <!-- MOD 组件选择 -->
-    <div v-if="!allComponentsInstalled" class="component-selection">
-      <h4>选择要安装的组件</h4>
-      <NGrid :cols="1" :x-gap="12" :y-gap="12" class="component-list">
+    <div v-if="!allComponentsInstalled">
+      <NGrid :cols="1" :x-gap="12" :y-gap="12">
         <NGridItem v-for="component in availableComponents" :key="component.key">
-          <NCard :bordered="true" :class="{ 'installed': component.installed }">
-            <div class="component-header">
+          <NCard :bordered="true" :style="component.installed ? { opacity: 0.7 } : undefined">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <NCheckbox :checked="selectedComponents.includes(component.key)"
-                @update:checked="toggleComponent(component.key)" :disabled="component.installed">
+                @update:checked="toggleComponent(component.key)"
+                :disabled="component.installed || component.key === 'dinput8'">
                 <strong>{{ component.name }}</strong>
+                <span v-if="component.key === 'dinput8'"
+                  style="color: #999; font-size: 12px; margin-left: 4px;">(必需)</span>
               </NCheckbox>
               <NTag v-if="component.installed" type="success" size="small">已安装</NTag>
               <NTag v-else type="default" size="small">未安装</NTag>
             </div>
-            <div class="component-description">
+            <div style="color: #666; font-size: 13px; line-height: 1.5; margin-top: 8px;">
               {{ component.description }}
             </div>
           </NCard>
         </NGridItem>
       </NGrid>
 
-      <div class="install-actions">
-        <div class="install-summary">
-          <p>已选择 {{ selectedCount }} 个组件进行安装</p>
+      <div
+        style="margin-top: 24px; padding: 16px; background: #fafafa; border-radius: 8px; display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <p style="margin: 0 0 8px 0; font-weight: 500; color: #333;">已选择 {{ selectedCount }} 个组件进行安装</p>
           <NSpace v-if="selectedCount > 0" size="small" style="margin-top: 8px;">
             <NTag v-for="key in selectedComponents" :key="key" type="info" size="small">
               {{ getComponentName(key) }}
@@ -306,7 +333,7 @@ onMounted(() => {
           </NSpace>
         </div>
 
-        <div class="install-buttons">
+        <div style="display: flex; justify-content: flex-end;">
           <NButton type="primary" :loading="isInstalling" :disabled="selectedCount === 0" @click="handleInstall">
             安装选中组件
           </NButton>
@@ -314,149 +341,25 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 安装结果模态框 -->
     <NModal v-model:show="showResult" preset="card" title="安装结果" style="width: 600px">
-      <div v-if="installResult" class="install-result">
+      <div v-if="installResult" style="display: flex; flex-direction: column; gap: 16px;">
         <NResult :status="installResult.success ? 'success' : 'error'" :title="installResult.success ? '安装成功' : '安装失败'"
           :description="installResult.message" />
 
-        <div v-if="installResult.details && installResult.details.length > 0" class="result-details">
-          <h4>详细信息：</h4>
-          <div class="detail-list">
-            <div v-for="(detail, index) in installResult.details" :key="index" class="detail-item"
-              :class="{ 'success': detail.includes('成功'), 'error': detail.includes('失败') }">
+        <div v-if="installResult.details && installResult.details.length > 0" style="text-align: left;">
+          <h4 style="margin-bottom: 12px; font-size: 14px; font-weight: 600;">详细信息：</h4>
+          <div style="background: #fafafa; border-radius: 6px; padding: 12px;">
+            <div v-for="(detail, index) in installResult.details" :key="index"
+              :style="{ padding: '4px 0', fontSize: '13px', color: detail.includes('失败') ? '#d03050' : '#18a058' }">
               {{ detail }}
             </div>
           </div>
         </div>
 
-        <div class="result-actions">
+        <div style="text-align: center;">
           <NButton type="primary" @click="closeResult">确定</NButton>
         </div>
       </div>
     </NModal>
   </div>
 </template>
-
-<style scoped>
-.mod-installer {
-  padding: 0;
-}
-
-.status-overview {
-  margin-bottom: 24px;
-}
-
-.status-overview h3 {
-  margin-bottom: 16px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-}
-
-.status-content {
-  text-align: center;
-}
-
-.status-title {
-  font-weight: 600;
-  margin-bottom: 4px;
-  font-size: 14px;
-}
-
-.status-desc {
-  font-size: 12px;
-  color: #999;
-  margin-bottom: 8px;
-}
-
-.status-ok {
-  border-color: #18a058 !important;
-}
-
-.status-missing {
-  border-color: #d03050 !important;
-}
-
-.component-selection {
-  margin-top: 24px;
-}
-
-.component-selection h4 {
-  margin-bottom: 16px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-
-.component-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.component-description {
-  color: #666;
-  font-size: 13px;
-  line-height: 1.5;
-  margin-top: 8px;
-}
-
-.install-actions {
-  margin-top: 24px;
-  padding: 16px;
-  background: #fafafa;
-  border-radius: 8px;
-}
-
-.install-summary {
-  margin-bottom: 16px;
-}
-
-.install-summary p {
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #333;
-}
-
-.install-buttons {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.result-details {
-  margin-top: 16px;
-  text-align: left;
-}
-
-.result-details h4 {
-  margin-bottom: 12px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.detail-list {
-  background: #fafafa;
-  border-radius: 6px;
-  padding: 12px;
-}
-
-.detail-item {
-  padding: 4px 0;
-  font-size: 13px;
-}
-
-.detail-item.success {
-  color: #18a058;
-}
-
-.detail-item.error {
-  color: #d03050;
-}
-
-.result-actions {
-  margin-top: 16px;
-  text-align: center;
-}
-</style>

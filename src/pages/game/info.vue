@@ -1,12 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useDialog, useMessage } from 'naive-ui'
+import { useDialog, useMessage as useNaiveMessage } from 'naive-ui'
 import {
   PlayCircleOutlined,
   FolderOpenOutlined
 } from '@ant-design/icons-vue'
-import { NCard, NButton, NSpin, NAlert, NTabs, NTabPane, NSkeleton } from 'naive-ui'
 
 import { useGameInfo } from '@/composables/game/useGameInfo'
 import { useGameActions } from '@/composables/game/useGameActions'
@@ -50,7 +49,7 @@ const activeKey = ref('1');
 // 游戏API和消息提示
 const gameApi = useGameApi()
 const dialog = useDialog()
-const message = useMessage()
+const message = useNaiveMessage()
 
 // 编辑对话框状态和函数
 const editDialogVisible = ref(false)
