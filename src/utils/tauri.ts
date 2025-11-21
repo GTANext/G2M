@@ -1,7 +1,10 @@
 import type {
   GameInfo,
   GameDetectionResult,
-  ApiResponse
+  ApiResponse,
+  ModLoaderStatus,
+  ModInstallRequest,
+  ModInstallResult
 } from '@/types';
 
 // 定义 invoke 函数的类型接口
@@ -205,6 +208,78 @@ const mockApi = {
     } else {
       return { success: false, error: "游戏未找到" };
     }
+  },
+
+  check_mod_loaders: async (params: { gameDir: string; gameType?: string | null }): Promise<ApiResponse<ModLoaderStatus>> => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    console.log(`模拟检查 MOD 加载器: ${params.gameDir}, 游戏类型: ${params.gameType}`);
+    
+    // 模拟不同的检查结果
+    const mockStatus: ModLoaderStatus = {
+      has_dinput8: Math.random() > 0.5,
+      has_modloader: Math.random() > 0.5,
+      has_cleo: Math.random() > 0.5,
+      has_cleo_redux: Math.random() > 0.7,
+      missing_loaders: [],
+      found_loaders: []
+    };
+
+    // 根据检查结果填充数组
+    if (mockStatus.has_dinput8) {
+      mockStatus.found_loaders.push('dinput8.dll (游戏根目录)');
+    } else {
+      mockStatus.missing_loaders.push('dinput8.dll');
+    }
+
+    if (mockStatus.has_modloader) {
+      mockStatus.found_loaders.push('ModLoader (plugins目录)');
+    } else {
+      mockStatus.missing_loaders.push('ModLoader');
+    }
+
+    if (mockStatus.has_cleo) {
+      const cleoFile = params.gameType === 'gta3' ? 'III.CLEO.asi' : 
+                      params.gameType === 'gtavc' ? 'VC.CLEO.asi' : 
+                      'CLEO.asi';
+      mockStatus.found_loaders.push(`CLEO (plugins目录/${cleoFile})`);
+    } else {
+      mockStatus.missing_loaders.push('CLEO');
+    }
+
+    if (mockStatus.has_cleo_redux) {
+      mockStatus.found_loaders.push('CLEO Redux (plugins目录)');
+    } else {
+      mockStatus.missing_loaders.push('CLEO Redux');
+    }
+
+    return { success: true, data: mockStatus };
+  },
+
+  install_mod_prerequisites: async (params: { request: ModInstallRequest }): Promise<ApiResponse<ModInstallResult>> => {
+    const request = params.request;
+    console.log('Mock: Installing MOD prerequisites for', request);
+    
+    // 模拟安装过程
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const mockResult: ModInstallResult = {
+      installed_files: [
+        'dinput8.dll',
+        'plugins/cleo.asi',
+        'plugins/modloader.asi',
+        'plugins/cleo_redux.asi',
+        'CLEO/CLEO_SDK.dll',
+        'scripts/example.cs'
+      ],
+      created_directories: [
+        'plugins',
+        'CLEO',
+        'scripts',
+        'modloader'
+      ]
+    };
+    
+    return { success: true, data: mockResult };
   }
 };
 
@@ -256,4 +331,9 @@ async function getInvoke(): Promise<InvokeFunction> {
 export async function tauriInvoke<T>(command: string, params?: any): Promise<T> {
   const invokeFunc = await getInvoke();
   return invokeFunc<T>(command, params);
+}
+
+// MOD 前置安装函数
+export async function installModPrerequisites(request: ModInstallRequest): Promise<ApiResponse<ModInstallResult>> {
+  return await tauriInvoke<ApiResponse<ModInstallResult>>('install_mod_prerequisites', { request });
 }

@@ -58,3 +58,26 @@ impl<T> ApiResponse<T> {
 pub struct CopyImageResponse {
     pub image_path: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModLoaderStatus {
+    pub has_dinput8: bool,
+    pub has_modloader: bool,
+    pub has_cleo: bool,
+    pub has_cleo_redux: bool,
+    pub missing_loaders: Vec<String>,
+    pub found_loaders: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModInstallRequest {
+    pub game_dir: String,
+    pub game_type: String,
+    pub components: Option<Vec<String>>, // 可选的组件列表
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModInstallResult {
+    pub installed_files: Vec<String>,
+    pub created_directories: Vec<String>,
+}

@@ -115,7 +115,6 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="game-list-container">
     <G2MHeader title="已添加游戏">
       <template #right>
         <a-space>
@@ -203,9 +202,6 @@ onMounted(() => {
                 <FolderOpenOutlined />
                 {{ game.dir }}
               </p>
-              <p class="game-exe">
-                <strong>启动程序:</strong> {{ game.exe }}
-              </p>
               <p class="game-date">
                 <strong>添加时间:</strong> {{ formatGameTime(game.time) }}
               </p>
@@ -265,16 +261,9 @@ onMounted(() => {
       @success="handleAddGameComplete"
       @cancel="handleAddGameCancel"
     />
-  </div>
 </template>
 
 <style scoped>
-.game-list-container {
-  padding: 24px;
-}
-
-/* 页面头部样式已移至 base.scss */
-
 .filter-section {
   margin-bottom: 24px;
 }

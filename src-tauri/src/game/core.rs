@@ -4,7 +4,7 @@ use std::process::Command;
 use chrono::Utc;
 use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
-use crate::game::{GameInfo, GameList, GameDetectionResult, ApiResponse, CopyImageResponse};
+use crate::game::{GameInfo, GameList, GameDetectionResult, ApiResponse, CopyImageResponse, ModLoaderStatus, ModInstallRequest, ModInstallResult};
 
 // 根据exe文件名识别游戏类型
 fn detect_game_type_from_exe(exe_name: &str) -> Option<String> {
@@ -556,6 +556,441 @@ pub async fn copy_game_image(
     Ok(ApiResponse::success(CopyImageResponse {
         image_path: relative_path,
     }))
+}
+
+// MOD 前置安装功能 - 支持选择性安装
+#[tauri::command]
+pub async fn install_mod_prerequisites(
+    request: ModInstallRequest,
+    _app_handle: tauri::AppHandle,
+) -> Result<ApiResponse<ModInstallResult>, String> {
+    let game_path = Path::new(&request.game_dir);
+    
+    if !game_path.exists() || !game_path.is_dir() {
+        return Ok(ApiResponse::error("游戏目录不存在".to_string()));
+    }
+
+    // 获取 G2M/Module 目录路径
+    let module_dir = if cfg!(debug_assertions) {
+        // 在开发环境中，使用项目根目录
+        let current_dir = std::env::current_dir()
+            .map_err(|e| format!("获取当前目录失败: {}", e))?;
+        
+        // 如果当前目录是 src-tauri，则向上找到项目根目录
+        let project_root = if current_dir.file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name == "src-tauri")
+            .unwrap_or(false) {
+            current_dir.parent()
+                .ok_or("无法获取项目根目录")?
+                .to_path_buf()
+        } else {
+            current_dir
+        };
+        
+        project_root.join("src-tauri").join("G2M").join("Module")
+    } else {
+        // 在生产环境中，使用exe文件所在目录
+        let exe_dir = std::env::current_exe()
+            .map_err(|e| format!("获取程序路径失败: {}", e))?
+            .parent()
+            .ok_or("无法获取程序目录")?
+            .to_path_buf();
+        exe_dir.join("G2M").join("Module")
+    };
+    
+    if !module_dir.exists() {
+        return Ok(ApiResponse::error(format!("G2M/Module 目录不存在: {}", module_dir.display())));
+    }
+
+    let mut installed_files = Vec::new();
+    let mut created_directories = Vec::new();
+
+    // 确定要安装的组件
+    let components_to_install = if let Some(components) = &request.components {
+        components.clone()
+    } else {
+        // 如果没有指定组件，安装默认组件
+        vec!["dinput8".to_string(), "cleo".to_string()]
+    };
+
+    println!("准备安装组件: {:?}", components_to_install);
+
+    // 创建 plugins 文件夹（如果需要）
+    let plugins_dir = game_path.join("plugins");
+    let mut plugins_created = false;
+
+    // 安装 dinput8.dll
+    if components_to_install.contains(&"dinput8".to_string()) {
+        let dinput8_source = module_dir.join("dinput8.dll");
+        let dinput8_dest = game_path.join("dinput8.dll");
+        
+        if dinput8_source.exists() {
+            if let Err(e) = fs::copy(&dinput8_source, &dinput8_dest) {
+                return Ok(ApiResponse::error(format!("复制 dinput8.dll 失败: {}", e)));
+            }
+            installed_files.push("dinput8.dll".to_string());
+            println!("已安装: dinput8.dll");
+        } else {
+            return Ok(ApiResponse::error("dinput8.dll 文件不存在".to_string()));
+        }
+    }
+
+    // 安装 CLEO
+    if components_to_install.contains(&"cleo".to_string()) {
+        // 确保 plugins 目录存在
+        if !plugins_created && !plugins_dir.exists() {
+            if let Err(e) = fs::create_dir_all(&plugins_dir) {
+                return Ok(ApiResponse::error(format!("创建 plugins 目录失败: {}", e)));
+            }
+            created_directories.push("plugins".to_string());
+            plugins_created = true;
+        }
+
+        match request.game_type.as_str() {
+            "gta3" => {
+                let cleo3_dir = module_dir.join("CLEO.III_v2.1.1");
+                if cleo3_dir.exists() {
+                    // 复制 III.CLEO.asi 到 plugins 目录
+                    let asi_source = cleo3_dir.join("III.CLEO.asi");
+                    let asi_dest = plugins_dir.join("III.CLEO.asi");
+                    if asi_source.exists() {
+                        if let Err(e) = fs::copy(&asi_source, &asi_dest) {
+                            return Ok(ApiResponse::error(format!("复制 III.CLEO.asi 失败: {}", e)));
+                        }
+                        installed_files.push("plugins/III.CLEO.asi".to_string());
+                    }
+
+                    // 复制 CLEO 文件夹到游戏根目录
+                    let cleo_source = cleo3_dir.join("CLEO");
+                    let cleo_dest = game_path.join("CLEO");
+                    if cleo_source.exists() {
+                        if let Err(e) = copy_dir_all(&cleo_source, &cleo_dest) {
+                            return Ok(ApiResponse::error(format!("复制 CLEO 目录失败: {}", e)));
+                        }
+                        created_directories.push("CLEO".to_string());
+                    }
+                    println!("已安装: CLEO for GTA III");
+                }
+            },
+            "gtavc" => {
+                let cleovc_dir = module_dir.join("CLEO.VC_v2.1.1");
+                if cleovc_dir.exists() {
+                    // 复制 VC.CLEO.asi 到 plugins 目录
+                    let asi_source = cleovc_dir.join("VC.CLEO.asi");
+                    let asi_dest = plugins_dir.join("VC.CLEO.asi");
+                    if asi_source.exists() {
+                        if let Err(e) = fs::copy(&asi_source, &asi_dest) {
+                            return Ok(ApiResponse::error(format!("复制 VC.CLEO.asi 失败: {}", e)));
+                        }
+                        installed_files.push("plugins/VC.CLEO.asi".to_string());
+                    }
+
+                    // 复制 CLEO 文件夹到游戏根目录
+                    let cleo_source = cleovc_dir.join("CLEO");
+                    let cleo_dest = game_path.join("CLEO");
+                    if cleo_source.exists() {
+                        if let Err(e) = copy_dir_all(&cleo_source, &cleo_dest) {
+                            return Ok(ApiResponse::error(format!("复制 CLEO 目录失败: {}", e)));
+                        }
+                        created_directories.push("CLEO".to_string());
+                    }
+                    println!("已安装: CLEO for GTA Vice City");
+                }
+            },
+            "gtasa" => {
+                let cleosa_dir = module_dir.join("CLEO.SA_v4.44");
+                if cleosa_dir.exists() {
+                    // 复制 CLEO.asi 到 plugins 目录
+                    let asi_source = cleosa_dir.join("CLEO.asi");
+                    let asi_dest = plugins_dir.join("CLEO.asi");
+                    if asi_source.exists() {
+                        if let Err(e) = fs::copy(&asi_source, &asi_dest) {
+                            return Ok(ApiResponse::error(format!("复制 CLEO.asi 失败: {}", e)));
+                        }
+                        installed_files.push("plugins/CLEO.asi".to_string());
+                    }
+
+                    // 复制相关 DLL 文件到游戏根目录
+                    let dll_files = ["bass.dll", "vorbisFile.dll", "vorbisHooked.dll"];
+                    for dll_file in &dll_files {
+                        let dll_source = cleosa_dir.join(dll_file);
+                        let dll_dest = game_path.join(dll_file);
+                        if dll_source.exists() {
+                            if let Err(e) = fs::copy(&dll_source, &dll_dest) {
+                                return Ok(ApiResponse::error(format!("复制 {} 失败: {}", dll_file, e)));
+                            }
+                            installed_files.push(dll_file.to_string());
+                        }
+                    }
+
+                    // 复制 cleo 文件夹到游戏根目录
+                    let cleo_source = cleosa_dir.join("cleo");
+                    let cleo_dest = game_path.join("cleo");
+                    if cleo_source.exists() {
+                        if let Err(e) = copy_dir_all(&cleo_source, &cleo_dest) {
+                            return Ok(ApiResponse::error(format!("复制 cleo 目录失败: {}", e)));
+                        }
+                        created_directories.push("cleo".to_string());
+                    }
+
+                    // 复制 scripts 文件夹到游戏根目录
+                    let scripts_source = cleosa_dir.join("scripts");
+                    let scripts_dest = game_path.join("scripts");
+                    if scripts_source.exists() {
+                        if let Err(e) = copy_dir_all(&scripts_source, &scripts_dest) {
+                            return Ok(ApiResponse::error(format!("复制 scripts 目录失败: {}", e)));
+                        }
+                        created_directories.push("scripts".to_string());
+                    }
+
+                    // 复制 cleo_sdk 文件夹到游戏根目录
+                    let sdk_source = cleosa_dir.join("cleo_sdk");
+                    let sdk_dest = game_path.join("cleo_sdk");
+                    if sdk_source.exists() {
+                        if let Err(e) = copy_dir_all(&sdk_source, &sdk_dest) {
+                            return Ok(ApiResponse::error(format!("复制 cleo_sdk 目录失败: {}", e)));
+                        }
+                        created_directories.push("cleo_sdk".to_string());
+                    }
+                    println!("已安装: CLEO for GTA San Andreas");
+                }
+            },
+            _ => {
+                println!("警告: 游戏类型 {} 不支持 CLEO", request.game_type);
+            }
+        }
+    }
+
+    // 安装 CLEO Redux
+    if components_to_install.contains(&"cleo_redux".to_string()) {
+        // 确保 plugins 目录存在
+        if !plugins_created && !plugins_dir.exists() {
+            if let Err(e) = fs::create_dir_all(&plugins_dir) {
+                return Ok(ApiResponse::error(format!("创建 plugins 目录失败: {}", e)));
+            }
+            created_directories.push("plugins".to_string());
+            plugins_created = true;
+        }
+
+        let cleo_redux_dir = module_dir.join("CLEO.Redux_v1.3.3");
+        if cleo_redux_dir.exists() {
+            // 复制 cleo_redux.asi 到 plugins 目录
+            let asi_source = cleo_redux_dir.join("cleo_redux.asi");
+            let asi_dest = plugins_dir.join("cleo_redux.asi");
+            if asi_source.exists() {
+                if let Err(e) = fs::copy(&asi_source, &asi_dest) {
+                    println!("警告: 复制 cleo_redux.asi 失败: {}", e);
+                } else {
+                    installed_files.push("plugins/cleo_redux.asi".to_string());
+                }
+            }
+
+            // 复制 CLEO 文件夹到游戏根目录（如果不存在）
+            let cleo_source = cleo_redux_dir.join("CLEO");
+            let cleo_dest = game_path.join("CLEO");
+            if cleo_source.exists() && !cleo_dest.exists() {
+                if let Err(e) = copy_dir_all(&cleo_source, &cleo_dest) {
+                    println!("警告: 复制 CLEO Redux 目录失败: {}", e);
+                } else {
+                    created_directories.push("CLEO (Redux)".to_string());
+                }
+            }
+            println!("已安装: CLEO Redux");
+        }
+    }
+
+    // 安装 ModLoader（适用于所有游戏类型）
+    if components_to_install.contains(&"modloader".to_string()) {
+        let modloader_dir = module_dir.join("ModLoader");
+        if !modloader_dir.exists() {
+            return Ok(ApiResponse::error("ModLoader 模块目录不存在".to_string()));
+        }
+
+        // 确定 modloader.asi 的安装目录：优先使用 plugins，如果不存在则使用 scripts
+        let scripts_dir = game_path.join("scripts");
+        let asi_dest_dir = if plugins_dir.exists() {
+            // 如果 plugins 目录存在，使用 plugins
+            if !plugins_created && !plugins_dir.exists() {
+                if let Err(e) = fs::create_dir_all(&plugins_dir) {
+                    return Ok(ApiResponse::error(format!("创建 plugins 目录失败: {}", e)));
+                }
+                created_directories.push("plugins".to_string());
+            }
+            plugins_dir.clone()
+        } else if scripts_dir.exists() {
+            // 如果 scripts 目录存在，使用 scripts
+            if let Err(e) = fs::create_dir_all(&scripts_dir) {
+                return Ok(ApiResponse::error(format!("创建 scripts 目录失败: {}", e)));
+            }
+            created_directories.push("scripts".to_string());
+            scripts_dir
+        } else {
+            // 默认使用 plugins 目录
+            if !plugins_created && !plugins_dir.exists() {
+                if let Err(e) = fs::create_dir_all(&plugins_dir) {
+                    return Ok(ApiResponse::error(format!("创建 plugins 目录失败: {}", e)));
+                }
+                created_directories.push("plugins".to_string());
+            }
+            plugins_dir.clone()
+        };
+
+        // 复制 modloader.asi 到目标目录
+        let asi_source = modloader_dir.join("modloader.asi");
+        let asi_dest = asi_dest_dir.join("modloader.asi");
+        if asi_source.exists() {
+            if let Err(e) = fs::copy(&asi_source, &asi_dest) {
+                return Ok(ApiResponse::error(format!("复制 modloader.asi 失败: {}", e)));
+            }
+            let dest_path_str = if asi_dest_dir == plugins_dir {
+                "plugins/modloader.asi".to_string()
+            } else {
+                "scripts/modloader.asi".to_string()
+            };
+            installed_files.push(dest_path_str);
+        } else {
+            return Ok(ApiResponse::error("modloader.asi 文件不存在".to_string()));
+        }
+
+        // 复制 modloader 文件夹到游戏根目录
+        let modloader_source = modloader_dir.join("modloader");
+        let modloader_dest = game_path.join("modloader");
+        if modloader_source.exists() {
+            if let Err(e) = copy_dir_all(&modloader_source, &modloader_dest) {
+                return Ok(ApiResponse::error(format!("复制 modloader 目录失败: {}", e)));
+            }
+            created_directories.push("modloader".to_string());
+        }
+
+        println!("已安装: ModLoader (到 {} 目录)", 
+                 if asi_dest_dir == plugins_dir { "plugins" } else { "scripts" });
+    }
+
+    let result = ModInstallResult {
+        installed_files,
+        created_directories,
+    };
+
+    println!("安装完成，已安装 {} 个文件，创建 {} 个目录", 
+             result.installed_files.len(), 
+             result.created_directories.len());
+
+    Ok(ApiResponse::success(result))
+}
+
+// 递归复制目录的辅助函数
+fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.join(entry.file_name()))?;
+        }
+    }
+    Ok(())
+}
+
+// MOD 前置检查功能
+#[tauri::command]
+pub async fn check_mod_loaders(game_dir: String, game_type: Option<String>) -> Result<ApiResponse<ModLoaderStatus>, String> {
+    let game_path = Path::new(&game_dir);
+    
+    if !game_path.exists() || !game_path.is_dir() {
+        return Ok(ApiResponse::error("游戏目录不存在".to_string()));
+    }
+
+    let mut has_dinput8 = false;
+    let mut has_modloader = false;
+    let mut has_cleo = false;
+    let mut has_cleo_redux = false;
+    let mut found_loaders = Vec::new();
+    let mut missing_loaders = Vec::new();
+
+    // 检查 dinput8.dll (在游戏根目录)
+    let dinput8_path = game_path.join("dinput8.dll");
+    if dinput8_path.exists() && dinput8_path.is_file() {
+        has_dinput8 = true;
+        found_loaders.push("dinput8.dll (游戏根目录)".to_string());
+    } else {
+        missing_loaders.push("dinput8.dll".to_string());
+    }
+
+    // 检查 ModLoader (在 plugins 目录)
+    let modloader_path = game_path.join("plugins").join("modloader.asi");
+    if modloader_path.exists() && modloader_path.is_file() {
+        has_modloader = true;
+        found_loaders.push("ModLoader (plugins目录)".to_string());
+    } else {
+        missing_loaders.push("ModLoader".to_string());
+    }
+
+    // 根据游戏类型检查对应的 CLEO 文件
+    if let Some(ref gtype) = game_type {
+        let cleo_file_name = match gtype.as_str() {
+            "gta3" => "III.CLEO.asi",
+            "gtavc" => "VC.CLEO.asi",
+            "gtasa" => "CLEO.asi",
+            _ => "CLEO.asi", // 默认检查通用的 CLEO.asi
+        };
+        
+        let cleo_path = game_path.join("plugins").join(cleo_file_name);
+        if cleo_path.exists() && cleo_path.is_file() {
+            has_cleo = true;
+            found_loaders.push(format!("CLEO (plugins目录/{})", cleo_file_name));
+        } else {
+            // 如果没找到特定游戏的CLEO，也尝试检查通用的 cleo.asi
+            let generic_cleo_path = game_path.join("plugins").join("cleo.asi");
+            if generic_cleo_path.exists() && generic_cleo_path.is_file() {
+                has_cleo = true;
+                found_loaders.push("CLEO (plugins目录/cleo.asi)".to_string());
+            } else {
+                missing_loaders.push("CLEO".to_string());
+            }
+        }
+    } else {
+        // 如果没有提供游戏类型，检查所有可能的 CLEO 文件
+        let cleo_files = ["III.CLEO.asi", "VC.CLEO.asi", "CLEO.asi", "cleo.asi"];
+        let mut cleo_found = false;
+        for cleo_file in &cleo_files {
+            let cleo_path = game_path.join("plugins").join(cleo_file);
+            if cleo_path.exists() && cleo_path.is_file() {
+                has_cleo = true;
+                cleo_found = true;
+                found_loaders.push(format!("CLEO (plugins目录/{})", cleo_file));
+                break;
+            }
+        }
+        if !cleo_found {
+            missing_loaders.push("CLEO".to_string());
+        }
+    }
+
+    // 检查 CLEO Redux (在 plugins 目录)
+    let cleo_redux_path = game_path.join("plugins").join("cleo_redux.asi");
+    if cleo_redux_path.exists() && cleo_redux_path.is_file() {
+        has_cleo_redux = true;
+        found_loaders.push("CLEO Redux (plugins目录)".to_string());
+    } else {
+        missing_loaders.push("CLEO Redux".to_string());
+    }
+
+    let status = ModLoaderStatus {
+        has_dinput8,
+        has_modloader,
+        has_cleo,
+        has_cleo_redux,
+        missing_loaders,
+        found_loaders,
+    };
+
+    Ok(ApiResponse::success(status))
 }
 
 // 处理base64图片数据的API

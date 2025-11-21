@@ -16,7 +16,9 @@ use game::{
     save_base64_image, 
     copy_image_to_custom_dir, 
     launch_game, 
-    open_game_folder
+    open_game_folder,
+    check_mod_loaders,
+    install_mod_prerequisites
 };
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -47,7 +49,9 @@ pub fn run() -> () {
             save_base64_image,
             copy_image_to_custom_dir,
             launch_game,
-            open_game_folder
+            open_game_folder,
+            check_mod_loaders,
+            install_mod_prerequisites
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -16,7 +16,6 @@ import { useGameApi } from '@/composables/api/useGameApi'
 import { useMessage } from '@/composables/ui/useMessage'
 import { formatTime } from '@/utils/format'
 import { isTauriEnvironment } from '@/utils/tauri'
-import GameEditDialog from '@/components/Game/EditDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,7 +33,10 @@ const {
   getGameTypeName,
   getGameImage,
   handleImageError,
-  loadGameInfo
+  loadGameInfo,
+  modLoaderStatus,
+  modLoaderLoading,
+  hasMissingModLoaders
 } = useGameInfo(gameId)
 
 const {
@@ -46,6 +48,8 @@ const {
 
 const tabPosition = ref('left');
 const activeKey = ref('1');
+
+
 
 // 游戏API和消息提示
 const gameApi = useGameApi()
@@ -111,6 +115,8 @@ const handleCancelEdit = () => {
   cancelEdit()
 }
 
+
+
 const handleSaveEdit = async (editForm) => {
   const success = await saveEdit(gameId.value, editForm, gameInfo.value)
   if (success) {
@@ -121,78 +127,94 @@ const handleSaveEdit = async (editForm) => {
 }
 
 // 页面加载时获取游戏信息
-onMounted(() => {
+onMounted(async () => {
   if (isTauriEnvironment()) {
-    loadGameInfo()
+    await loadGameInfo()
   }
 })
 </script>
 
 <template>
-  <div class="game-info-container">
-    <G2MHeader>
-      <template #left>
-        <a-button class="back-button" @click="goBack">
+  <G2MHeader :title="gameInfo?.name || '游戏信息'">
+    <template #right>
+      <a-space v-if="gameInfo && !infoLoading">
+        <a-button @click="handleOpenFolder" :loading="actionLoading.openFolder">
           <template #icon>
-            <ArrowLeftOutlined />
+            <FolderOpenOutlined />
           </template>
-          返回游戏列表
+          打开目录
         </a-button>
-      </template>
-      <template #right>
-        <a-space v-if="gameInfo && !infoLoading">
-          <a-button @click="handleOpenFolder" :loading="actionLoading.openFolder">
-            <template #icon>
-              <FolderOpenOutlined />
-            </template>
-            打开目录
-          </a-button>
-          <a-button type="primary" size="large" @click="handleLaunchGame" :loading="actionLoading.launch">
-            <template #icon>
-              <PlayCircleOutlined />
-            </template>
-            启动游戏
-          </a-button>
-        </a-space>
-      </template>
-    </G2MHeader>
+        <a-button type="primary" size="large" @click="handleLaunchGame" :loading="actionLoading.launch">
+          <template #icon>
+            <PlayCircleOutlined />
+          </template>
+          启动游戏
+        </a-button>
+      </a-space>
+    </template>
+  </G2MHeader>
 
-    <div v-if="infoLoading" class="loading-container">
-      <a-spin size="large" tip="正在加载游戏信息..." />
-    </div>
-
-    <div v-else-if="gameInfo" class="game-info-content">
-      <a-card size="small">
-        <a-tabs v-model:activeKey="activeKey" :tab-position="tabPosition" animated>
-          <a-tab-pane key="1" tab="基本信息">
-            Content of Tab Pane 1
-          </a-tab-pane>
-          <a-tab-pane key="2" tab="前置安装">
-            Content of Tab Pane 2
-          </a-tab-pane>
-          <a-tab-pane key="3" tab="MOD管理">
-            Content of Tab Pane 3
-          </a-tab-pane>
-        </a-tabs>
-      </a-card>
-    </div>
-
-    <GameEditDialog v-model:visible="editDialogVisible" :game-info="gameInfo" :loading="actionLoading"
-      @save="handleSaveEdit" @cancel="handleCancelEdit" />
+  <div v-if="infoLoading" class="loading-container">
+    <a-spin size="large" tip="正在加载游戏信息..." />
   </div>
+
+  <div v-else-if="gameInfo" class="game-info-content">
+    <a-alert v-if="hasMissingModLoaders" message="缺少必要的MOD加载器，请前往前置安装页面查看详情。" type="warning" show-icon
+      style="margin-bottom: 24px;" />
+    <a-alert v-else-if="modLoaderLoading" message="正在检查 MOD 前置环境" type="info" show-icon style="margin-bottom: 24px;" />
+
+    <a-card size="small">
+      <a-tabs v-model:activeKey="activeKey" :tab-position="tabPosition" animated>
+        <a-tab-pane key="1" tab="基本信息">
+
+        </a-tab-pane>
+        <a-tab-pane key="2" tab="前置安装">
+          <GameInfoTab2 :game-info="gameInfo" />
+        </a-tab-pane>
+        <a-tab-pane key="3" tab="MOD管理">
+          <a-skeleton active />
+        </a-tab-pane>
+      </a-tabs>
+    </a-card>
+  </div>
+
+  <GameEditDialog v-model:visible="editDialogVisible" :game-info="gameInfo" :loading="actionLoading"
+    @save="handleSaveEdit" @cancel="handleCancelEdit" />
 </template>
 
 <style scoped>
-.game-info-container {
-  padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
 .loading-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 400px;
+}
+
+.mod-warning-content p {
+  margin-bottom: 8px;
+}
+
+/* MOD 安装界面样式 */
+.mod-install-container {
+  padding: 0;
+}
+
+.status-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.status-overview {
+  padding: 8px 0;
+}
+
+.status-empty {
+  padding: 20px;
+}
+
+.component-selection {
+  padding: 8px 0;
 }
 </style>

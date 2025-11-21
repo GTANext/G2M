@@ -1,8 +1,9 @@
 import { ref, computed } from 'vue';
 import { GAME_IMAGES, GAME_TYPE_NAMES } from '@/constants/game';
 import { useGameApi } from '@/composables/api/useGameApi';
-import { isTauriEnvironment } from '@/utils/tauri';
+import { isTauriEnvironment, tauriInvoke, installModPrerequisites } from '@/utils/tauri';
 import { useMessage } from '@/composables/ui/useMessage';
+import type { ModLoaderStatus, ApiResponse, ModInstallRequest, ModInstallResult } from '@/types';
 
 export function useGameInfo(gameId: any) {
   const gameApi = useGameApi();
@@ -13,6 +14,14 @@ export function useGameInfo(gameId: any) {
   
   // 加载状态
   const loading = ref(false);
+  
+  // MOD 加载器状态
+  const modLoaderStatus = ref<ModLoaderStatus | null>(null);
+  const modLoaderLoading = ref(false);
+  
+  // MOD 安装状态
+  const isInstalling = ref(false);
+  const installResult = ref<ModInstallResult | null>(null);
 
   // 设置游戏数据
   const setGameData = (data: any) => {
@@ -132,11 +141,136 @@ export function useGameInfo(gameId: any) {
     }
   };
 
+  // 检查 MOD 加载器
+  const checkModLoaders = async (gamePath?: string) => {
+    // 默认状态对象
+    const defaultStatus = {
+      dinput8: false,
+      cleo: false,
+      cleo_redux: false,
+      modloader: false
+    };
+
+    // 如果没有传入游戏路径，使用内部状态
+    const gameDir = gamePath || getGameDirectory.value;
+    if (!gameDir) {
+      console.warn('游戏目录为空，无法检查 MOD 加载器');
+      return defaultStatus;
+    }
+
+    try {
+      modLoaderLoading.value = true;
+      // 获取游戏类型，用于正确检测CLEO文件
+      const gameType = gameData.value?.type || null;
+      const response = await tauriInvoke<ApiResponse<ModLoaderStatus>>('check_mod_loaders', { 
+        gameDir,
+        gameType
+      });
+      
+      if (response?.success && response?.data) {
+        modLoaderStatus.value = response.data;
+        // 返回格式化的状态对象，正确映射 ModLoaderStatus 属性
+        return {
+          dinput8: response.data.has_dinput8 || false,
+          cleo: response.data.has_cleo || false,
+          cleo_redux: response.data.has_cleo_redux || false,
+          modloader: response.data.has_modloader || false
+        };
+      } else {
+        console.error('检查 MOD 加载器失败:', response?.error);
+        modLoaderStatus.value = null;
+        return defaultStatus;
+      }
+    } catch (error) {
+      console.error('检查 MOD 加载器时出错:', error);
+      modLoaderStatus.value = null;
+      return defaultStatus;
+    } finally {
+      modLoaderLoading.value = false;
+    }
+  };
+
+  // 计算属性：是否缺少 MOD 加载器
+  const hasMissingModLoaders = computed(() => {
+    return modLoaderStatus.value && modLoaderStatus.value.missing_loaders.length > 0;
+  });
+
+  // MOD 前置安装方法 - 支持选择性安装
+  const installModPrerequisitesMethod = async (params?: { game_path?: string; game_type?: string; components?: string[] } | string[]) => {
+    let gameDir: string;
+    let gameType: string;
+    let selectedComponents: string[] | undefined;
+
+    // 处理不同的参数格式
+    if (Array.isArray(params)) {
+      // 如果传入的是数组，使用内部状态
+      gameDir = getGameDirectory.value;
+      gameType = gameData.value?.type || '';
+      selectedComponents = params;
+    } else if (params && typeof params === 'object') {
+      // 如果传入的是对象，使用对象中的参数
+      gameDir = params.game_path || getGameDirectory.value;
+      gameType = params.game_type || gameData.value?.type || '';
+      selectedComponents = params.components;
+    } else {
+      // 如果没有传入参数，使用内部状态
+      gameDir = getGameDirectory.value;
+      gameType = gameData.value?.type || '';
+      selectedComponents = undefined;
+    }
+    
+    if (!gameDir || !gameType) {
+      const errorMsg = '游戏目录或游戏类型为空，无法安装 MOD 前置';
+      console.error('安装参数错误:', { gameDir, gameType, selectedComponents });
+      showError(errorMsg);
+      return { success: false, message: errorMsg, details: ['游戏目录或游戏类型为空'] };
+    }
+
+    try {
+      isInstalling.value = true;
+      installResult.value = null;
+      
+      const request: ModInstallRequest = {
+        game_dir: gameDir,
+        game_type: gameType,
+        components: selectedComponents // 传递选择的组件
+      };
+      
+      console.log('发送安装请求:', request);
+      const response = await installModPrerequisites(request);
+      
+      if (response?.success && response?.data) {
+        installResult.value = response.data;
+        
+        // 安装成功后重新检查 MOD 状态
+        await checkModLoaders(gameDir);
+        
+        return { success: true, message: '安装成功', data: response.data };
+      } else {
+        const errorMsg = response?.error || '安装 MOD 前置失败';
+        console.error('安装失败:', response);
+        showError(errorMsg);
+        return { success: false, message: errorMsg, details: [response?.error || '未知错误'] };
+      }
+    } catch (error) {
+      const errorMsg = '安装 MOD 前置时出错: ' + (error as Error).message;
+      console.error('安装异常:', error);
+      showError(errorMsg);
+      return { success: false, message: '安装过程中发生错误', details: [(error as Error).message || '未知错误'] };
+    } finally {
+      isInstalling.value = false;
+    }
+  };
+
   return {
     // 状态
     gameData,
     gameInfo: gameData, // 别名兼容
     loading,
+    modLoaderStatus,
+    modLoaderLoading,
+    isInstalling,
+    installResult,
     
     // 计算属性
     getGameTypeName,
@@ -145,10 +279,13 @@ export function useGameInfo(gameId: any) {
     getGameExecutable,
     getGameName,
     getGameId,
+    hasMissingModLoaders,
     
     // 方法
     setGameData,
     loadGameInfo,
-    handleImageError
+    handleImageError,
+    checkModLoaders,
+    installModPrerequisitesMethod
   };
 }

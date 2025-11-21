@@ -5,9 +5,9 @@
 <template>
   <div class="app-container">
     <AppNavbar />
-      <main class="main-content">
-        <RouterView />
-      </main>
+    <main class="main-content">
+      <RouterView />
+    </main>
   </div>
 </template>
 
@@ -20,7 +20,7 @@
 
 .main-content {
   flex: 1;
-  padding-top: 40px;
   overflow: auto;
+  padding: 60px 24px 24px 24px;
 }
 </style>

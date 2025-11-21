@@ -45,3 +45,26 @@ export interface SortParams {
 export interface FilterParams {
   [key: string]: any;
 }
+
+// MOD 加载器状态接口
+export interface ModLoaderStatus {
+  has_dinput8: boolean;
+  has_modloader: boolean;
+  has_cleo: boolean;
+  has_cleo_redux: boolean;
+  missing_loaders: string[];
+  found_loaders: string[];
+}
+
+// MOD 安装请求接口
+export interface ModInstallRequest {
+  game_dir: string;
+  game_type: string;
+  components?: string[]; // 可选的组件列表，如果不提供则安装所有必需组件
+}
+
+// MOD 安装结果接口
+export interface ModInstallResult {
+  installed_files: string[];
+  created_directories: string[];
+}
