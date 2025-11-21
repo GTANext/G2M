@@ -18,7 +18,6 @@ declare module 'vue' {
     GameDownloadDialog: typeof import('./components/Game/DownloadDialog.vue')['default']
     GameEditDialog: typeof import('./components/Game/EditDialog.vue')['default']
     GameExtractDialog: typeof import('./components/Game/ExtractDialog.vue')['default']
-    GameInfoModInstaller: typeof import('./components/Game/Info/ModInstaller.vue')['default']
     GameInfoTab1: typeof import('./components/Game/Info/Tab1.vue')['default']
     GameInfoTab2: typeof import('./components/Game/Info/Tab2.vue')['default']
     GameInfoTab3: typeof import('./components/Game/Info/Tab3.vue')['default']
