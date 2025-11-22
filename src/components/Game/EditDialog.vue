@@ -1,9 +1,7 @@
 <script setup>
-import { ref, watch, nextTick } from 'vue'
-import { CheckCircleOutlined, PictureOutlined } from '@ant-design/icons-vue'
-import { useGameApi } from '@/composables/api/useGameApi'
-import { useImageHandler } from '@/composables/useImageHandler'
-import { useMessage } from '@/composables/ui/useMessage'
+import { computed, watch } from 'vue'
+import { CheckCircleOutlined, PictureOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
+import { useGameEdit } from '@/composables'
 
 // Props
 const props = defineProps({
@@ -24,132 +22,43 @@ const props = defineProps({
 // Emits
 const emit = defineEmits(['update:visible', 'save', 'cancel', 'success'])
 
-// Form data
-const formData = ref({
-  name: '',
-  dir: '',
-  exe: '',
-  img: ''
-})
+// 使用 composable
+const gameInfoRef = computed(() => props.gameInfo)
 
-// Form ref
-const formRef = ref()
-
-// Image selection state
-const selectingImage = ref(false)
-
-// Loading state
-const saving = ref(false)
-
-// Game API
-const { saveBase64Image } = useGameApi()
-
-// Image handler
-const { selectImageFile, createPreviewUrl } = useImageHandler()
-
-// Message handler
-const { showError, showSuccess } = useMessage()
-
-// Form validation rules
-const rules = {
-  name: [
-    { required: true, message: '请输入游戏名称', trigger: 'blur' }
-  ],
-  dir: [
-    { required: true, message: '请选择游戏目录', trigger: 'blur' }
-  ],
-  exe: [
-    { required: true, message: '请输入启动程序', trigger: 'blur' }
-  ]
-}
-
-// Watch for gameInfo changes to initialize form
-watch(() => props.gameInfo, (newGameInfo) => {
-  if (newGameInfo && props.visible) {
-    initFormData()
-  }
-}, { immediate: true })
+const {
+  formData,
+  formRef,
+  selectingImage,
+  selectingFolder,
+  saving,
+  rules,
+  handleSave: saveHandler,
+  selectImageFileHandler,
+  selectFolderHandler,
+  resetForm
+} = useGameEdit(gameInfoRef)
 
 // Watch for visible changes
 watch(() => props.visible, (newVisible) => {
   if (newVisible && props.gameInfo) {
-    initFormData()
+    resetForm()
   }
 })
 
-// Initialize form data
-const initFormData = () => {
-  if (props.gameInfo) {
-    formData.value = {
-      name: props.gameInfo.name || '',
-      dir: props.gameInfo.dir || '',
-      exe: props.gameInfo.exe || '',
-      img: props.gameInfo.img || ''
-    }
-  }
-}
-
 // Handle save
 const handleSave = async () => {
-  try {
-    await formRef.value.validate()
-
-    // 调用更新游戏API
-    const { updateGame } = useGameApi()
-
-    saving.value = true
-
-    const result = await updateGame(
-      props.gameInfo.id,
-      formData.value.name,
-      formData.value.dir,
-      formData.value.exe,
-      formData.value.img,
-      props.gameInfo.type,
-      props.gameInfo.deleted
-    )
-
-    if (result.success) {
-      showSuccess('游戏信息更新成功')
-      emit('success')
-      emit('update:visible', false)
-    } else {
-      showError('更新游戏信息失败', { detail: result.error })
-    }
-  } catch (error) {
-    showError('保存游戏信息失败', { detail: error })
-  } finally {
-    saving.value = false
+  const result = await saveHandler()
+  if (result?.success) {
+    emit('success')
+    emit('update:visible', false)
   }
 }
 
 // Handle cancel
 const handleCancel = () => {
-  // Reset form data to original values
-  initFormData()
+  resetForm()
   emit('cancel')
   emit('update:visible', false)
-}
-
-// Handle image file selection
-const selectImageFileHandler = async () => {
-  try {
-    selectingImage.value = true
-
-    // 使用 base64 图片处理
-    const imageResult = await selectImageFile()
-
-    if (imageResult) {
-      // 直接使用完整的 data URL
-      formData.value.img = imageResult.dataUrl
-      showSuccess('图片选择成功')
-    }
-  } catch (error) {
-    console.error('选择图片失败:', error)
-    showError('选择图片失败，请重试', { detail: error })
-  } finally {
-    selectingImage.value = false
-  }
 }
 
 // Handle form finish
@@ -182,10 +91,20 @@ const handleFinish = (values) => {
         </a-form-item>
 
         <a-form-item label="游戏目录" name="dir">
-          <a-input v-model:value="formData.dir" placeholder="请输入游戏安装目录" size="large" readonly />
+          <a-input-group compact>
+            <a-input v-model:value="formData.dir" placeholder="点击按钮选择游戏安装目录" size="large"
+              style="width: calc(100% - 120px)" />
+            <a-button type="primary" size="large" :loading="selectingFolder" @click="selectFolderHandler"
+              style="width: 120px">
+              <template #icon>
+                <FolderOpenOutlined />
+              </template>
+              选择目录
+            </a-button>
+          </a-input-group>
           <div class="form-help">
             <a-typography-text type="secondary" :style="{ fontSize: '12px' }">
-              游戏目录通常不建议修改，如需修改请重新添加游戏
+              修改游戏目录可能导致游戏无法正常启动，请谨慎操作
             </a-typography-text>
           </div>
         </a-form-item>

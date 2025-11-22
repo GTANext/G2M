@@ -1,13 +1,10 @@
 <script setup>
-import { ref, watch, computed, onUnmounted } from 'vue'
+import { computed, watch } from 'vue'
 import { FileZipOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { useMessage } from '@/composables/ui/useMessage'
-import { useGameApi } from '@/composables/api/useGameApi'
+import { useGameExtract } from '@/composables'
 
-const { showError, showSuccess } = useMessage()
-const { saveGame } = useGameApi()
+const { showError } = useMessage()
 
 const props = defineProps({
   visible: {
@@ -32,118 +29,33 @@ const visibleModel = computed({
   set: (val) => emit('update:visible', val)
 })
 
-const gameNames = {
-  gta3: 'Grand Theft Auto III',
-  gtavc: 'Grand Theft Auto Vice City',
-  gtasa: 'Grand Theft Auto San Andreas'
-}
-
-const extractPath = ref('')
-const isExtracting = ref(false)
-const extractProgress = ref(0)
-const currentFile = ref('')
-const totalFiles = ref(0)
-const extractedFiles = ref(0)
-
-let progressListener = null
+// 使用 composable - 传递 computed ref，composable 内部会处理
+const {
+  extractPath,
+  isExtracting,
+  extractProgress,
+  currentFile,
+  totalFiles,
+  extractedFiles,
+  gameNames,
+  formatBytes,
+  selectExtractFolder: selectExtractFolderHandler,
+  startExtract: startExtractHandler,
+  reset
+} = useGameExtract(computed(() => props.gameType), computed(() => props.downloadRecord))
 
 // 选择解压目录
 const selectExtractFolder = async () => {
-  try {
-    const response = await invoke('select_extract_folder')
-    if (response?.success && response?.data) {
-      extractPath.value = response.data
-    } else {
-      if (response?.error) {
-        showError('选择文件夹失败', { detail: response.error })
-      }
-    }
-  } catch (error) {
-    showError('选择文件夹失败', { detail: error })
-  }
+  await selectExtractFolderHandler()
 }
 
 // 开始解压
 const startExtract = async () => {
-  try {
-    if (!extractPath.value) {
-      showError('请选择解压位置')
-      return
-    }
-
-    if (!props.downloadRecord || !props.downloadRecord.zip_path) {
-      showError('下载记录不存在')
-      return
-    }
-
-    if (!props.gameType) {
-      showError('游戏类型不存在')
-      return
-    }
-
-    isExtracting.value = true
-    extractProgress.value = 0
-    currentFile.value = ''
-    totalFiles.value = 0
-    extractedFiles.value = 0
-
-    // 监听解压进度事件
-    if (!progressListener) {
-      progressListener = await listen('extract-progress', (event) => {
-        const progress = event.payload
-        extractProgress.value = progress.percentage || 0
-        extractedFiles.value = progress.current || 0
-        totalFiles.value = progress.total || 0
-        currentFile.value = progress.current_file || ''
-      })
-    }
-
-    // 调用解压命令
-    const extractResponse = await invoke('extract_game', {
-      request: {
-        zip_path: props.downloadRecord.zip_path,
-        extract_to: extractPath.value,
-        game_type: props.gameType
-      }
-    })
-
-    if (extractResponse?.success) {
-      // 获取返回的游戏信息
-      const gameInfo = extractResponse.data
-
-      // 解压成功后，自动添加游戏到列表
-      try {
-        const saveResponse = await saveGame({
-          name: gameInfo.game_name || gameNames[props.gameType] || '',
-          dir: gameInfo.game_dir || '',
-          exe: gameInfo.game_exe || '',
-          img: '',
-          type: gameInfo.game_type || props.gameType
-        })
-
-        if (saveResponse?.success) {
-          showSuccess('游戏解压并添加成功！')
-          emit('success')
-          emit('update:visible', false)
-          resetDialog()
-        } else {
-          showError('游戏解压成功，但添加到列表失败', { detail: saveResponse?.error })
-        }
-      } catch (error) {
-        showError('游戏解压成功，但添加到列表失败', { detail: error })
-      }
-    } else {
-      throw new Error(extractResponse?.error || '解压失败')
-    }
-  } catch (error) {
-    console.error('解压失败:', error)
-    showError('解压失败', { detail: error.message || error })
-  } finally {
-    isExtracting.value = false
-    if (progressListener) {
-      progressListener()
-      progressListener = null
-    }
+  const result = await startExtractHandler()
+  if (result?.success) {
+    emit('success')
+    emit('update:visible', false)
+    reset()
   }
 }
 
@@ -155,41 +67,13 @@ const handleCancel = () => {
   }
   emit('cancel')
   emit('update:visible', false)
-  resetDialog()
+  reset()
 }
-
-// 重置对话框
-const resetDialog = () => {
-  extractPath.value = ''
-  extractProgress.value = 0
-  currentFile.value = ''
-  totalFiles.value = 0
-  extractedFiles.value = 0
-  if (progressListener) {
-    progressListener()
-    progressListener = null
-  }
-}
-
-// 格式化文件大小
-const formatBytes = (bytes) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
-
-onUnmounted(() => {
-  if (progressListener) {
-    progressListener()
-  }
-})
 
 // 监听 visible 变化
 watch(() => props.visible, (newVisible) => {
   if (!newVisible) {
-    resetDialog()
+    reset()
   }
 })
 </script>
@@ -214,8 +98,8 @@ watch(() => props.visible, (newVisible) => {
             </a-button>
           </div>
           <a-typography-text type="secondary" style="font-size: 12px; display: block; margin-top: 4px;">
-            将在选择的位置自动创建游戏文件夹（如：{{ gameNames[gameType] }}），如果文件夹已存在则创建为 {{ gameNames[gameType] }}-1、{{
-              gameNames[gameType] }}-2 等
+            将在选择的位置自动创建游戏文件夹（如：{{ gameNames[props.gameType] }}），如果文件夹已存在则创建为 {{ gameNames[props.gameType] }}-1、{{
+              gameNames[props.gameType] }}-2 等
           </a-typography-text>
         </a-form-item>
       </a-form>

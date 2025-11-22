@@ -101,7 +101,8 @@ const selectFolder = async () => {
             formData.value.dir = selectedPath
             await detectGameInFolder(selectedPath)
         } else {
-            if (response?.error) {
+            // 只有当有错误信息时才显示错误（用户取消时 error 为空）
+            if (response?.error && response.error.trim() !== '') {
                 showError('选择文件夹失败', { detail: response.error })
             }
         }

@@ -10,12 +10,13 @@ import {
   SearchOutlined,
   ReloadOutlined
 } from '@ant-design/icons-vue'
-import { useGameListView } from '@/composables'
+import { useGameListView, useGameUtils } from '@/composables'
 import { useGameForm } from '@/composables'
 
 // 导入对话框组件
 import GameEditDialog from './EditDialog.vue'
 import GameAddDialog from './AddDialog.vue'
+import GameCard from './Card.vue'
 
 // 游戏类型选项
 const gameTypeOptions = [
@@ -109,6 +110,9 @@ const handleAddGameCancel = () => {
   addGameVisible.value = false
 }
 
+// 使用游戏工具函数
+const { getGameTypeColor } = useGameUtils()
+
 // 页面加载时获取游戏列表
 onMounted(() => {
   if (isTauriEnvironment()) {
@@ -118,24 +122,24 @@ onMounted(() => {
 </script>
 
 <template>
-  <G2MHeader title="已添加游戏">
+  <!-- <G2MHeader title="已添加游戏">
     <template #right>
       <NButton @click="refreshGames" :loading="loadingState.loading">
         <template #icon>
           <ReloadOutlined />
         </template>
-        刷新
-      </NButton>
-      <NButton type="primary" @click="showAddGame">
-        <template #icon>
+刷新
+</NButton>
+<NButton type="primary" @click="showAddGame">
+  <template #icon>
           <PlusOutlined />
         </template>
-        添加游戏
-      </NButton>
-    </template>
-  </G2MHeader>
+  添加游戏
+</NButton>
+</template>
+</G2MHeader> -->
 
-  <NCard class="filter-section" :bordered="false">
+  <NCard v-if="!loadingState.loading && games.length > 0" class="filter-section" :bordered="false">
     <NGrid :cols="2" :x-gap="16">
       <NGridItem>
         <NInput v-model:value="searchQuery" placeholder="搜索游戏名称..." clearable>
@@ -155,90 +159,43 @@ onMounted(() => {
       <template #description>正在加载游戏列表...</template>
     </NSpin>
 
-    <NEmpty v-else-if="!games.length" description="还没有添加任何游戏" style="padding: 40px;">
-      <template #extra>
-        <NButton type="primary" @click="showAddGame">
-          <template #icon>
-            <PlusOutlined />
-          </template>
-          添加第一个游戏
-        </NButton>
-      </template>
-    </NEmpty>
+    <a-flex v-else-if="!games.length" vertical justify="center" align="center"
+      :style="{ minHeight: '400px', padding: '40px' }">
+      <NEmpty description="还没有添加任何游戏">
+        <template #extra>
+          <NButton type="primary" @click="showAddGame">
+            <template #icon>
+              <PlusOutlined />
+            </template>
+            添加第一个游戏
+          </NButton>
+        </template>
+      </NEmpty>
+    </a-flex>
 
-    <NEmpty v-else-if="!filteredGames.length" description="没有找到匹配的游戏" style="padding: 40px;">
-      <template #extra>
-        <NButton @click="searchQuery = ''">清除筛选条件</NButton>
-      </template>
-    </NEmpty>
+    <a-flex v-else-if="!filteredGames.length" vertical justify="center" align="center"
+      :style="{ minHeight: '400px', padding: '40px' }">
+      <NEmpty description="没有找到匹配的游戏">
+        <template #extra>
+          <NButton @click="searchQuery = ''">清除筛选条件</NButton>
+        </template>
+      </NEmpty>
+    </a-flex>
 
     <NGrid v-else :cols="3" :x-gap="16" :y-gap="16" class="games-grid">
       <NGridItem v-for="game in filteredGames" :key="game.id">
-        <NCard class="game-card" hoverable @click="goToGameInfo(game)">
-          <div class="game-cover-container">
-            <img :src="getGameIcon(game)" :alt="game.name" class="game-cover" @error="handleImageError" />
-            <NTag type="info" class="game-type-badge" size="small">
-              {{ getGameTypeName(game.type) || getGameTypeFromExecutable(game.exe) }}
-            </NTag>
+        <GameCard :game="game" display-mode="list" :get-game-icon="getGameIcon"
+          :get-game-type-name="(game) => getGameTypeName(game.type) || getGameTypeFromExecutable(game.exe)"
+          :get-game-type-color="getGameTypeColor" :format-game-time="formatGameTime" @click="goToGameInfo" />
+      </NGridItem>
+
+      <NGridItem>
+        <a-card class="add-game-card" hoverable style="width: 100%" @click="showAddGame">
+          <div class="add-game-content">
+            <PlusOutlined class="add-game-icon" />
+            <p class="add-game-text">添加游戏</p>
           </div>
-
-          <div class="game-info">
-            <h3 class="game-name" :title="game.name">{{ game.name }}</h3>
-            <p class="game-path" :title="game.dir">
-              <FolderOpenOutlined />
-              {{ game.dir }}
-            </p>
-            <p class="game-date">添加时间: {{ formatGameTime(game.time) }}</p>
-          </div>
-
-          <!-- <div class="game-actions" @click.stop>
-            <NSpace>
-              <NTooltip>
-                <template #trigger>
-                  <NButton circle type="primary" @click="launchGame(game)" :loading="loadingState.loading">
-                    <template #icon>
-                      <PlayCircleOutlined />
-                    </template>
-                  </NButton>
-                </template>
-                启动游戏
-              </NTooltip>
-
-              <NTooltip>
-                <template #trigger>
-                  <NButton circle @click="openGameFolder(game)">
-                    <template #icon>
-                      <FolderOpenOutlined />
-                    </template>
-                  </NButton>
-                </template>
-                打开游戏目录
-              </NTooltip>
-
-              <NTooltip>
-                <template #trigger>
-                  <NButton circle @click="editGame(game)">
-                    <template #icon>
-                      <EditOutlined />
-                    </template>
-                  </NButton>
-                </template>
-                编辑游戏信息
-              </NTooltip>
-
-              <NTooltip>
-                <template #trigger>
-                  <NButton circle type="error" @click="confirmDelete(game)">
-                    <template #icon>
-                      <DeleteOutlined />
-                    </template>
-                  </NButton>
-                </template>
-                删除游戏
-              </NTooltip>
-            </NSpace>
-          </div> -->
-        </NCard>
+        </a-card>
       </NGridItem>
     </NGrid>
   </div>
@@ -263,16 +220,12 @@ onMounted(() => {
 .game-card {
   cursor: pointer;
   height: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
 .game-cover-container {
   position: relative;
   height: 180px;
   overflow: hidden;
-  border-radius: 8px 8px 0 0;
-  margin: -16px -16px 12px -16px;
 }
 
 .game-cover {
@@ -286,26 +239,19 @@ onMounted(() => {
   position: absolute;
   top: 12px;
   right: 12px;
+  z-index: 1;
 }
 
-.game-info {
-  flex: 1;
-}
-
-.game-name {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 8px 0;
-  color: #333;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.game-description {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .game-path {
   font-size: 12px;
   color: #999;
-  margin: 4px 0;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -317,12 +263,57 @@ onMounted(() => {
 .game-date {
   font-size: 12px;
   color: #999;
-  margin: 4px 0 0 0;
+  margin: 0;
 }
 
 .game-actions {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid #f0f0f0;
+}
+
+.add-game-card {
+  cursor: pointer;
+  height: 100%;
+  border: 1px dashed #d9d9d9;
+  transition: all 0.3s;
+  background-color: #fafafa70;
+}
+
+.add-game-card:hover {
+  border-color: #1890ff;
+  background-color: #f0f7ff;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
+}
+
+.add-game-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  gap: 12px;
+}
+
+.add-game-icon {
+  font-size: 48px;
+  color: #bfbfbf;
+  transition: all 0.3s;
+}
+
+.add-game-card:hover .add-game-icon {
+  color: #1890ff;
+}
+
+.add-game-text {
+  font-size: 16px;
+  color: #8c8c8c;
+  margin: 0;
+  transition: color 0.3s;
+  font-weight: 500;
+}
+
+.add-game-card:hover .add-game-text {
+  color: #1890ff;
 }
 </style>

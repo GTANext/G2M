@@ -3,10 +3,14 @@ use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use tauri::{Window, AppHandle, Emitter};
 use zip::ZipArchive;
 use futures_util::StreamExt;
 use chrono::Utc;
+
+// 全局取消标志
+static DOWNLOAD_CANCEL_FLAG: Mutex<bool> = Mutex::new(false);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DownloadProgress {
@@ -227,7 +231,12 @@ pub async fn download_game(
     let zip_path = match download_file(&window, &download_url, &save_path).await {
         Ok(path) => path,
         Err(e) => {
-            return Ok(ApiResponse::error(format!("下载失败: {}", e)));
+            let error_msg = e.to_string();
+            // 如果是取消操作，返回特定的错误信息
+            if error_msg.contains("取消") {
+                return Ok(ApiResponse::error("下载已取消".to_string()));
+            }
+            return Ok(ApiResponse::error(format!("下载失败: {}", error_msg)));
         }
     };
 
@@ -391,6 +400,12 @@ async fn download_file(
     url: &str,
     save_path: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    // 重置取消标志
+    {
+        let mut flag = DOWNLOAD_CANCEL_FLAG.lock().unwrap();
+        *flag = false;
+    }
+
     // 创建 HTTP 客户端
     let client = reqwest::Client::new();
     let response = client.get(url).send().await?;
@@ -405,6 +420,17 @@ async fn download_file(
 
     // 使用 tokio 的异步流处理
     while let Some(item) = stream.next().await {
+        // 检查是否已取消
+        {
+            let flag = DOWNLOAD_CANCEL_FLAG.lock().unwrap();
+            if *flag {
+                // 已取消，删除部分下载的文件
+                drop(file);
+                let _ = std::fs::remove_file(save_path);
+                return Err("下载已取消".into());
+            }
+        }
+        
         let chunk = item?;
         file.write_all(&chunk)?;
         downloaded += chunk.len() as u64;
@@ -428,6 +454,14 @@ async fn download_file(
 
     file.sync_all()?;
     Ok(save_path.to_path_buf())
+}
+
+// 取消下载命令
+#[tauri::command]
+pub async fn cancel_download() -> Result<ApiResponse<()>, String> {
+    let mut flag = DOWNLOAD_CANCEL_FLAG.lock().unwrap();
+    *flag = true;
+    Ok(ApiResponse::success(()))
 }
 
 // 解压 ZIP 文件
@@ -499,7 +533,7 @@ pub async fn select_extract_folder() -> Result<ApiResponse<String>, String> {
             let path = folder.path().to_string_lossy().to_string();
             Ok(ApiResponse::success(path))
         }
-        None => Ok(ApiResponse::error("未选择文件夹".to_string())),
+        None => Ok(ApiResponse::error(String::new())), // 用户取消，不返回错误信息
     }
 }
 

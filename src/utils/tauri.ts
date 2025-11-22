@@ -140,7 +140,7 @@ const mockApi = {
       dir: params.dir,
       exe: params.exe,
       img: params.img,
-      time: new Date().toISOString(),
+      time: Date.now().toString(),
       type: params.type
     };
     mockGames.push(newGame);

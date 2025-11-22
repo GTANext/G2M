@@ -68,3 +68,26 @@ export interface ModInstallResult {
   installed_files: string[];
   created_directories: string[];
 }
+
+// 自定义前置信息接口
+export interface CustomPrerequisiteInfo {
+  name: string;                    // 自定义前置名称
+  files: CustomPrerequisiteFile[]; // 文件列表
+  target_dir: string;              // 目标目录类型：root, plugins, scripts
+}
+
+// 自定义前置文件信息接口
+export interface CustomPrerequisiteFile {
+  file_name: string;      // 文件名或文件夹名
+  source_path: string;    // 源路径
+  target_path: string;    // 目标路径（相对游戏目录）
+  is_directory: boolean;  // 是否为目录
+}
+
+// 自定义前置安装请求接口
+export interface CustomPrerequisiteInstallRequest {
+  game_dir: string;
+  name: string;           // 自定义前置名称
+  source_paths: string[]; // 源路径列表（文件或文件夹）
+  target_dir: string;     // 目标目录：root, plugins, scripts
+}

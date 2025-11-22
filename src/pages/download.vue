@@ -1,16 +1,19 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
+import { notification } from 'ant-design-vue'
 import { DownloadOutlined, FileZipOutlined } from '@ant-design/icons-vue'
 import { useMessage } from '@/composables/ui/useMessage'
+import { useDownloadRecords, useGameUtils } from '@/composables'
 import { isTauriEnvironment } from '@/utils/tauri'
-import { invoke } from '@tauri-apps/api/core'
+import GameCard from '@/components/Game/Card.vue'
 
 const { showSuccess } = useMessage()
+const { downloadRecords, loadDownloadRecords, getGameDownloadStatus, getDownloadRecord } = useDownloadRecords()
+const { getGameIcon, handleImageError } = useGameUtils()
 
 const downloadDialogVisible = ref(false)
 const extractDialogVisible = ref(false)
 const selectedGameType = ref(null)
-const downloadRecords = ref([])
 
 const games = [
   {
@@ -29,50 +32,6 @@ const games = [
     description: 'GTA San Andreas - 最受欢迎的GTA游戏'
   }
 ]
-
-// 获取游戏图标
-const getGameIcon = (gameType) => {
-  const iconMap = {
-    'gta3': '/images/gta3.jpg',
-    'GTA3': '/images/gta3.jpg',
-    'gtavc': '/images/gtavc.jpg',
-    'GTAVC': '/images/gtavc.jpg',
-    'gtasa': '/images/gtasa.jpg',
-    'GTASA': '/images/gtasa.jpg'
-  }
-  return iconMap[gameType] || '/images/null.svg'
-}
-
-// 处理图片加载错误
-const handleImageError = (event) => {
-  event.target.src = '/images/null.svg'
-}
-
-// 获取游戏下载状态
-const getGameDownloadStatus = (gameType) => {
-  const record = downloadRecords.value.find(r => r.game_type === gameType)
-  if (!record) return 'not_downloaded' // 未下载
-  return 'downloaded' // 已下载（可以多次解压）
-}
-
-// 获取游戏下载记录
-const getDownloadRecord = (gameType) => {
-  return downloadRecords.value.find(r => r.game_type === gameType)
-}
-
-// 加载下载记录
-const loadDownloadRecords = async () => {
-  if (!isTauriEnvironment()) return
-
-  try {
-    const response = await invoke('get_download_records')
-    if (response?.success) {
-      downloadRecords.value = response.data || []
-    }
-  } catch (error) {
-    console.error('加载下载记录失败:', error)
-  }
-}
 
 const handleDownload = (gameType) => {
   selectedGameType.value = gameType
@@ -108,11 +67,17 @@ const handleExtractCancel = () => {
   selectedGameType.value = null
 }
 
-onMounted(() => {
-  if (isTauriEnvironment()) {
-    loadDownloadRecords()
-  }
-})
+const openNotification = () => {
+  notification.open({
+    duration: 6,
+    placement: 'bottomRight',
+    message: '提示',
+    description:
+      '游戏存储在cloudflare r2亚太节点, 国内优化较差如果下载慢或下载未完成我也莫得办法~',
+  });
+};
+
+openNotification()
 </script>
 
 <template>
@@ -124,36 +89,24 @@ onMounted(() => {
 
   <NGrid :cols="3" :x-gap="16" :y-gap="16" style="margin-top: 24px;">
     <NGridItem v-for="game in games" :key="game.type">
-      <NCard class="game-card" hoverable>
-        <div class="game-cover-container">
-          <img :src="getGameIcon(game.type)" :alt="game.name" class="game-cover" @error="handleImageError" />
-          <NTag type="info" class="game-type-badge" size="small">
-            {{ game.name }}
-          </NTag>
-        </div>
-
-        <div class="game-info">
-          <h3 class="game-name" :title="game.name">{{ game.name }}</h3>
-          <p class="game-description">{{ game.description }}</p>
-        </div>
-
-        <div class="game-actions">
+      <GameCard :game="game" display-mode="simple" :get-game-icon="(game) => getGameIcon(game)" :clickable="false">
+        <template #actions="{ game }">
           <NButton v-if="getGameDownloadStatus(game.type) === 'not_downloaded'" type="info" block
-            @click="handleDownload(game.type)" :disabled="!isTauriEnvironment()">
+            @click.stop="handleDownload(game.type)" :disabled="!isTauriEnvironment()">
             <template #icon>
               <DownloadOutlined />
             </template>
             下载游戏
           </NButton>
 
-          <NButton v-else type="primary" block @click="handleExtract(game.type)" :disabled="!isTauriEnvironment()">
+          <NButton v-else type="primary" block @click.stop="handleExtract(game.type)" :disabled="!isTauriEnvironment()">
             <template #icon>
               <FileZipOutlined />
             </template>
             解压游戏
           </NButton>
-        </div>
-      </NCard>
+        </template>
+      </GameCard>
     </NGridItem>
   </NGrid>
 

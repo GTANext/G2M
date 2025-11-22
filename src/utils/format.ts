@@ -1,11 +1,29 @@
 /**
- * 格式化时间字符串
+ * 格式化时间字符串（支持时间戳和日期字符串）
  */
-export function formatTime(timeStr: string | null | undefined): string {
+export function formatTime(timeStr: string | number | null | undefined): string {
   if (!timeStr) return '未知'
   
   try {
-    const date = new Date(timeStr)
+    // 如果是数字或数字字符串，作为时间戳处理
+    let timestamp: number
+    if (typeof timeStr === 'number') {
+      timestamp = timeStr
+    } else {
+      // 尝试解析为数字（时间戳）
+      const parsed = parseInt(timeStr, 10)
+      if (!isNaN(parsed) && parsed > 0) {
+        // 如果是秒级时间戳（小于 13 位），转换为毫秒
+        timestamp = parsed.toString().length < 13 ? parsed * 1000 : parsed
+      } else {
+        // 否则作为日期字符串处理
+        timestamp = new Date(timeStr).getTime()
+      }
+    }
+    
+    if (isNaN(timestamp) || timestamp <= 0) return timeStr
+    
+    const date = new Date(timestamp)
     if (isNaN(date.getTime())) return timeStr
     
     return date.toLocaleString('zh-CN', {
@@ -17,7 +35,7 @@ export function formatTime(timeStr: string | null | undefined): string {
       second: '2-digit'
     })
   } catch {
-    return timeStr
+    return String(timeStr)
   }
 }
 

@@ -25,7 +25,6 @@ const qqGroups = [
 
             <div class="desc">
                 <p>
-                    <close-circle-outlined :style="{ color: 'red' }" />
                     QQ交流群:
                     <a-space wrap>
                         <a-button 
@@ -39,7 +38,6 @@ const qqGroups = [
                     </a-space>
                 </p>
                 <p>
-                    <close-circle-outlined :style="{ color: 'red' }" />
                     注意: 
                     <a-button type="link" danger>
                         G2M是免费开源的如果发现有人将其用于商业用途请及时联系作者的B站

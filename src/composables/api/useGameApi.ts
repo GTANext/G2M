@@ -142,9 +142,12 @@ export function useGameApi() {
   };
 
   // 检查重复目录
-  const checkDuplicateDirectory = async (dir: any): Promise<any> => {
+  const checkDuplicateDirectory = async (dir: any, excludeGameId?: number): Promise<any> => {
     try {
-      const response: any = await tauriInvoke('check_duplicate_directory', { dir });
+      const response: any = await tauriInvoke('check_duplicate_directory', { 
+        dir,
+        excludeGameId: excludeGameId || null
+      });
       return response;
     } catch (error) {
       showError('检查重复目录失败');

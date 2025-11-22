@@ -10,6 +10,8 @@ pub struct GameInfo {
     pub img: Option<String>,
     #[serde(alias = "game_type")]
     pub r#type: Option<String>,
+    pub version: Option<String>, // 游戏版本：1.0, 1.1, steam, diy等
+    pub md5: Option<String>, // 主程序文件的MD5值
     #[serde(default)]
     pub deleted: bool, // 软删除标记，默认为false
 }
@@ -26,6 +28,8 @@ pub struct GameDetectionResult {
     pub r#type: Option<String>,
     pub executable: Option<String>,
     pub game_name: Option<String>,
+    pub version: Option<String>, // 游戏版本：1.0, 1.1, steam, diy等
+    pub md5: Option<String>, // 主程序文件的MD5值
     pub error: Option<String>,
 }
 
@@ -80,4 +84,30 @@ pub struct ModInstallRequest {
 pub struct ModInstallResult {
     pub installed_files: Vec<String>,
     pub created_directories: Vec<String>,
+}
+
+// 自定义前置信息
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomPrerequisiteInfo {
+    pub name: String,                    // 自定义前置名称
+    pub files: Vec<CustomPrerequisiteFile>, // 文件列表
+    pub target_dir: String,              // 目标目录类型：root, plugins, scripts
+}
+
+// 自定义前置文件信息
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomPrerequisiteFile {
+    pub file_name: String,      // 文件名或文件夹名
+    pub source_path: String,    // 源路径
+    pub target_path: String,    // 目标路径（相对游戏目录）
+    pub is_directory: bool,     // 是否为目录
+}
+
+// 自定义前置安装请求
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CustomPrerequisiteInstallRequest {
+    pub game_dir: String,
+    pub name: String,           // 自定义前置名称
+    pub source_paths: Vec<String>, // 源路径列表（文件或文件夹）
+    pub target_dir: String,     // 目标目录：root, plugins, scripts
 }

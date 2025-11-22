@@ -16,7 +16,11 @@ declare global {
   const getCurrentInstance: typeof import('vue').getCurrentInstance
   const getCurrentScope: typeof import('vue').getCurrentScope
   const getCurrentWatcher: typeof import('vue').getCurrentWatcher
+  const getGameIcon: typeof import('./composables/game/useGameUtils').getGameIcon
+  const getGameTypeColor: typeof import('./composables/game/useGameUtils').getGameTypeColor
+  const getGameTypeName: typeof import('./composables/game/useGameUtils').getGameTypeName
   const h: typeof import('vue').h
+  const handleImageError: typeof import('./composables/game/useGameUtils').handleImageError
   const inject: typeof import('vue').inject
   const isProxy: typeof import('vue').isProxy
   const isReactive: typeof import('vue').isReactive
@@ -58,13 +62,21 @@ declare global {
   const useAttrs: typeof import('vue').useAttrs
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
+  const useDownloadRecords: typeof import('./composables/game/useDownloadRecords').useDownloadRecords
   const useFetch: typeof import('@vueuse/core').useFetch
+  const useGameActions: typeof import('./composables/game/useGameActions').useGameActions
   const useGameApi: typeof import('./composables/api/useGameApi').useGameApi
+  const useGameDownload: typeof import('./composables/game/useGameDownload').useGameDownload
+  const useGameEdit: typeof import('./composables/game/useGameEdit').useGameEdit
+  const useGameExtract: typeof import('./composables/game/useGameExtract').useGameExtract
   const useGameForm: typeof import('./composables/ui/useGameForm').useGameForm
+  const useGameInfo: typeof import('./composables/game/useGameInfo').useGameInfo
   const useGameList: typeof import('./composables/ui/useGameList').useGameList
   const useGameListView: typeof import('./composables/ui/useGameListView').useGameListView
+  const useGameUtils: typeof import('./composables/game/useGameUtils').useGameUtils
   const useId: typeof import('vue').useId
   const useImageHandler: typeof import('./composables/useImageHandler').useImageHandler
+  const useModPrerequisites: typeof import('./composables/game/useModPrerequisites').useModPrerequisites
   const useModel: typeof import('vue').useModel
   const useMouse: typeof import('@vueuse/core').useMouse
   const useRoute: typeof import('vue-router').useRoute
@@ -101,7 +113,11 @@ declare module 'vue' {
     readonly getCurrentInstance: UnwrapRef<typeof import('vue')['getCurrentInstance']>
     readonly getCurrentScope: UnwrapRef<typeof import('vue')['getCurrentScope']>
     readonly getCurrentWatcher: UnwrapRef<typeof import('vue')['getCurrentWatcher']>
+    readonly getGameIcon: UnwrapRef<typeof import('./composables/game/useGameUtils')['getGameIcon']>
+    readonly getGameTypeColor: UnwrapRef<typeof import('./composables/game/useGameUtils')['getGameTypeColor']>
+    readonly getGameTypeName: UnwrapRef<typeof import('./composables/game/useGameUtils')['getGameTypeName']>
     readonly h: UnwrapRef<typeof import('vue')['h']>
+    readonly handleImageError: UnwrapRef<typeof import('./composables/game/useGameUtils')['handleImageError']>
     readonly inject: UnwrapRef<typeof import('vue')['inject']>
     readonly isProxy: UnwrapRef<typeof import('vue')['isProxy']>
     readonly isReactive: UnwrapRef<typeof import('vue')['isReactive']>
@@ -143,13 +159,21 @@ declare module 'vue' {
     readonly useAttrs: UnwrapRef<typeof import('vue')['useAttrs']>
     readonly useCssModule: UnwrapRef<typeof import('vue')['useCssModule']>
     readonly useCssVars: UnwrapRef<typeof import('vue')['useCssVars']>
+    readonly useDownloadRecords: UnwrapRef<typeof import('./composables/game/useDownloadRecords')['useDownloadRecords']>
     readonly useFetch: UnwrapRef<typeof import('@vueuse/core')['useFetch']>
+    readonly useGameActions: UnwrapRef<typeof import('./composables/game/useGameActions')['useGameActions']>
     readonly useGameApi: UnwrapRef<typeof import('./composables/api/useGameApi')['useGameApi']>
+    readonly useGameDownload: UnwrapRef<typeof import('./composables/game/useGameDownload')['useGameDownload']>
+    readonly useGameEdit: UnwrapRef<typeof import('./composables/game/useGameEdit')['useGameEdit']>
+    readonly useGameExtract: UnwrapRef<typeof import('./composables/game/useGameExtract')['useGameExtract']>
     readonly useGameForm: UnwrapRef<typeof import('./composables/ui/useGameForm')['useGameForm']>
+    readonly useGameInfo: UnwrapRef<typeof import('./composables/game/useGameInfo')['useGameInfo']>
     readonly useGameList: UnwrapRef<typeof import('./composables/ui/useGameList')['useGameList']>
     readonly useGameListView: UnwrapRef<typeof import('./composables/ui/useGameListView')['useGameListView']>
+    readonly useGameUtils: UnwrapRef<typeof import('./composables/game/useGameUtils')['useGameUtils']>
     readonly useId: UnwrapRef<typeof import('vue')['useId']>
     readonly useImageHandler: UnwrapRef<typeof import('./composables/useImageHandler')['useImageHandler']>
+    readonly useModPrerequisites: UnwrapRef<typeof import('./composables/game/useModPrerequisites')['useModPrerequisites']>
     readonly useModel: UnwrapRef<typeof import('vue')['useModel']>
     readonly useMouse: UnwrapRef<typeof import('@vueuse/core')['useMouse']>
     readonly useRoute: UnwrapRef<typeof import('vue-router')['useRoute']>

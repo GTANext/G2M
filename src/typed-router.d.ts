@@ -65,6 +65,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/help': RouteRecordInfo<
+      '/help',
+      '/help',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
   }
 
   /**
@@ -111,6 +118,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/game/list.vue': {
       routes:
         | '/game/list'
+      views:
+        | never
+    }
+    'src/pages/help.vue': {
+      routes:
+        | '/help'
       views:
         | never
     }

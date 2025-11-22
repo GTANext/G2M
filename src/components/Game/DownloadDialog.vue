@@ -1,11 +1,7 @@
 <script setup>
-import { ref, watch, onUnmounted, computed } from 'vue'
+import { computed, watch } from 'vue'
 import { DownloadOutlined } from '@ant-design/icons-vue'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
-import { useMessage } from '@/composables/ui/useMessage'
-
-const { showError, showSuccess } = useMessage()
+import { useGameDownload } from '@/composables'
 
 const props = defineProps({
   visible: {
@@ -26,109 +22,63 @@ const visibleModel = computed({
   set: (val) => emit('update:visible', val)
 })
 
-const gameNames = {
-  gta3: 'Grand Theft Auto III',
-  gtavc: 'Grand Theft Auto Vice City',
-  gtasa: 'Grand Theft Auto San Andreas'
-}
-
-const isDownloading = ref(false)
-const downloadProgress = ref(0)
-const downloadedBytes = ref(0)
-const totalBytes = ref(0)
-
-let progressListener = null
+// 使用 composable - 传递 computed ref，composable 内部会处理
+const {
+  isDownloading,
+  downloadProgress,
+  downloadedBytes,
+  totalBytes,
+  gameNames,
+  formatBytes,
+  startDownload: startDownloadHandler,
+  cancelDownload: cancelDownloadHandler,
+  reset
+} = useGameDownload(computed(() => props.gameType))
 
 // 开始下载
 const startDownload = async () => {
-  try {
-    isDownloading.value = true
-    downloadProgress.value = 0
-
-    // 监听下载进度事件
-    if (!progressListener) {
-      progressListener = await listen('download-progress', (event) => {
-        const progress = event.payload
-        downloadProgress.value = progress.percentage || 0
-        downloadedBytes.value = progress.downloaded || 0
-        totalBytes.value = progress.total || 0
-      })
-    }
-
-    // 调用下载命令（自动下载到 G2M/Download）
-    const response = await invoke('download_game', {
-      request: {
-        game_type: props.gameType
-      }
-    })
-
-    if (response?.success) {
-      showSuccess('游戏下载完成！')
-      emit('success')
-      emit('update:visible', false)
-      resetDialog()
-    } else {
-      throw new Error(response?.error || '下载失败')
-    }
-  } catch (error) {
-    console.error('下载失败:', error)
-    showError('下载失败', { detail: error.message || error })
-  } finally {
-    isDownloading.value = false
-    if (progressListener) {
-      progressListener()
-      progressListener = null
-    }
+  const result = await startDownloadHandler()
+  if (result?.success) {
+    emit('success')
+    emit('update:visible', false)
+    reset()
+  } else if (result?.cancelled) {
+    emit('cancel')
+    emit('update:visible', false)
+    reset()
   }
 }
 
-// 格式化文件大小
-const formatBytes = (bytes) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+// 取消下载
+const cancelDownload = async () => {
+  await cancelDownloadHandler()
+  emit('cancel')
+  emit('update:visible', false)
+  reset()
 }
 
-// 取消
+// 取消对话框
 const handleCancel = () => {
   if (isDownloading.value) {
-    showError('下载进行中，无法取消')
+    // 如果正在下载，调用取消下载
+    cancelDownload()
     return
   }
   emit('cancel')
   emit('update:visible', false)
-  resetDialog()
-}
-
-// 重置对话框
-const resetDialog = () => {
-  downloadProgress.value = 0
-  downloadedBytes.value = 0
-  totalBytes.value = 0
-  if (progressListener) {
-    progressListener()
-    progressListener = null
-  }
+  reset()
 }
 
 // 监听 visible 变化
 watch(() => props.visible, (newVisible) => {
   if (!newVisible) {
-    resetDialog()
-  }
-})
-
-onUnmounted(() => {
-  if (progressListener) {
-    progressListener()
+    reset()
   }
 })
 </script>
 
 <template>
-  <a-modal v-model:open="visibleModel" :title="`下载 ${gameNames[gameType] || '游戏'}`" :width="600" :maskClosable="false"
+  <a-modal v-model:open="visibleModel" :title="`下载 ${gameNames[props.gameType] || '游戏'}`" :width="600" :maskClosable="false"
     :keyboard="false" :footer="null">
     <div class="download-dialog-content">
       <a-alert v-if="isDownloading" type="info" message="正在下载游戏文件到 G2M/Download 目录..."
@@ -157,10 +107,10 @@ onUnmounted(() => {
 
       <div class="dialog-footer">
         <a-space>
-          <a-button @click="handleCancel" :disabled="isDownloading">
-            取消
+          <a-button @click="handleCancel" :danger="isDownloading">
+            {{ isDownloading ? '取消下载' : '取消' }}
           </a-button>
-          <a-button type="primary" @click="startDownload" :loading="isDownloading">
+          <a-button v-if="!isDownloading" type="primary" @click="startDownload">
             <template #icon>
               <DownloadOutlined />
             </template>

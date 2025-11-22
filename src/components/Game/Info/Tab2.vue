@@ -1,5 +1,6 @@
 <script setup>
-import { useGameInfo } from '@/composables/game/useGameInfo'
+import { computed } from 'vue'
+import { useModPrerequisites } from '@/composables'
 
 // Props
 const props = defineProps({
@@ -9,234 +10,44 @@ const props = defineProps({
   }
 })
 
-// Composables
-const { checkModLoaders, installModPrerequisitesMethod } = useGameInfo()
+// 使用 composable
+const gameInfoRef = computed(() => props.gameInfo)
 
-// Reactive state
-const modStatus = ref({
-  dinput8: false,
-  cleo: false,
-  cleo_redux: false,
-  modloader: false
-})
+const {
+  // 状态
+  modStatus,
+  modLoaderDetails,
+  isLoading,
+  selectedComponents,
+  isInstalling,
+  installResult,
+  showResult,
+  customPrerequisites,
+  showCustomPrerequisiteDialog,
+  customPrerequisiteForm,
+  selectingCustomPrerequisiteFiles,
+  availableTargetDirs,
 
-const isLoading = ref(false)
-const selectedComponents = ref([])
-const isInstalling = ref(false)
-const installResult = ref(null)
-const showResult = ref(false)
+  // 计算属性
+  availableComponents,
+  selectedCount,
+  allComponentsInstalled,
 
-// 根据游戏类型定义可用组件
-const availableComponents = computed(() => {
-  if (!props.gameInfo) return []
-
-  const gameType = props.gameInfo.type
-  const components = [
-    {
-      key: 'dinput8',
-      name: 'dinput8.dll',
-      description: 'plugins scripts 加载器',
-      installed: modStatus.value.dinput8
-    }
-  ]
-
-  // 根据游戏类型添加 CLEO 相关组件
-  if (['gta3', 'gtavc', 'gtasa'].includes(gameType)) {
-    components.push({
-      key: 'cleo',
-      name: 'CLEO',
-      description: '经典脚本执行引擎，支持 .cs 脚本文件',
-      installed: modStatus.value.cleo
-    })
-  }
-
-  // CLEO Redux
-  components.push({
-    key: 'cleo_redux',
-    name: 'CLEO Redux',
-    description: '现代脚本引擎，支持 JavaScript 和其他现代脚本语言',
-    installed: modStatus.value.cleo_redux
-  })
-
-  // ModLoader
-  components.push({
-    key: 'modloader',
-    name: 'ModLoader',
-    description: 'MOD 加载器，用于加载 .dff、.txd 等资源文件',
-    installed: modStatus.value.modloader
-  })
-
-  return components
-})
-
-// 计算选中组件数量
-const selectedCount = computed(() => selectedComponents.value.length)
-
-// 计算是否所有组件都已安装
-const allComponentsInstalled = computed(() => {
-  return availableComponents.value.length > 0 &&
-    availableComponents.value.every(component => component.installed)
-})
-
-// 方法
-const toggleComponent = (key) => {
-  // dinput8 不能取消选择
-  if (key === 'dinput8') {
-    return
-  }
-
-  const index = selectedComponents.value.indexOf(key)
-  if (index > -1) {
-    selectedComponents.value.splice(index, 1)
-  } else {
-    selectedComponents.value.push(key)
-  }
-}
-
-const getComponentName = (key) => {
-  const component = availableComponents.value.find(c => c.key === key)
-  return component ? component.name : key
-}
-
-const loadModStatus = async () => {
-  console.log('loadModStatus 调用，gameInfo:', props.gameInfo)
-
-  if (!props.gameInfo || !props.gameInfo.dir) {
-    console.warn('游戏信息或目录为空，无法检查 MOD 状态', {
-      gameInfo: props.gameInfo,
-      hasGameInfo: !!props.gameInfo,
-      hasDir: props.gameInfo?.dir
-    })
-    return
-  }
-
-  isLoading.value = true
-  try {
-    console.log('开始检查 MOD 状态，游戏目录:', props.gameInfo.dir)
-    const status = await checkModLoaders(props.gameInfo.dir)
-
-    // 确保 status 是一个有效对象
-    if (status && typeof status === 'object') {
-      modStatus.value = {
-        dinput8: status.dinput8 || false,
-        cleo: status.cleo || false,
-        cleo_redux: status.cleo_redux || false,
-        modloader: status.modloader || false
-      }
-
-      // 根据安装状态更新 selectedComponents，移除已安装的组件
-      selectedComponents.value = selectedComponents.value.filter(key => {
-        const isInstalled = modStatus.value[key] === true
-        if (isInstalled) {
-          console.log(`组件 ${key} 已安装，从选择列表中移除`)
-        }
-        return !isInstalled
-      })
-
-      // 如果 dinput8 未安装，确保它在选中列表中（且不能取消）
-      if (!modStatus.value.dinput8) {
-        if (!selectedComponents.value.includes('dinput8')) {
-          selectedComponents.value.unshift('dinput8')
-        }
-      } else {
-        // 如果 dinput8 已安装，从选中列表中移除
-        const dinput8Index = selectedComponents.value.indexOf('dinput8')
-        if (dinput8Index > -1) {
-          selectedComponents.value.splice(dinput8Index, 1)
-        }
-      }
-    } else {
-      // 如果返回的状态无效，使用默认状态
-      console.warn('检查 MOD 状态返回无效结果，使用默认状态')
-      modStatus.value = {
-        dinput8: false,
-        cleo: false,
-        cleo_redux: false,
-        modloader: false
-      }
-      // 确保 dinput8 默认选中
-      if (!selectedComponents.value.includes('dinput8')) {
-        selectedComponents.value.unshift('dinput8')
-      }
-    }
-  } catch (error) {
-    console.error('检查 MOD 状态失败:', error)
-    // 出错时设置默认状态
-    modStatus.value = {
-      dinput8: false,
-      cleo: false,
-      cleo_redux: false,
-      modloader: false
-    }
-    // 确保 dinput8 默认选中
-    if (!selectedComponents.value.includes('dinput8')) {
-      selectedComponents.value.unshift('dinput8')
-    }
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const handleInstall = async () => {
-  if (!props.gameInfo || selectedComponents.value.length === 0) return
-
-  console.log('开始安装 MOD 前置，参数:', {
-    game_path: props.gameInfo.dir,
-    game_type: props.gameInfo.type,
-    components: selectedComponents.value
-  })
-
-  isInstalling.value = true
-  try {
-    const result = await installModPrerequisitesMethod({
-      game_path: props.gameInfo.dir,
-      game_type: props.gameInfo.type,
-      components: selectedComponents.value
-    })
-
-    installResult.value = result
-    showResult.value = true
-
-    // 安装完成后重新检查状态
-    // loadModStatus 会自动从 selectedComponents 中移除已安装的组件
-    if (result.success) {
-      await loadModStatus()
-    }
-  } catch (error) {
-    console.error('安装失败:', error)
-    installResult.value = {
-      success: false,
-      message: '安装过程中发生错误',
-      details: [error.message || '未知错误']
-    }
-    showResult.value = true
-  } finally {
-    isInstalling.value = false
-  }
-}
-
-const closeResult = () => {
-  showResult.value = false
-  installResult.value = null
-}
-
-// 监听游戏信息变化
-watch(() => props.gameInfo, (newGameInfo) => {
-  if (newGameInfo) {
-    loadModStatus()
-  }
-}, { immediate: true })
-
-// 组件挂载时加载状态
-onMounted(() => {
-  console.log('Tab2 组件挂载，gameInfo:', props.gameInfo)
-  if (props.gameInfo) {
-    console.log('gameInfo 存在，开始加载 MOD 状态')
-    loadModStatus()
-  } else {
-    console.log('gameInfo 不存在，等待数据传入')
-  }
-})
+  // 方法
+  toggleComponent,
+  getComponentName,
+  getComponentLocation,
+  loadModStatus,
+  handleInstall,
+  closeResult,
+  handleManualSelect,
+  checkGameDirectories,
+  loadCustomPrerequisites,
+  selectCustomPrerequisiteFiles,
+  handleInstallCustomPrerequisite,
+  handleDeleteCustomPrerequisite,
+  getCustomPrerequisiteStatus
+} = useModPrerequisites(gameInfoRef)
 </script>
 
 <template>
@@ -247,7 +58,27 @@ onMounted(() => {
       </h3>
       <NGrid :cols="4" :x-gap="12" :y-gap="12">
         <NGridItem>
-          <NCard :bordered="true" :style="{ borderColor: modStatus.dinput8 ? '#18a058' : '#d03050' }">
+          <NPopover v-if="modStatus.dinput8 && getComponentLocation('dinput8')" trigger="hover" placement="top">
+            <template #trigger>
+              <NCard :bordered="true"
+                :style="{ borderColor: modStatus.dinput8 ? '#18a058' : '#d03050', cursor: modStatus.dinput8 ? 'pointer' : 'default' }">
+                <div style="text-align: center;">
+                  <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">dinput8.dll</div>
+                  <div style="font-size: 12px; color: #999; margin-bottom: 8px;">基础输入库</div>
+                  <NTag :type="modStatus.dinput8 ? 'success' : 'error'" size="small" style="margin-top: 8px;">
+                    {{ modStatus.dinput8 ? '已安装' : '缺少' }}
+                  </NTag>
+                </div>
+              </NCard>
+            </template>
+            <div style="max-width: 300px;">
+              <div style="font-weight: 600; margin-bottom: 8px;">安装信息</div>
+              <div style="font-size: 13px; color: #666; line-height: 1.6;">
+                {{ getComponentLocation('dinput8') }}
+              </div>
+            </div>
+          </NPopover>
+          <NCard v-else :bordered="true" :style="{ borderColor: modStatus.dinput8 ? '#18a058' : '#d03050' }">
             <div style="text-align: center;">
               <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">dinput8.dll</div>
               <div style="font-size: 12px; color: #999; margin-bottom: 8px;">基础输入库</div>
@@ -259,7 +90,27 @@ onMounted(() => {
         </NGridItem>
 
         <NGridItem>
-          <NCard :bordered="true" :style="{ borderColor: modStatus.cleo ? '#18a058' : '#d03050' }">
+          <NPopover v-if="modStatus.cleo && getComponentLocation('cleo')" trigger="hover" placement="top">
+            <template #trigger>
+              <NCard :bordered="true"
+                :style="{ borderColor: modStatus.cleo ? '#18a058' : '#d03050', cursor: modStatus.cleo ? 'pointer' : 'default' }">
+                <div style="text-align: center;">
+                  <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO</div>
+                  <div style="font-size: 12px; color: #999; margin-bottom: 8px;">脚本执行引擎</div>
+                  <NTag :type="modStatus.cleo ? 'success' : 'error'" size="small" style="margin-top: 8px;">
+                    {{ modStatus.cleo ? '已安装' : '缺少' }}
+                  </NTag>
+                </div>
+              </NCard>
+            </template>
+            <div style="max-width: 300px;">
+              <div style="font-weight: 600; margin-bottom: 8px;">安装信息</div>
+              <div style="font-size: 13px; color: #666; line-height: 1.6;">
+                {{ getComponentLocation('cleo') }}
+              </div>
+            </div>
+          </NPopover>
+          <NCard v-else :bordered="true" :style="{ borderColor: modStatus.cleo ? '#18a058' : '#d03050' }">
             <div style="text-align: center;">
               <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO</div>
               <div style="font-size: 12px; color: #999; margin-bottom: 8px;">脚本执行引擎</div>
@@ -271,7 +122,27 @@ onMounted(() => {
         </NGridItem>
 
         <NGridItem>
-          <NCard :bordered="true" :style="{ borderColor: modStatus.cleo_redux ? '#18a058' : '#d03050' }">
+          <NPopover v-if="modStatus.cleo_redux && getComponentLocation('cleo_redux')" trigger="hover" placement="top">
+            <template #trigger>
+              <NCard :bordered="true"
+                :style="{ borderColor: modStatus.cleo_redux ? '#18a058' : '#d03050', cursor: modStatus.cleo_redux ? 'pointer' : 'default' }">
+                <div style="text-align: center;">
+                  <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO Redux</div>
+                  <div style="font-size: 12px; color: #999; margin-bottom: 8px;">现代脚本引擎</div>
+                  <NTag :type="modStatus.cleo_redux ? 'success' : 'error'" size="small" style="margin-top: 8px;">
+                    {{ modStatus.cleo_redux ? '已安装' : '缺少' }}
+                  </NTag>
+                </div>
+              </NCard>
+            </template>
+            <div style="max-width: 300px;">
+              <div style="font-weight: 600; margin-bottom: 8px;">安装信息</div>
+              <div style="font-size: 13px; color: #666; line-height: 1.6;">
+                {{ getComponentLocation('cleo_redux') }}
+              </div>
+            </div>
+          </NPopover>
+          <NCard v-else :bordered="true" :style="{ borderColor: modStatus.cleo_redux ? '#18a058' : '#d03050' }">
             <div style="text-align: center;">
               <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO Redux</div>
               <div style="font-size: 12px; color: #999; margin-bottom: 8px;">现代脚本引擎</div>
@@ -283,7 +154,35 @@ onMounted(() => {
         </NGridItem>
 
         <NGridItem>
-          <NCard :bordered="true" :style="{ borderColor: modStatus.modloader ? '#18a058' : '#d03050' }">
+          <NPopover v-if="modStatus.modloader && getComponentLocation('modloader')" trigger="hover" placement="top">
+            <template #trigger>
+              <NCard :bordered="true"
+                :style="{ borderColor: modStatus.modloader ? '#18a058' : '#d03050', cursor: modStatus.modloader ? 'pointer' : 'default' }">
+                <div style="text-align: center;">
+                  <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">ModLoader</div>
+                  <div style="font-size: 12px; color: #999; margin-bottom: 8px;">MOD 加载器</div>
+                  <NTag :type="modStatus.modloader ? 'success' : 'error'" size="small" style="margin-top: 8px;">
+                    {{ modStatus.modloader ? '已安装' : '缺少' }}
+                  </NTag>
+                </div>
+              </NCard>
+            </template>
+            <div style="max-width: 300px;">
+              <div style="font-weight: 600; margin-bottom: 8px;">安装信息</div>
+              <div style="font-size: 13px; color: #666; line-height: 1.6;">
+                <template v-if="Array.isArray(getComponentLocation('modloader'))">
+                  <div v-for="(location, index) in getComponentLocation('modloader')" :key="index"
+                    style="margin-bottom: 4px;">
+                    {{ location }}
+                  </div>
+                </template>
+                <template v-else>
+                  {{ getComponentLocation('modloader') }}
+                </template>
+              </div>
+            </div>
+          </NPopover>
+          <NCard v-else :bordered="true" :style="{ borderColor: modStatus.modloader ? '#18a058' : '#d03050' }">
             <div style="text-align: center;">
               <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">ModLoader</div>
               <div style="font-size: 12px; color: #999; margin-bottom: 8px;">MOD 加载器</div>
@@ -298,6 +197,13 @@ onMounted(() => {
       <NSpin v-if="isLoading" size="small" style="margin-top: 16px;">
         <template #description>检查 MOD 环境状态...</template>
       </NSpin>
+    </div>
+
+    <!-- 添加自定义MOD按钮 - 始终显示 -->
+    <div style="margin-top: 24px;">
+      <NButton @click="showCustomPrerequisiteDialog = true">
+        添加自定义前置
+      </NButton>
     </div>
 
     <div v-if="!allComponentsInstalled">
@@ -315,8 +221,13 @@ onMounted(() => {
               <NTag v-if="component.installed" type="success" size="small">已安装</NTag>
               <NTag v-else type="default" size="small">未安装</NTag>
             </div>
-            <div style="color: #666; font-size: 13px; line-height: 1.5; margin-top: 8px;">
+            <div style="color: #666; font-size: 13px; line-height: 1.5; margin-top: 8px; margin-bottom: 8px;">
               {{ component.description }}
+            </div>
+            <div v-if="!component.installed" style="display: flex; justify-content: flex-end; margin-top: 8px;">
+              <NButton size="small" @click="handleManualSelect(component.key)">
+                手动选择文件
+              </NButton>
             </div>
           </NCard>
         </NGridItem>
@@ -340,6 +251,75 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- 自定义前置列表 -->
+    <div v-if="customPrerequisites.length > 0" style="margin-top: 24px;">
+      <h3 style="margin-bottom: 16px; font-size: 18px; font-weight: 600; color: #333;">
+        自定义前置
+      </h3>
+      <NGrid :cols="1" :x-gap="12" :y-gap="12">
+        <NGridItem v-for="prereq in customPrerequisites" :key="prereq.name">
+          <NCard :bordered="true">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                  <strong>{{ prereq.name }}</strong>
+                  <NTag :type="getCustomPrerequisiteStatus(prereq.name) ? 'success' : 'error'" size="small">
+                    {{ getCustomPrerequisiteStatus(prereq.name) ? '已安装' : '未安装' }}
+                  </NTag>
+                </div>
+                <div style="color: #666; font-size: 13px;">
+                  <div>文件: {{prereq.files.map(f => f.file_name).join(', ')}}</div>
+                  <div>位置: {{ prereq.target_dir === 'root' ? '游戏根目录' : prereq.target_dir === 'plugins' ? 'plugins目录' :
+                    'scripts目录' }}</div>
+                </div>
+              </div>
+              <NButton size="small" type="error" @click="handleDeleteCustomPrerequisite(prereq.name)">
+                删除
+              </NButton>
+            </div>
+          </NCard>
+        </NGridItem>
+      </NGrid>
+    </div>
+
+    <!-- 添加自定义前置对话框 -->
+    <NModal v-model:show="showCustomPrerequisiteDialog" preset="card" title="添加自定义前置" style="width: 600px">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">前置名称</label>
+          <NInput v-model:value="customPrerequisiteForm.name" placeholder="请输入自定义前置名称" />
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">源文件/文件夹</label>
+          <NSpace vertical>
+            <NSpace>
+              <NInput
+                :value="customPrerequisiteForm.sourcePaths.length > 0 ? `${customPrerequisiteForm.sourcePaths.length} 个文件/文件夹已选择` : '选择文件或文件夹'"
+                placeholder="选择文件或文件夹" readonly style="flex: 1;" />
+              <NButton :loading="selectingCustomPrerequisiteFiles" @click="selectCustomPrerequisiteFiles">
+                选择文件/文件夹
+              </NButton>
+            </NSpace>
+            <div v-if="customPrerequisiteForm.sourcePaths.length > 0"
+              style="max-height: 150px; overflow-y: auto; padding: 8px; background: #fafafa; border-radius: 4px;">
+              <div v-for="(path, index) in customPrerequisiteForm.sourcePaths" :key="index"
+                style="font-size: 12px; color: #666; margin-bottom: 4px;">
+                {{ path }}
+              </div>
+            </div>
+          </NSpace>
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">安装位置</label>
+          <NSelect v-model:value="customPrerequisiteForm.targetDir" :options="availableTargetDirs" />
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <NButton @click="showCustomPrerequisiteDialog = false">取消</NButton>
+          <NButton type="primary" @click="handleInstallCustomPrerequisite">安装</NButton>
+        </div>
+      </div>
+    </NModal>
 
     <NModal v-model:show="showResult" preset="card" title="安装结果" style="width: 600px">
       <div v-if="installResult" style="display: flex; flex-direction: column; gap: 16px;">

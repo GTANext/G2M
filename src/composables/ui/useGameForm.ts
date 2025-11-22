@@ -36,7 +36,7 @@ export function useGameForm() {
   // 是否正在检测游戏
   const isDetecting = ref(false);
 
-  // 检测结果 - 使用 any 类型
+  // 检测结果
   const detectionResult: any = ref(null);
 
   // 是否自动检测到游戏
@@ -82,7 +82,8 @@ export function useGameForm() {
         formData.dir = selectedPath;
         await detectGameInFolder(selectedPath);
       } else {
-        if (response?.error) {
+        // 只有当有错误信息时才显示错误
+        if (response?.error && response.error.trim() !== '') {
           showError('选择文件夹失败', { detail: response.error });
         }
       }
@@ -91,7 +92,7 @@ export function useGameForm() {
     }
   };
 
-  // 检测文件夹中的游戏 - 使用 any 类型
+  // 检测文件夹中的游戏
   const detectGameInFolder = async (folderPath: string) => {
     try {
       isDetecting.value = true;
@@ -180,10 +181,10 @@ export function useGameForm() {
 
 
 
-  // 获取游戏类型显示名称 - 完全移除类型检查
+  // 获取游戏类型显示名称
   const getGameTypeName = (gameType: any): string => {
     if (!gameType) return '未知游戏';
-    // @ts-ignore - 忽略所有类型检查
+    // @ts-ignore
     const GAME_TYPE_NAMES: any = {
       'gta3': 'GTA III',
       'gtavc': 'GTA Vice City', 

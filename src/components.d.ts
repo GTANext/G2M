@@ -15,6 +15,7 @@ declare module 'vue' {
     AppNavbar: typeof import('./components/App/Navbar.vue')['default']
     G2MHeader: typeof import('./components/G2M/Header.vue')['default']
     GameAddDialog: typeof import('./components/Game/AddDialog.vue')['default']
+    GameCard: typeof import('./components/Game/Card.vue')['default']
     GameDownloadDialog: typeof import('./components/Game/DownloadDialog.vue')['default']
     GameEditDialog: typeof import('./components/Game/EditDialog.vue')['default']
     GameExtractDialog: typeof import('./components/Game/ExtractDialog.vue')['default']
