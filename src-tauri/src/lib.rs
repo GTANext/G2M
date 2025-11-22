@@ -9,7 +9,7 @@ use game::{
     install_mod_prerequisites, launch_game, mark_mod_loader_manual, open_game_folder,
     process_image_upload, save_base64_image, save_game, select_custom_prerequisite_files,
     select_extract_folder, select_game_folder, select_image_file, select_mod_loader_file,
-    update_game,
+    unmark_mod_loader_manual, update_game,
 };
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -45,6 +45,7 @@ pub fn run() -> () {
             install_mod_prerequisites,
             select_mod_loader_file,
             mark_mod_loader_manual,
+            unmark_mod_loader_manual,
             install_custom_prerequisite,
             get_custom_prerequisites,
             delete_custom_prerequisite,

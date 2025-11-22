@@ -158,7 +158,8 @@ export function useModPrerequisites(gameInfo: any) {
       if (response?.success && response?.data) {
         // 保存完整的详细信息
         modLoaderDetails.value = {
-          found_loaders: response.data.found_loaders || []
+          found_loaders: response.data.found_loaders || [],
+          manual_bindings: response.data.manual_bindings || []
         };
 
         // 保存状态
@@ -278,8 +279,10 @@ export function useModPrerequisites(gameInfo: any) {
     }
 
     try {
-      // 选择文件
-      const selectResponse = await tauriInvoke<ApiResponse<string>>('select_mod_loader_file');
+      // 选择文件，默认指向游戏目录
+      const selectResponse = await tauriInvoke<ApiResponse<string>>('select_mod_loader_file', {
+        defaultDir: gameInfo.value.dir
+      });
 
       if (!selectResponse?.success || !selectResponse?.data) {
         // 用户取消选择，不显示错误
@@ -309,6 +312,39 @@ export function useModPrerequisites(gameInfo: any) {
       console.error('手动选择失败:', error);
       showError('手动选择失败', { detail: error?.message || '未知错误' });
     }
+  };
+
+  // 取消手动标记
+  const handleUnmarkManual = async (loaderType: string) => {
+    if (!gameInfo?.value || !gameInfo.value.dir) {
+      showError('游戏信息不完整');
+      return;
+    }
+
+    try {
+      const response = await tauriInvoke<ApiResponse<ModLoaderStatus>>('unmark_mod_loader_manual', {
+        gameDir: gameInfo.value.dir,
+        loaderType: loaderType
+      });
+
+      if (response?.success) {
+        showSuccess('已取消手动标记');
+        // 重新加载状态
+        await loadModStatus();
+      } else {
+        showError('取消标记失败', { detail: response?.error || '未知错误' });
+      }
+    } catch (error: any) {
+      console.error('取消标记失败:', error);
+      showError('取消标记失败', { detail: error?.message || '未知错误' });
+    }
+  };
+
+  // 判断是否是手动绑定的
+  const isManualBinding = (loaderType: string): boolean => {
+    if (!modLoaderDetails.value) return false;
+    const manualBindings = (modLoaderDetails.value as any).manual_bindings || [];
+    return manualBindings.includes(loaderType);
   };
 
   // 检查游戏目录并设置默认安装位置
@@ -500,6 +536,8 @@ export function useModPrerequisites(gameInfo: any) {
     handleInstall,
     closeResult,
     handleManualSelect,
+    handleUnmarkManual,
+    isManualBinding,
     checkGameDirectories,
     loadCustomPrerequisites,
     selectCustomPrerequisiteFiles,

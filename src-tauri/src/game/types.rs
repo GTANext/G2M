@@ -71,6 +71,7 @@ pub struct ModLoaderStatus {
     pub has_cleo_redux: bool,
     pub missing_loaders: Vec<String>,
     pub found_loaders: Vec<String>,
+    pub manual_bindings: Vec<String>, // 手动绑定的加载器类型列表，如 ["cleo", "dinput8"]
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -110,4 +111,12 @@ pub struct CustomPrerequisiteInstallRequest {
     pub name: String,           // 自定义前置名称
     pub source_paths: Vec<String>, // 源路径列表（文件或文件夹）
     pub target_dir: String,     // 目标目录：root, plugins, scripts
+}
+
+// 手动绑定的标准前置插件
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ManualLoaderBinding {
+    pub loader_type: String,    // "cleo", "cleo_redux", "modloader", "dinput8"
+    pub file_path: String,      // 相对游戏目录的路径
+    pub file_name: String,      // 文件名
 }

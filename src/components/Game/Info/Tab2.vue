@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { InfoCircleOutlined } from '@ant-design/icons-vue'
 import { useModPrerequisites } from '@/composables'
 
 // Props
@@ -22,11 +23,6 @@ const {
   isInstalling,
   installResult,
   showResult,
-  customPrerequisites,
-  showCustomPrerequisiteDialog,
-  customPrerequisiteForm,
-  selectingCustomPrerequisiteFiles,
-  availableTargetDirs,
 
   // 计算属性
   availableComponents,
@@ -41,12 +37,8 @@ const {
   handleInstall,
   closeResult,
   handleManualSelect,
-  checkGameDirectories,
-  loadCustomPrerequisites,
-  selectCustomPrerequisiteFiles,
-  handleInstallCustomPrerequisite,
-  handleDeleteCustomPrerequisite,
-  getCustomPrerequisiteStatus
+  handleUnmarkManual,
+  isManualBinding
 } = useModPrerequisites(gameInfoRef)
 </script>
 
@@ -65,9 +57,19 @@ const {
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">dinput8.dll</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">基础输入库</div>
-                  <NTag :type="modStatus.dinput8 ? 'success' : 'error'" size="small" style="margin-top: 8px;">
-                    {{ modStatus.dinput8 ? '已安装' : '缺少' }}
-                  </NTag>
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px;">
+                    <NTag :type="modStatus.dinput8 ? 'success' : 'error'" size="small">
+                      {{ modStatus.dinput8 ? '已安装' : '缺少' }}
+                    </NTag>
+                    <NTag v-if="modStatus.dinput8 && isManualBinding('dinput8')" type="warning" size="small">
+                      自定义
+                    </NTag>
+                  </div>
+                  <div v-if="modStatus.dinput8 && isManualBinding('dinput8')" style="margin-top: 8px;">
+                    <a-typography-link type="secondary" @click="handleUnmarkManual('dinput8')" style="font-size: 12px;">
+                      取消选择
+                    </a-typography-link>
+                  </div>
                 </div>
               </NCard>
             </template>
@@ -85,6 +87,15 @@ const {
               <NTag :type="modStatus.dinput8 ? 'success' : 'error'" size="small" style="margin-top: 8px;">
                 {{ modStatus.dinput8 ? '已安装' : '缺少' }}
               </NTag>
+              <div v-if="!modStatus.dinput8"
+                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <a-typography-link type="secondary" @click="handleManualSelect('dinput8')" style="font-size: 12px;">
+                  手动选择
+                </a-typography-link>
+                <a-tooltip title="如果您的文件使用了自定义名称（如 kfc.asi），可以点击此链接选择文件并绑定到此前置插件">
+                  <InfoCircleOutlined style="font-size: 12px; color: #999; cursor: help;" />
+                </a-tooltip>
+              </div>
             </div>
           </NCard>
         </NGridItem>
@@ -97,9 +108,19 @@ const {
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">脚本执行引擎</div>
-                  <NTag :type="modStatus.cleo ? 'success' : 'error'" size="small" style="margin-top: 8px;">
-                    {{ modStatus.cleo ? '已安装' : '缺少' }}
-                  </NTag>
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px;">
+                    <NTag :type="modStatus.cleo ? 'success' : 'error'" size="small">
+                      {{ modStatus.cleo ? '已安装' : '缺少' }}
+                    </NTag>
+                    <NTag v-if="modStatus.cleo && isManualBinding('cleo')" type="warning" size="small">
+                      自定义
+                    </NTag>
+                  </div>
+                  <div v-if="modStatus.cleo && isManualBinding('cleo')" style="margin-top: 8px;">
+                    <a-typography-link type="secondary" @click="handleUnmarkManual('cleo')" style="font-size: 12px;">
+                      取消选择
+                    </a-typography-link>
+                  </div>
                 </div>
               </NCard>
             </template>
@@ -117,6 +138,15 @@ const {
               <NTag :type="modStatus.cleo ? 'success' : 'error'" size="small" style="margin-top: 8px;">
                 {{ modStatus.cleo ? '已安装' : '缺少' }}
               </NTag>
+              <div v-if="!modStatus.cleo"
+                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <a-typography-link type="secondary" @click="handleManualSelect('cleo')" style="font-size: 12px;">
+                  手动选择
+                </a-typography-link>
+                <a-tooltip title="如果您的文件使用了自定义名称（如 kfc.asi），可以点击此链接选择文件并绑定到此前置插件">
+                  <InfoCircleOutlined style="font-size: 12px; color: #999; cursor: help;" />
+                </a-tooltip>
+              </div>
             </div>
           </NCard>
         </NGridItem>
@@ -129,9 +159,20 @@ const {
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO Redux</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">现代脚本引擎</div>
-                  <NTag :type="modStatus.cleo_redux ? 'success' : 'error'" size="small" style="margin-top: 8px;">
-                    {{ modStatus.cleo_redux ? '已安装' : '缺少' }}
-                  </NTag>
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px;">
+                    <NTag :type="modStatus.cleo_redux ? 'success' : 'error'" size="small">
+                      {{ modStatus.cleo_redux ? '已安装' : '缺少' }}
+                    </NTag>
+                    <NTag v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" type="warning" size="small">
+                      自定义
+                    </NTag>
+                  </div>
+                  <div v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" style="margin-top: 8px;">
+                    <a-typography-link type="secondary" @click="handleUnmarkManual('cleo_redux')"
+                      style="font-size: 12px;">
+                      取消选择
+                    </a-typography-link>
+                  </div>
                 </div>
               </NCard>
             </template>
@@ -149,6 +190,15 @@ const {
               <NTag :type="modStatus.cleo_redux ? 'success' : 'error'" size="small" style="margin-top: 8px;">
                 {{ modStatus.cleo_redux ? '已安装' : '缺少' }}
               </NTag>
+              <div v-if="!modStatus.cleo_redux"
+                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <a-typography-link type="secondary" @click="handleManualSelect('cleo_redux')" style="font-size: 12px;">
+                  手动选择
+                </a-typography-link>
+                <a-tooltip title="如果您的文件使用了自定义名称（如 kfc.asi），可以点击此链接选择文件并绑定到此前置插件">
+                  <InfoCircleOutlined style="font-size: 12px; color: #999; cursor: help;" />
+                </a-tooltip>
+              </div>
             </div>
           </NCard>
         </NGridItem>
@@ -161,9 +211,20 @@ const {
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">ModLoader</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">MOD 加载器</div>
-                  <NTag :type="modStatus.modloader ? 'success' : 'error'" size="small" style="margin-top: 8px;">
-                    {{ modStatus.modloader ? '已安装' : '缺少' }}
-                  </NTag>
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px;">
+                    <NTag :type="modStatus.modloader ? 'success' : 'error'" size="small">
+                      {{ modStatus.modloader ? '已安装' : '缺少' }}
+                    </NTag>
+                    <NTag v-if="modStatus.modloader && isManualBinding('modloader')" type="warning" size="small">
+                      自定义
+                    </NTag>
+                  </div>
+                  <div v-if="modStatus.modloader && isManualBinding('modloader')" style="margin-top: 8px;">
+                    <a-typography-link type="secondary" @click="handleUnmarkManual('modloader')"
+                      style="font-size: 12px;">
+                      取消选择
+                    </a-typography-link>
+                  </div>
                 </div>
               </NCard>
             </template>
@@ -189,6 +250,15 @@ const {
               <NTag :type="modStatus.modloader ? 'success' : 'error'" size="small" style="margin-top: 8px;">
                 {{ modStatus.modloader ? '已安装' : '缺少' }}
               </NTag>
+              <div v-if="!modStatus.modloader"
+                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <a-typography-link type="secondary" @click="handleManualSelect('modloader')" style="font-size: 12px;">
+                  手动选择
+                </a-typography-link>
+                <a-tooltip title="如果您的文件使用了自定义名称（如 kfc.asi），可以点击此链接选择文件并绑定到此前置插件">
+                  <InfoCircleOutlined style="font-size: 12px; color: #999; cursor: help;" />
+                </a-tooltip>
+              </div>
             </div>
           </NCard>
         </NGridItem>
@@ -197,13 +267,6 @@ const {
       <NSpin v-if="isLoading" size="small" style="margin-top: 16px;">
         <template #description>检查 MOD 环境状态...</template>
       </NSpin>
-    </div>
-
-    <!-- 添加自定义MOD按钮 - 始终显示 -->
-    <div style="margin-top: 24px;">
-      <NButton @click="showCustomPrerequisiteDialog = true">
-        添加自定义前置
-      </NButton>
     </div>
 
     <div v-if="!allComponentsInstalled">
@@ -251,75 +314,6 @@ const {
         </div>
       </div>
     </div>
-
-    <!-- 自定义前置列表 -->
-    <div v-if="customPrerequisites.length > 0" style="margin-top: 24px;">
-      <h3 style="margin-bottom: 16px; font-size: 18px; font-weight: 600; color: #333;">
-        自定义前置
-      </h3>
-      <NGrid :cols="1" :x-gap="12" :y-gap="12">
-        <NGridItem v-for="prereq in customPrerequisites" :key="prereq.name">
-          <NCard :bordered="true">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div style="flex: 1;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                  <strong>{{ prereq.name }}</strong>
-                  <NTag :type="getCustomPrerequisiteStatus(prereq.name) ? 'success' : 'error'" size="small">
-                    {{ getCustomPrerequisiteStatus(prereq.name) ? '已安装' : '未安装' }}
-                  </NTag>
-                </div>
-                <div style="color: #666; font-size: 13px;">
-                  <div>文件: {{prereq.files.map(f => f.file_name).join(', ')}}</div>
-                  <div>位置: {{ prereq.target_dir === 'root' ? '游戏根目录' : prereq.target_dir === 'plugins' ? 'plugins目录' :
-                    'scripts目录' }}</div>
-                </div>
-              </div>
-              <NButton size="small" type="error" @click="handleDeleteCustomPrerequisite(prereq.name)">
-                删除
-              </NButton>
-            </div>
-          </NCard>
-        </NGridItem>
-      </NGrid>
-    </div>
-
-    <!-- 添加自定义前置对话框 -->
-    <NModal v-model:show="showCustomPrerequisiteDialog" preset="card" title="添加自定义前置" style="width: 600px">
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        <div>
-          <label style="display: block; margin-bottom: 8px; font-weight: 500;">前置名称</label>
-          <NInput v-model:value="customPrerequisiteForm.name" placeholder="请输入自定义前置名称" />
-        </div>
-        <div>
-          <label style="display: block; margin-bottom: 8px; font-weight: 500;">源文件/文件夹</label>
-          <NSpace vertical>
-            <NSpace>
-              <NInput
-                :value="customPrerequisiteForm.sourcePaths.length > 0 ? `${customPrerequisiteForm.sourcePaths.length} 个文件/文件夹已选择` : '选择文件或文件夹'"
-                placeholder="选择文件或文件夹" readonly style="flex: 1;" />
-              <NButton :loading="selectingCustomPrerequisiteFiles" @click="selectCustomPrerequisiteFiles">
-                选择文件/文件夹
-              </NButton>
-            </NSpace>
-            <div v-if="customPrerequisiteForm.sourcePaths.length > 0"
-              style="max-height: 150px; overflow-y: auto; padding: 8px; background: #fafafa; border-radius: 4px;">
-              <div v-for="(path, index) in customPrerequisiteForm.sourcePaths" :key="index"
-                style="font-size: 12px; color: #666; margin-bottom: 4px;">
-                {{ path }}
-              </div>
-            </div>
-          </NSpace>
-        </div>
-        <div>
-          <label style="display: block; margin-bottom: 8px; font-weight: 500;">安装位置</label>
-          <NSelect v-model:value="customPrerequisiteForm.targetDir" :options="availableTargetDirs" />
-        </div>
-        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-          <NButton @click="showCustomPrerequisiteDialog = false">取消</NButton>
-          <NButton type="primary" @click="handleInstallCustomPrerequisite">安装</NButton>
-        </div>
-      </div>
-    </NModal>
 
     <NModal v-model:show="showResult" preset="card" title="安装结果" style="width: 600px">
       <div v-if="installResult" style="display: flex; flex-direction: column; gap: 16px;">

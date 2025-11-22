@@ -1,7 +1,7 @@
 use crate::game::{
     ApiResponse, CopyImageResponse, CustomPrerequisiteFile, CustomPrerequisiteInfo,
-    CustomPrerequisiteInstallRequest, GameDetectionResult, GameInfo, GameList, ModInstallRequest,
-    ModInstallResult, ModLoaderStatus,
+    CustomPrerequisiteInstallRequest, GameDetectionResult, GameInfo, GameList, ManualLoaderBinding,
+    ModInstallRequest, ModInstallResult, ModLoaderStatus,
 };
 use chrono::Utc;
 use rand::distributions::Alphanumeric;
@@ -1264,6 +1264,54 @@ pub async fn check_mod_loaders(
         missing_loaders.push("CLEO Redux".to_string());
     }
 
+    // 检查手动绑定的标准前置插件（在所有标准检测之后）
+    let manual_bindings = load_manual_bindings(&game_dir);
+    for binding in &manual_bindings {
+        let binding_path = game_path.join(&binding.file_path);
+        if binding_path.exists() && binding_path.is_file() {
+            // 确定目录名称
+            let dir_name = if binding.file_path.starts_with("plugins/") {
+                "plugins目录"
+            } else if binding.file_path.starts_with("scripts/") {
+                "scripts目录"
+            } else {
+                "游戏根目录"
+            };
+
+            match binding.loader_type.as_str() {
+                "cleo" => {
+                    if !has_cleo {
+                        has_cleo = true;
+                        found_loaders.push(format!("CLEO ({}/{})", dir_name, binding.file_name));
+                        missing_loaders.retain(|x| x != "CLEO");
+                    }
+                }
+                "cleo_redux" => {
+                    if !has_cleo_redux {
+                        has_cleo_redux = true;
+                        found_loaders.push(format!("CLEO Redux ({}/{})", dir_name, binding.file_name));
+                        missing_loaders.retain(|x| x != "CLEO Redux");
+                    }
+                }
+                "modloader" => {
+                    if !has_modloader {
+                        has_modloader = true;
+                        found_loaders.push(format!("ModLoader ({}/{})", dir_name, binding.file_name));
+                        missing_loaders.retain(|x| x != "ModLoader");
+                    }
+                }
+                "dinput8" => {
+                    if !has_dinput8 {
+                        has_dinput8 = true;
+                        found_loaders.push(format!("dinput8.dll ({}/{})", dir_name, binding.file_name));
+                        missing_loaders.retain(|x| x != "dinput8.dll");
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     // 检查自定义前置
     let custom_prereqs = load_custom_prerequisites(&game_dir);
     for custom_prereq in &custom_prereqs {
@@ -1298,6 +1346,12 @@ pub async fn check_mod_loaders(
         }
     }
 
+    // 收集手动绑定的加载器类型
+    let manual_bindings: Vec<String> = load_manual_bindings(&game_dir)
+        .iter()
+        .map(|b| b.loader_type.clone())
+        .collect();
+
     let status = ModLoaderStatus {
         has_dinput8,
         has_modloader,
@@ -1305,6 +1359,7 @@ pub async fn check_mod_loaders(
         has_cleo_redux,
         missing_loaders,
         found_loaders,
+        manual_bindings,
     };
 
     Ok(ApiResponse::success(status))
@@ -1314,20 +1369,29 @@ pub async fn check_mod_loaders(
 #[tauri::command]
 pub async fn select_mod_loader_file(
     app_handle: tauri::AppHandle,
+    default_dir: Option<String>,
 ) -> Result<ApiResponse<String>, String> {
     use std::sync::mpsc;
     use tauri_plugin_dialog::DialogExt;
 
     let (tx, rx) = mpsc::channel();
 
-    app_handle
+    let mut file_dialog = app_handle
         .dialog()
         .file()
         .set_title("选择 MOD 加载器文件")
-        .add_filter("加载器文件", &["asi", "dll"])
-        .pick_file(move |path| {
-            let _ = tx.send(path);
-        });
+        .add_filter("加载器文件", &["asi", "dll"]);
+
+    // 如果提供了默认目录，设置为起始目录
+    if let Some(dir) = default_dir {
+        if let Ok(path) = PathBuf::from(&dir).canonicalize() {
+            file_dialog = file_dialog.set_directory(path);
+        }
+    }
+
+    file_dialog.pick_file(move |path| {
+        let _ = tx.send(path);
+    });
 
     match rx.recv() {
         Ok(Some(path)) => {
@@ -1402,53 +1466,65 @@ pub async fn mark_mod_loader_manual(
     let relative_path = file_path_abs.strip_prefix(&game_path_abs)
         .map_err(|_| "无法计算相对路径".to_string())?;
     
+    let relative_path_str = relative_path.to_string_lossy().to_string();
     let file_name = relative_path.file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("未知文件")
         .to_string();
 
-    // 确定目录名称
-    let dir_name = if relative_path.parent().is_none() || relative_path.parent() == Some(Path::new("")) {
-        "游戏根目录"
-    } else if relative_path.starts_with("plugins") {
-        "plugins目录"
-    } else if relative_path.starts_with("scripts") {
-        "scripts目录"
-    } else {
-        "游戏根目录"
-    };
-
-    // 重新检查 MOD 加载器状态，并添加手动指定的文件
-    let mut status_result = check_mod_loaders(game_dir.clone(), None).await?;
+    // 保存手动绑定到配置文件
+    let mut bindings = load_manual_bindings(&game_dir);
     
-    if let Some(ref mut status) = status_result.data {
-        match loader_type.as_str() {
-            "cleo" => {
-                status.has_cleo = true;
-                status.found_loaders.push(format!("CLEO ({}/{})", dir_name, file_name));
-                // 从缺失列表中移除
-                status.missing_loaders.retain(|x| x != "CLEO");
-            }
-            "cleo_redux" => {
-                status.has_cleo_redux = true;
-                status.found_loaders.push(format!("CLEO Redux ({}/{})", dir_name, file_name));
-                status.missing_loaders.retain(|x| x != "CLEO Redux");
-            }
-            "modloader" => {
-                status.has_modloader = true;
-                status.found_loaders.push(format!("ModLoader ({}/{})", dir_name, file_name));
-                status.missing_loaders.retain(|x| x != "ModLoader");
-            }
-            "dinput8" => {
-                status.has_dinput8 = true;
-                status.found_loaders.push(format!("dinput8.dll ({}/{})", dir_name, file_name));
-                status.missing_loaders.retain(|x| x != "dinput8.dll");
-            }
-            _ => {
-                return Ok(ApiResponse::error(format!("不支持的加载器类型: {}", loader_type)));
-            }
-        }
+    // 移除该类型的旧绑定（如果存在）
+    bindings.retain(|b| b.loader_type != loader_type);
+    
+    // 添加新绑定
+    bindings.push(ManualLoaderBinding {
+        loader_type: loader_type.clone(),
+        file_path: relative_path_str.clone(),
+        file_name: file_name.clone(),
+    });
+    
+    // 保存绑定列表
+    save_manual_bindings(&game_dir, &bindings)
+        .map_err(|e| format!("保存手动绑定失败: {}", e))?;
+
+    // 重新检查 MOD 加载器状态（会自动识别手动绑定的文件）
+    let status_result = check_mod_loaders(game_dir.clone(), None).await?;
+
+    Ok(status_result)
+}
+
+// 取消手动标记 MOD 加载器
+#[tauri::command]
+pub async fn unmark_mod_loader_manual(
+    game_dir: String,
+    loader_type: String, // "cleo", "cleo_redux", "modloader", "dinput8"
+) -> Result<ApiResponse<ModLoaderStatus>, String> {
+    let game_path = Path::new(&game_dir);
+
+    if !game_path.exists() || !game_path.is_dir() {
+        return Ok(ApiResponse::error("游戏目录不存在".to_string()));
     }
+
+    // 加载手动绑定列表
+    let mut bindings = load_manual_bindings(&game_dir);
+    
+    // 移除指定类型的绑定
+    let initial_len = bindings.len();
+    bindings.retain(|b| b.loader_type != loader_type);
+    
+    if bindings.len() == initial_len {
+        // 没有找到要移除的绑定
+        return Ok(ApiResponse::error("未找到该类型的手动绑定".to_string()));
+    }
+    
+    // 保存更新后的绑定列表
+    save_manual_bindings(&game_dir, &bindings)
+        .map_err(|e| format!("保存手动绑定失败: {}", e))?;
+
+    // 重新检查 MOD 加载器状态
+    let status_result = check_mod_loaders(game_dir.clone(), None).await?;
 
     Ok(status_result)
 }
@@ -1456,6 +1532,47 @@ pub async fn mark_mod_loader_manual(
 // 获取自定义前置列表文件路径
 fn get_custom_prerequisites_path(game_dir: &str) -> PathBuf {
     Path::new(game_dir).join("g2m_custom_prerequisites.json")
+}
+
+// 获取手动绑定列表文件路径
+fn get_manual_bindings_path(game_dir: &str) -> PathBuf {
+    Path::new(game_dir).join("g2m_manual_bindings.json")
+}
+
+// 读取手动绑定列表
+fn load_manual_bindings(game_dir: &str) -> Vec<ManualLoaderBinding> {
+    let bindings_path = get_manual_bindings_path(game_dir);
+    if !bindings_path.exists() {
+        return Vec::new();
+    }
+
+    match fs::read_to_string(&bindings_path) {
+        Ok(content) => {
+            match serde_json::from_str::<Vec<ManualLoaderBinding>>(&content) {
+                Ok(bindings) => bindings,
+                Err(e) => {
+                    eprintln!("解析手动绑定列表失败: {}", e);
+                    Vec::new()
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("读取手动绑定列表失败: {}", e);
+            Vec::new()
+        }
+    }
+}
+
+// 保存手动绑定列表
+fn save_manual_bindings(game_dir: &str, bindings: &[ManualLoaderBinding]) -> Result<(), String> {
+    let bindings_path = get_manual_bindings_path(game_dir);
+    match serde_json::to_string_pretty(bindings) {
+        Ok(json_content) => {
+            fs::write(&bindings_path, json_content)
+                .map_err(|e| format!("保存手动绑定列表失败: {}", e))
+        }
+        Err(e) => Err(format!("序列化手动绑定列表失败: {}", e)),
+    }
 }
 
 // 读取自定义前置列表

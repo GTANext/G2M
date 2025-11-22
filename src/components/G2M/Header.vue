@@ -16,7 +16,7 @@ defineProps<Props>()
       </div>
       <div class="header-right">
         <NSpace>
-          <slot name="right"></slot>
+        <slot name="right"></slot>
         </NSpace>
       </div>
     </div>
