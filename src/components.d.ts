@@ -12,8 +12,10 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AppError: typeof import('./components/App/Error.vue')['default']
+    AppFooter: typeof import('./components/App/Footer.vue')['default']
     AppNavbar: typeof import('./components/App/Navbar.vue')['default']
     G2MHeader: typeof import('./components/G2M/Header.vue')['default']
+    G2MHelpThanks: typeof import('./components/G2M/HelpThanks.vue')['default']
     GameAddDialog: typeof import('./components/Game/AddDialog.vue')['default']
     GameCard: typeof import('./components/Game/Card.vue')['default']
     GameDownloadDialog: typeof import('./components/Game/DownloadDialog.vue')['default']

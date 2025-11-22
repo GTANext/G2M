@@ -1,35 +1,53 @@
 <script setup>
-import {
-    HeartFilled,
-    InfoCircleOutlined
-} from '@ant-design/icons-vue'
+import { SmileTwoTone } from '@ant-design/icons-vue';
+const activeKey = ref([]);
+const text = `不知道喵`;
+const qqGroups = [
+    {
+        name: '254239242',
+        link: 'https://qm.qq.com/q/4zCXv1Lmcw',
+    },
+    {
+        name: '894712495',
+        link: 'https://qm.qq.com/q/nEjjiknj6S',
+    },
+    {
+        name: '829270254',
+        link: 'https://qm.qq.com/q/gcBGq9A82k',
+    },
+]
 </script>
 
 <template>
     <a-flex :align="'center'" :justify="'center'" :style="{ height: '100%' }">
-        <a-result status="error" title="你好鸭" sub-title="你似乎来到了没有知识存在的荒原">
-            <template #icon>
-                <HeartFilled />
-            </template>
-            <template #extra>
-                <a-button key="console" type="primary" href="https://space.bilibili.com/435502585"
-                    target="_blank">哔哩哔哩</a-button>
-                <a-button key="buy" href="https://github.com/GTANext/G2M" target="_blank">GitHub</a-button>
-            </template>
-
-            <div class="desc">
-                <p>
-                    <InfoCircleOutlined :style="{ color: '#1677ff' }" />
-                    Your account has been frozen
-                    <a>Thaw immediately &gt;</a>
-                </p>
-            </div>
-        </a-result>
+        <a-card class="help-card">
+            <a-result title="帮助" sub-title="这里汇集了一些常见的问题以及解决方法, 如果还是有问题那么就请加群询问">
+                <template #icon>
+                    <smile-twoTone />
+                </template>
+                <template #extra>
+                    <a-button key="console" type="primary" href="https://space.bilibili.com/435502585" target="_blank">哔哩哔哩</a-button>
+                    <a-button key="buy" href="https://github.com/GTANext/G2M" target="_blank">GitHub</a-button>
+                </template>
+            </a-result>
+            <a-collapse v-model:activeKey="activeKey" accordion>
+                <a-collapse-panel key="1" header="鸣谢">
+                    <G2MHelpThanks />
+                </a-collapse-panel>
+                <a-collapse-panel key="2" header="安装MOD/前置出错">
+                    <p>{{ text }}</p>
+                </a-collapse-panel>
+                <a-collapse-panel key="3" header="游戏添加/下载/解压失败">
+                    <p>{{ text }}</p>
+                </a-collapse-panel>
+            </a-collapse>
+        </a-card>
     </a-flex>
 </template>
 
 <style scoped>
-.desc p {
-    margin-bottom: 1em;
+.help-card {
+    width: 100%;
+    max-width: 1400px;
 }
 </style>
