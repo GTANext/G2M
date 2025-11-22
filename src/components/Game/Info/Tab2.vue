@@ -38,8 +38,33 @@ const {
   closeResult,
   handleManualSelect,
   handleUnmarkManual,
-  isManualBinding
+  isManualBinding,
+  handleInstallSingle
 } = useModPrerequisites(gameInfoRef)
+
+// 获取安装选项
+const getInstallOptions = (loaderType) => {
+  return [
+    {
+      label: '自动安装',
+      key: `auto_${loaderType}`
+    },
+    {
+      label: '选择已安装',
+      key: `manual_${loaderType}`
+    }
+  ]
+}
+
+// 处理安装选项选择
+const handleInstallOptionSelect = (key) => {
+  const [action, loaderType] = key.split('_', 2)
+  if (action === 'auto') {
+    handleInstallSingle(loaderType)
+  } else if (action === 'manual') {
+    handleManualSelect(loaderType)
+  }
+}
 </script>
 
 <template>
@@ -57,18 +82,26 @@ const {
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">dinput8.dll</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">基础输入库</div>
-                  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px;">
-                    <NTag :type="modStatus.dinput8 ? 'success' : 'error'" size="small">
-                      {{ modStatus.dinput8 ? '已安装' : '缺少' }}
+                  <div
+                    style="margin: 15px 0px 8px 0px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                    <NTag v-if="modStatus.dinput8" type="success" size="small">
+                      已安装
                     </NTag>
                     <NTag v-if="modStatus.dinput8 && isManualBinding('dinput8')" type="warning" size="small">
                       自定义
                     </NTag>
+                    <NTag v-if="modStatus.dinput8" type="default" size="small" style="cursor: pointer;"
+                      @click.stop="handleManualSelect('dinput8')">
+                      手动选择
+                    </NTag>
                   </div>
-                  <div v-if="modStatus.dinput8 && isManualBinding('dinput8')" style="margin-top: 8px;">
-                    <a-typography-link type="secondary" @click="handleUnmarkManual('dinput8')" style="font-size: 12px;">
-                      取消选择
-                    </a-typography-link>
+                  <div v-if="!modStatus.dinput8" style="margin-top: 8px;">
+                    <NDropdown trigger="click" :options="getInstallOptions('dinput8')"
+                      @select="handleInstallOptionSelect">
+                      <NButton size="small" type="primary" @click.stop>
+                        立即安装
+                      </NButton>
+                    </NDropdown>
                   </div>
                 </div>
               </NCard>
@@ -84,17 +117,25 @@ const {
             <div style="text-align: center;">
               <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">dinput8.dll</div>
               <div style="font-size: 12px; color: #999; margin-bottom: 8px;">基础输入库</div>
-              <NTag :type="modStatus.dinput8 ? 'success' : 'error'" size="small" style="margin-top: 8px;">
-                {{ modStatus.dinput8 ? '已安装' : '缺少' }}
-              </NTag>
-              <div v-if="!modStatus.dinput8"
-                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                <a-typography-link type="secondary" @click="handleManualSelect('dinput8')" style="font-size: 12px;">
+              <div
+                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                <NTag v-if="modStatus.dinput8" type="success" size="small">
+                  已安装
+                </NTag>
+                <NTag v-if="modStatus.dinput8 && isManualBinding('dinput8')" type="warning" size="small">
+                  自定义
+                </NTag>
+                <NTag v-if="modStatus.dinput8" type="default" size="small" style="cursor: pointer;"
+                  @click="handleManualSelect('dinput8')">
                   手动选择
-                </a-typography-link>
-                <a-tooltip title="如果您的文件使用了自定义名称（如 kfc.asi），可以点击此链接选择文件并绑定到此前置插件">
-                  <InfoCircleOutlined style="font-size: 12px; color: #999; cursor: help;" />
-                </a-tooltip>
+                </NTag>
+              </div>
+              <div v-if="!modStatus.dinput8" style="margin-top: 8px;">
+                <NDropdown trigger="click" :options="getInstallOptions('dinput8')" @select="handleInstallOptionSelect">
+                  <NButton size="small" type="primary">
+                    立即安装
+                  </NButton>
+                </NDropdown>
               </div>
             </div>
           </NCard>
@@ -108,18 +149,25 @@ const {
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">脚本执行引擎</div>
-                  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px;">
-                    <NTag :type="modStatus.cleo ? 'success' : 'error'" size="small">
-                      {{ modStatus.cleo ? '已安装' : '缺少' }}
+                  <div
+                    style="margin: 15px 0px 8px 0px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                    <NTag v-if="modStatus.cleo" type="success" size="small">
+                      已安装
                     </NTag>
                     <NTag v-if="modStatus.cleo && isManualBinding('cleo')" type="warning" size="small">
                       自定义
                     </NTag>
+                    <NTag v-if="modStatus.cleo" type="default" size="small" style="cursor: pointer;"
+                      @click.stop="handleManualSelect('cleo')">
+                      手动选择
+                    </NTag>
                   </div>
-                  <div v-if="modStatus.cleo && isManualBinding('cleo')" style="margin-top: 8px;">
-                    <a-typography-link type="secondary" @click="handleUnmarkManual('cleo')" style="font-size: 12px;">
-                      取消选择
-                    </a-typography-link>
+                  <div v-if="!modStatus.cleo" style="margin-top: 8px;">
+                    <NDropdown trigger="click" :options="getInstallOptions('cleo')" @select="handleInstallOptionSelect">
+                      <NButton size="small" type="primary" @click.stop>
+                        立即安装
+                      </NButton>
+                    </NDropdown>
                   </div>
                 </div>
               </NCard>
@@ -135,17 +183,25 @@ const {
             <div style="text-align: center;">
               <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO</div>
               <div style="font-size: 12px; color: #999; margin-bottom: 8px;">脚本执行引擎</div>
-              <NTag :type="modStatus.cleo ? 'success' : 'error'" size="small" style="margin-top: 8px;">
-                {{ modStatus.cleo ? '已安装' : '缺少' }}
-              </NTag>
-              <div v-if="!modStatus.cleo"
-                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                <a-typography-link type="secondary" @click="handleManualSelect('cleo')" style="font-size: 12px;">
+              <div
+                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                <NTag v-if="modStatus.cleo" type="success" size="small">
+                  已安装
+                </NTag>
+                <NTag v-if="modStatus.cleo && isManualBinding('cleo')" type="warning" size="small">
+                  自定义
+                </NTag>
+                <NTag v-if="modStatus.cleo" type="default" size="small" style="cursor: pointer;"
+                  @click="handleManualSelect('cleo')">
                   手动选择
-                </a-typography-link>
-                <a-tooltip title="如果您的文件使用了自定义名称（如 kfc.asi），可以点击此链接选择文件并绑定到此前置插件">
-                  <InfoCircleOutlined style="font-size: 12px; color: #999; cursor: help;" />
-                </a-tooltip>
+                </NTag>
+              </div>
+              <div v-if="!modStatus.cleo" style="margin-top: 8px;">
+                <NDropdown trigger="click" :options="getInstallOptions('cleo')" @select="handleInstallOptionSelect">
+                  <NButton size="small" type="primary">
+                    立即安装
+                  </NButton>
+                </NDropdown>
               </div>
             </div>
           </NCard>
@@ -159,19 +215,26 @@ const {
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO Redux</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">现代脚本引擎</div>
-                  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px;">
-                    <NTag :type="modStatus.cleo_redux ? 'success' : 'error'" size="small">
-                      {{ modStatus.cleo_redux ? '已安装' : '缺少' }}
+                  <div
+                    style="margin: 15px 0px 8px 0px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                    <NTag v-if="modStatus.cleo_redux" type="success" size="small">
+                      已安装
                     </NTag>
                     <NTag v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" type="warning" size="small">
                       自定义
                     </NTag>
+                    <NTag v-if="modStatus.cleo_redux" type="default" size="small" style="cursor: pointer;"
+                      @click.stop="handleManualSelect('cleo_redux')">
+                      手动选择
+                    </NTag>
                   </div>
-                  <div v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" style="margin-top: 8px;">
-                    <a-typography-link type="secondary" @click="handleUnmarkManual('cleo_redux')"
-                      style="font-size: 12px;">
-                      取消选择
-                    </a-typography-link>
+                  <div v-if="!modStatus.cleo_redux" style="margin-top: 8px;">
+                    <NDropdown trigger="click" :options="getInstallOptions('cleo_redux')"
+                      @select="handleInstallOptionSelect">
+                      <NButton size="small" type="primary" @click.stop>
+                        立即安装
+                      </NButton>
+                    </NDropdown>
                   </div>
                 </div>
               </NCard>
@@ -187,17 +250,26 @@ const {
             <div style="text-align: center;">
               <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO Redux</div>
               <div style="font-size: 12px; color: #999; margin-bottom: 8px;">现代脚本引擎</div>
-              <NTag :type="modStatus.cleo_redux ? 'success' : 'error'" size="small" style="margin-top: 8px;">
-                {{ modStatus.cleo_redux ? '已安装' : '缺少' }}
-              </NTag>
-              <div v-if="!modStatus.cleo_redux"
-                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                <a-typography-link type="secondary" @click="handleManualSelect('cleo_redux')" style="font-size: 12px;">
+              <div
+                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                <NTag v-if="modStatus.cleo_redux" type="success" size="small">
+                  已安装
+                </NTag>
+                <NTag v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" type="warning" size="small">
+                  自定义
+                </NTag>
+                <NTag v-if="modStatus.cleo_redux" type="default" size="small" style="cursor: pointer;"
+                  @click="handleManualSelect('cleo_redux')">
                   手动选择
-                </a-typography-link>
-                <a-tooltip title="如果您的文件使用了自定义名称（如 kfc.asi），可以点击此链接选择文件并绑定到此前置插件">
-                  <InfoCircleOutlined style="font-size: 12px; color: #999; cursor: help;" />
-                </a-tooltip>
+                </NTag>
+              </div>
+              <div v-if="!modStatus.cleo_redux" style="margin-top: 8px;">
+                <NDropdown trigger="click" :options="getInstallOptions('cleo_redux')"
+                  @select="handleInstallOptionSelect">
+                  <NButton size="small" type="primary">
+                    立即安装
+                  </NButton>
+                </NDropdown>
               </div>
             </div>
           </NCard>
@@ -211,19 +283,26 @@ const {
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">ModLoader</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">MOD 加载器</div>
-                  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px;">
-                    <NTag :type="modStatus.modloader ? 'success' : 'error'" size="small">
-                      {{ modStatus.modloader ? '已安装' : '缺少' }}
+                  <div
+                    style="margin: 15px 0px 8px 0px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                    <NTag v-if="modStatus.modloader" type="success" size="small">
+                      已安装
                     </NTag>
                     <NTag v-if="modStatus.modloader && isManualBinding('modloader')" type="warning" size="small">
                       自定义
                     </NTag>
+                    <NTag v-if="modStatus.modloader" type="default" size="small" style="cursor: pointer;"
+                      @click.stop="handleManualSelect('modloader')">
+                      手动选择
+                    </NTag>
                   </div>
-                  <div v-if="modStatus.modloader && isManualBinding('modloader')" style="margin-top: 8px;">
-                    <a-typography-link type="secondary" @click="handleUnmarkManual('modloader')"
-                      style="font-size: 12px;">
-                      取消选择
-                    </a-typography-link>
+                  <div v-if="!modStatus.modloader" style="margin-top: 8px;">
+                    <NDropdown trigger="click" :options="getInstallOptions('modloader')"
+                      @select="handleInstallOptionSelect">
+                      <NButton size="small" type="primary" @click.stop>
+                        立即安装
+                      </NButton>
+                    </NDropdown>
                   </div>
                 </div>
               </NCard>
@@ -247,17 +326,26 @@ const {
             <div style="text-align: center;">
               <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">ModLoader</div>
               <div style="font-size: 12px; color: #999; margin-bottom: 8px;">MOD 加载器</div>
-              <NTag :type="modStatus.modloader ? 'success' : 'error'" size="small" style="margin-top: 8px;">
-                {{ modStatus.modloader ? '已安装' : '缺少' }}
-              </NTag>
-              <div v-if="!modStatus.modloader"
-                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                <a-typography-link type="secondary" @click="handleManualSelect('modloader')" style="font-size: 12px;">
+              <div
+                style="margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;">
+                <NTag v-if="modStatus.modloader" type="success" size="small">
+                  已安装
+                </NTag>
+                <NTag v-if="modStatus.modloader && isManualBinding('modloader')" type="warning" size="small">
+                  自定义
+                </NTag>
+                <NTag v-if="modStatus.modloader" type="default" size="small" style="cursor: pointer;"
+                  @click="handleManualSelect('modloader')">
                   手动选择
-                </a-typography-link>
-                <a-tooltip title="如果您的文件使用了自定义名称（如 kfc.asi），可以点击此链接选择文件并绑定到此前置插件">
-                  <InfoCircleOutlined style="font-size: 12px; color: #999; cursor: help;" />
-                </a-tooltip>
+                </NTag>
+              </div>
+              <div v-if="!modStatus.modloader" style="margin-top: 8px;">
+                <NDropdown trigger="click" :options="getInstallOptions('modloader')"
+                  @select="handleInstallOptionSelect">
+                  <NButton size="small" type="primary">
+                    立即安装
+                  </NButton>
+                </NDropdown>
               </div>
             </div>
           </NCard>
@@ -267,52 +355,6 @@ const {
       <NSpin v-if="isLoading" size="small" style="margin-top: 16px;">
         <template #description>检查 MOD 环境状态...</template>
       </NSpin>
-    </div>
-
-    <div v-if="!allComponentsInstalled">
-      <NGrid :cols="1" :x-gap="12" :y-gap="12">
-        <NGridItem v-for="component in availableComponents" :key="component.key">
-          <NCard :bordered="true" :style="component.installed ? { opacity: 0.7 } : undefined">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <NCheckbox :checked="selectedComponents.includes(component.key)"
-                @update:checked="toggleComponent(component.key)"
-                :disabled="component.installed || component.key === 'dinput8'">
-                <strong>{{ component.name }}</strong>
-                <span v-if="component.key === 'dinput8'"
-                  style="color: #999; font-size: 12px; margin-left: 4px;">(必需)</span>
-              </NCheckbox>
-              <NTag v-if="component.installed" type="success" size="small">已安装</NTag>
-              <NTag v-else type="default" size="small">未安装</NTag>
-            </div>
-            <div style="color: #666; font-size: 13px; line-height: 1.5; margin-top: 8px; margin-bottom: 8px;">
-              {{ component.description }}
-            </div>
-            <div v-if="!component.installed" style="display: flex; justify-content: flex-end; margin-top: 8px;">
-              <NButton size="small" @click="handleManualSelect(component.key)">
-                手动选择文件
-              </NButton>
-            </div>
-          </NCard>
-        </NGridItem>
-      </NGrid>
-
-      <div
-        style="margin-top: 24px; padding: 16px; background: #fafafa; border-radius: 8px; display: flex; flex-direction: column; gap: 16px;">
-        <div>
-          <p style="margin: 0 0 8px 0; font-weight: 500; color: #333;">已选择 {{ selectedCount }} 个组件进行安装</p>
-          <NSpace v-if="selectedCount > 0" size="small" style="margin-top: 8px;">
-            <NTag v-for="key in selectedComponents" :key="key" type="info" size="small">
-              {{ getComponentName(key) }}
-            </NTag>
-          </NSpace>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end;">
-          <NButton type="primary" :loading="isInstalling" :disabled="selectedCount === 0" @click="handleInstall">
-            安装选中组件
-          </NButton>
-        </div>
-      </div>
     </div>
 
     <NModal v-model:show="showResult" preset="card" title="安装结果" style="width: 600px">

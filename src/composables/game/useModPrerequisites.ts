@@ -266,6 +266,36 @@ export function useModPrerequisites(gameInfo: any) {
     }
   };
 
+  // 安装单个组件
+  const handleInstallSingle = async (componentKey: string) => {
+    if (!gameInfo?.value) return;
+
+    isInstalling.value = true;
+    try {
+      const request: ModInstallRequest = {
+        game_dir: gameInfo.value.dir,
+        game_type: gameInfo.value.type,
+        components: [componentKey]
+      };
+
+      const response = await installModPrerequisites(request);
+
+      if (response?.success && response?.data) {
+        showSuccess('安装成功');
+        // 安装完成后重新检查状态
+        await loadModStatus();
+      } else {
+        const errorMsg = response?.error || '安装失败';
+        showError(errorMsg);
+      }
+    } catch (error: any) {
+      console.error('安装失败:', error);
+      showError('安装过程中发生错误');
+    } finally {
+      isInstalling.value = false;
+    }
+  };
+
   const closeResult = () => {
     showResult.value = false;
     installResult.value = null;
@@ -534,6 +564,7 @@ export function useModPrerequisites(gameInfo: any) {
     getComponentLocation,
     loadModStatus,
     handleInstall,
+    handleInstallSingle,
     closeResult,
     handleManualSelect,
     handleUnmarkManual,
