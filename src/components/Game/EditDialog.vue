@@ -49,8 +49,8 @@ watch(() => props.visible, (newVisible) => {
 const handleSave = async () => {
   const result = await saveHandler()
   if (result?.success) {
-    emit('success')
-    emit('update:visible', false)
+      emit('success')
+      emit('update:visible', false)
   }
 }
 

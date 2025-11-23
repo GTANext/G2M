@@ -124,8 +124,10 @@ pub struct ManualLoaderBinding {
 // g2m_mod.json 配置文件结构
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct G2MModConfig {
-    pub mod_name: String,                    // MOD名称
-    pub files: Vec<ModFileEntry>,            // 文件/文件夹列表
+    pub name: String,                        // MOD名称
+    #[serde(default)]
+    pub author: Option<String>,              // 作者信息（可选）
+    pub modfile: Vec<ModFileEntry>,          // 文件/文件夹列表
 }
 
 // MOD文件/文件夹安装配置
@@ -136,12 +138,36 @@ pub struct ModFileEntry {
     pub is_directory: bool,                  // 是否为目录
 }
 
+// g2m.json 文件结构（游戏根目录）
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct G2MGameConfig {
+    pub name: String,
+    pub exe: String,
+    #[serde(default)]
+    pub img: Option<String>,
+    #[serde(default)]
+    pub r#type: Option<String>,
+    #[serde(default)]
+    pub mods: Vec<G2MModInfo>,               // MOD列表
+}
+
+// g2m.json 中的 MOD 信息
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct G2MModInfo {
+    pub name: String,                        // MOD名称
+    #[serde(default)]
+    pub author: Option<String>,              // 作者信息（可选）
+    pub mod_source_path: String,             // MOD源路径（用于标识MOD）
+}
+
 // 用户MOD安装请求
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserModInstallRequest {
     pub game_dir: String,                    // 游戏目录
     pub mod_source_path: String,             // MOD源路径（文件或文件夹）
     pub mod_name: String,                    // MOD名称（用于重命名）
+    #[serde(default)]
+    pub overwrite: bool,                     // 是否覆盖冲突文件/目录
 }
 
 // 用户MOD安装结果

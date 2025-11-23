@@ -41,7 +41,7 @@ const {
   isManualBinding,
   handleInstallSingle
 } = useModPrerequisites(gameInfoRef)
-
+    
 // 获取安装选项
 const getInstallOptions = (loaderType) => {
   return [
@@ -98,7 +98,7 @@ const handleInstallOptionSelect = (key) => {
                       @click.stop="handleManualSelect('dinput8')">
                       手动选择
                     </NTag>
-                  </div>
+          </div>
                   <div v-if="!modStatus.dinput8" style="margin-top: 8px;">
                     <NDropdown trigger="click" :options="getInstallOptions('dinput8')"
                       @select="handleInstallOptionSelect">
@@ -106,16 +106,16 @@ const handleInstallOptionSelect = (key) => {
                         立即安装
                       </NButton>
                     </NDropdown>
-                  </div>
-                </div>
+            </div>
+          </div>
               </NCard>
             </template>
             <div style="max-width: 300px;">
               <div style="font-weight: 600; margin-bottom: 8px;">安装信息</div>
               <div style="font-size: 13px; color: #666; line-height: 1.6;">
                 {{ getComponentLocation('dinput8') }}
-              </div>
-            </div>
+        </div>
+          </div>
           </NPopover>
           <NCard v-else :bordered="true" :style="{ borderColor: modStatus.dinput8 ? '#18a058' : '#d03050' }">
             <div style="text-align: center;">
@@ -137,15 +137,15 @@ const handleInstallOptionSelect = (key) => {
                   @click="handleManualSelect('dinput8')">
                   手动选择
                 </NTag>
-              </div>
+            </div>
               <div v-if="!modStatus.dinput8" style="margin-top: 8px;">
                 <NDropdown trigger="click" :options="getInstallOptions('dinput8')" @select="handleInstallOptionSelect">
                   <NButton size="small" type="primary">
                     立即安装
                   </NButton>
                 </NDropdown>
-              </div>
-            </div>
+          </div>
+        </div>
           </NCard>
         </NGridItem>
 
@@ -173,14 +173,14 @@ const handleInstallOptionSelect = (key) => {
                       @click.stop="handleManualSelect('cleo')">
                       手动选择
                     </NTag>
-                  </div>
+          </div>
                   <div v-if="!modStatus.cleo" style="margin-top: 8px;">
                     <NDropdown trigger="click" :options="getInstallOptions('cleo')" @select="handleInstallOptionSelect">
                       <NButton size="small" type="primary" @click.stop>
                         立即安装
                       </NButton>
                     </NDropdown>
-                  </div>
+            </div>
                 </div>
               </NCard>
             </template>
@@ -188,8 +188,8 @@ const handleInstallOptionSelect = (key) => {
               <div style="font-weight: 600; margin-bottom: 8px;">安装信息</div>
               <div style="font-size: 13px; color: #666; line-height: 1.6;">
                 {{ getComponentLocation('cleo') }}
-              </div>
-            </div>
+          </div>
+        </div>
           </NPopover>
           <NCard v-else :bordered="true" :style="{ borderColor: modStatus.cleo ? '#18a058' : '#d03050' }">
             <div style="text-align: center;">
@@ -211,15 +211,15 @@ const handleInstallOptionSelect = (key) => {
                   @click="handleManualSelect('cleo')">
                   手动选择
                 </NTag>
-              </div>
+          </div>
               <div v-if="!modStatus.cleo" style="margin-top: 8px;">
                 <NDropdown trigger="click" :options="getInstallOptions('cleo')" @select="handleInstallOptionSelect">
                   <NButton size="small" type="primary">
                     立即安装
                   </NButton>
                 </NDropdown>
-              </div>
             </div>
+          </div>
           </NCard>
         </NGridItem>
 
@@ -255,16 +255,16 @@ const handleInstallOptionSelect = (key) => {
                         立即安装
                       </NButton>
                     </NDropdown>
-                  </div>
-                </div>
+        </div>
+      </div>
               </NCard>
             </template>
             <div style="max-width: 300px;">
               <div style="font-weight: 600; margin-bottom: 8px;">安装信息</div>
               <div style="font-size: 13px; color: #666; line-height: 1.6;">
                 {{ getComponentLocation('cleo_redux') }}
-              </div>
-            </div>
+      </div>
+    </div>
           </NPopover>
           <NCard v-else :bordered="true" :style="{ borderColor: modStatus.cleo_redux ? '#18a058' : '#d03050' }">
             <div style="text-align: center;">
@@ -294,8 +294,8 @@ const handleInstallOptionSelect = (key) => {
                     立即安装
                   </NButton>
                 </NDropdown>
-              </div>
             </div>
+          </div>
           </NCard>
         </NGridItem>
 
@@ -331,8 +331,8 @@ const handleInstallOptionSelect = (key) => {
                         立即安装
                       </NButton>
                     </NDropdown>
-                  </div>
-                </div>
+          </div>
+        </div>
               </NCard>
             </template>
             <div style="max-width: 300px;">
@@ -342,13 +342,13 @@ const handleInstallOptionSelect = (key) => {
                   <div v-for="(location, index) in getComponentLocation('modloader')" :key="index"
                     style="margin-bottom: 4px;">
                     {{ location }}
-                  </div>
+      </div>
                 </template>
                 <template v-else>
                   {{ getComponentLocation('modloader') }}
                 </template>
-              </div>
-            </div>
+          </div>
+        </div>
           </NPopover>
           <NCard v-else :bordered="true" :style="{ borderColor: modStatus.modloader ? '#18a058' : '#d03050' }">
             <div style="text-align: center;">
@@ -378,8 +378,8 @@ const handleInstallOptionSelect = (key) => {
                     立即安装
                   </NButton>
                 </NDropdown>
-              </div>
-            </div>
+        </div>
+      </div>
           </NCard>
         </NGridItem>
       </NGrid>
@@ -411,3 +411,4 @@ const handleInstallOptionSelect = (key) => {
     </NModal>
   </div>
 </template>
+

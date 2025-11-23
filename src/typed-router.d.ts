@@ -37,6 +37,13 @@ declare module 'vue-router/auto-routes' {
       { error: ParamValue<false> },
       | never
     >,
+    '/build': RouteRecordInfo<
+      '/build',
+      '/build',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/download': RouteRecordInfo<
       '/download',
       '/download',
@@ -94,6 +101,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/[...error].vue': {
       routes:
         | '/[...error]'
+      views:
+        | never
+    }
+    'src/pages/build.vue': {
+      routes:
+        | '/build'
       views:
         | never
     }

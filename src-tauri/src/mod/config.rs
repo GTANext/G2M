@@ -1,6 +1,7 @@
-use crate::game::types::G2MModConfig;
+use crate::game::types::{ApiResponse, G2MModConfig};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use tauri::AppHandle;
 
 /// 读取 g2m_mod.json 配置文件
 pub fn load_g2m_mod_config(mod_source_path: &Path) -> Option<G2MModConfig> {
@@ -32,6 +33,116 @@ pub fn load_g2m_mod_config(mod_source_path: &Path) -> Option<G2MModConfig> {
             eprintln!("读取 g2m_mod.json 失败: {}", e);
             None
         }
+    }
+}
+
+/// 选择 MOD 目录
+#[tauri::command]
+pub async fn select_mod_directory(
+    app_handle: AppHandle,
+) -> Result<ApiResponse<String>, String> {
+    use std::sync::mpsc;
+    use tauri_plugin_dialog::DialogExt;
+    
+    let (tx, rx) = mpsc::channel();
+    
+    app_handle
+        .dialog()
+        .file()
+        .set_title("选择 MOD 根目录")
+        .pick_folder(move |path| {
+            let _ = tx.send(path);
+        });
+    
+    match rx.recv() {
+        Ok(Some(path)) => {
+            let path_str = path.to_string();
+            Ok(ApiResponse::success(path_str))
+        }
+        Ok(None) => Ok(ApiResponse::error(String::new())), // 用户取消，不返回错误信息
+        Err(_) => Ok(ApiResponse::error("文件夹选择失败".to_string())),
+    }
+}
+
+/// 选择 MOD 文件或文件夹
+#[tauri::command]
+pub async fn select_mod_files(
+    app_handle: AppHandle,
+    default_dir: Option<String>,
+    is_directory: bool,
+) -> Result<ApiResponse<Vec<String>>, String> {
+    use std::sync::mpsc;
+    use tauri_plugin_dialog::DialogExt;
+
+    let (tx, rx) = mpsc::channel();
+
+    let mut dialog = app_handle
+        .dialog()
+        .file()
+        .set_title(if is_directory { "选择文件夹" } else { "选择文件" });
+
+    // 如果提供了默认目录，设置为起始目录
+    if let Some(dir) = default_dir {
+        if let Ok(path) = PathBuf::from(&dir).canonicalize() {
+            dialog = dialog.set_directory(path);
+        }
+    }
+
+    if is_directory {
+        dialog.pick_folder(move |path| {
+            let _ = tx.send(path.map(|p| vec![p.to_string()]));
+        });
+    } else {
+        dialog.pick_files(move |paths| {
+            let _ = tx.send(paths.map(|ps| ps.iter().map(|p| p.to_string()).collect()));
+        });
+    }
+
+    match rx.recv() {
+        Ok(Some(paths)) => Ok(ApiResponse::success(paths)),
+        Ok(None) => Ok(ApiResponse::error(String::new())), // 用户取消，不返回错误信息
+        Err(_) => Ok(ApiResponse::error("文件选择失败".to_string())),
+    }
+}
+
+/// 读取 g2m_mod.json 配置文件（Tauri 命令）
+#[tauri::command]
+pub async fn read_g2m_mod_config(
+    mod_dir: String,
+) -> Result<ApiResponse<Option<G2MModConfig>>, String> {
+    let mod_path = Path::new(&mod_dir);
+    
+    if !mod_path.exists() {
+        return Ok(ApiResponse::error("MOD 目录不存在".to_string()));
+    }
+
+    let config = load_g2m_mod_config(mod_path);
+    Ok(ApiResponse::success(config))
+}
+
+/// 保存 g2m_mod.json 配置文件
+#[tauri::command]
+pub async fn save_g2m_mod_config(
+    mod_dir: String,
+    config: G2MModConfig,
+) -> Result<ApiResponse<()>, String> {
+    let mod_path = Path::new(&mod_dir);
+    
+    if !mod_path.exists() {
+        return Ok(ApiResponse::error("MOD 目录不存在".to_string()));
+    }
+
+    let config_path = mod_path.join("g2m_mod.json");
+
+    // 序列化配置为 JSON
+    match serde_json::to_string_pretty(&config) {
+        Ok(json_content) => {
+            match fs::write(&config_path, json_content) {
+                Ok(_) => Ok(ApiResponse::success(())),
+                Err(e) => Ok(ApiResponse::error(format!("写入 g2m_mod.json 失败: {}", e))),
+            }
+        }
+        Err(e) => Ok(ApiResponse::error(format!("序列化配置失败: {}", e))),
     }
 }
 
