@@ -78,7 +78,7 @@ const handleInstallOptionSelect = (key) => {
           <NPopover v-if="modStatus.dinput8 && getComponentLocation('dinput8')" trigger="hover" placement="top">
             <template #trigger>
               <NCard :bordered="true"
-                :style="{ borderColor: modStatus.dinput8 ? '#18a058' : '#d03050', cursor: modStatus.dinput8 ? 'pointer' : 'default' }">
+                :style="{ borderColor: modStatus.dinput8 ? '#18a058' : '#d03050' }">
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">dinput8.dll</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">基础输入库</div>
@@ -90,7 +90,11 @@ const handleInstallOptionSelect = (key) => {
                     <NTag v-if="modStatus.dinput8 && isManualBinding('dinput8')" type="warning" size="small">
                       自定义
                     </NTag>
-                    <NTag v-if="modStatus.dinput8" type="default" size="small" style="cursor: pointer;"
+                    <NTag v-if="modStatus.dinput8 && isManualBinding('dinput8')" type="default" size="small" style="cursor: pointer;"
+                      @click.stop="handleUnmarkManual('dinput8')">
+                      取消选择
+                    </NTag>
+                    <NTag v-if="modStatus.dinput8 && !isManualBinding('dinput8')" type="default" size="small" style="cursor: pointer;"
                       @click.stop="handleManualSelect('dinput8')">
                       手动选择
                     </NTag>
@@ -125,7 +129,11 @@ const handleInstallOptionSelect = (key) => {
                 <NTag v-if="modStatus.dinput8 && isManualBinding('dinput8')" type="warning" size="small">
                   自定义
                 </NTag>
-                <NTag v-if="modStatus.dinput8" type="default" size="small" style="cursor: pointer;"
+                <NTag v-if="modStatus.dinput8 && isManualBinding('dinput8')" type="default" size="small" style="cursor: pointer;"
+                  @click="handleUnmarkManual('dinput8')">
+                  取消选择
+                </NTag>
+                <NTag v-if="modStatus.dinput8 && !isManualBinding('dinput8')" type="default" size="small" style="cursor: pointer;"
                   @click="handleManualSelect('dinput8')">
                   手动选择
                 </NTag>
@@ -145,7 +153,7 @@ const handleInstallOptionSelect = (key) => {
           <NPopover v-if="modStatus.cleo && getComponentLocation('cleo')" trigger="hover" placement="top">
             <template #trigger>
               <NCard :bordered="true"
-                :style="{ borderColor: modStatus.cleo ? '#18a058' : '#d03050', cursor: modStatus.cleo ? 'pointer' : 'default' }">
+                :style="{ borderColor: modStatus.cleo ? '#18a058' : '#d03050' }">
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">脚本执行引擎</div>
@@ -157,7 +165,11 @@ const handleInstallOptionSelect = (key) => {
                     <NTag v-if="modStatus.cleo && isManualBinding('cleo')" type="warning" size="small">
                       自定义
                     </NTag>
-                    <NTag v-if="modStatus.cleo" type="default" size="small" style="cursor: pointer;"
+                    <NTag v-if="modStatus.cleo && isManualBinding('cleo')" type="default" size="small" style="cursor: pointer;"
+                      @click.stop="handleUnmarkManual('cleo')">
+                      取消选择
+                    </NTag>
+                    <NTag v-if="modStatus.cleo && !isManualBinding('cleo')" type="default" size="small" style="cursor: pointer;"
                       @click.stop="handleManualSelect('cleo')">
                       手动选择
                     </NTag>
@@ -191,7 +203,11 @@ const handleInstallOptionSelect = (key) => {
                 <NTag v-if="modStatus.cleo && isManualBinding('cleo')" type="warning" size="small">
                   自定义
                 </NTag>
-                <NTag v-if="modStatus.cleo" type="default" size="small" style="cursor: pointer;"
+                <NTag v-if="modStatus.cleo && isManualBinding('cleo')" type="default" size="small" style="cursor: pointer;"
+                  @click="handleUnmarkManual('cleo')">
+                  取消选择
+                </NTag>
+                <NTag v-if="modStatus.cleo && !isManualBinding('cleo')" type="default" size="small" style="cursor: pointer;"
                   @click="handleManualSelect('cleo')">
                   手动选择
                 </NTag>
@@ -211,7 +227,7 @@ const handleInstallOptionSelect = (key) => {
           <NPopover v-if="modStatus.cleo_redux && getComponentLocation('cleo_redux')" trigger="hover" placement="top">
             <template #trigger>
               <NCard :bordered="true"
-                :style="{ borderColor: modStatus.cleo_redux ? '#18a058' : '#d03050', cursor: modStatus.cleo_redux ? 'pointer' : 'default' }">
+                :style="{ borderColor: modStatus.cleo_redux ? '#18a058' : '#d03050' }">
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">CLEO Redux</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">现代脚本引擎</div>
@@ -223,7 +239,11 @@ const handleInstallOptionSelect = (key) => {
                     <NTag v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" type="warning" size="small">
                       自定义
                     </NTag>
-                    <NTag v-if="modStatus.cleo_redux" type="default" size="small" style="cursor: pointer;"
+                    <NTag v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" type="default" size="small" style="cursor: pointer;"
+                      @click.stop="handleUnmarkManual('cleo_redux')">
+                      取消选择
+                    </NTag>
+                    <NTag v-if="modStatus.cleo_redux && !isManualBinding('cleo_redux')" type="default" size="small" style="cursor: pointer;"
                       @click.stop="handleManualSelect('cleo_redux')">
                       手动选择
                     </NTag>
@@ -258,7 +278,11 @@ const handleInstallOptionSelect = (key) => {
                 <NTag v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" type="warning" size="small">
                   自定义
                 </NTag>
-                <NTag v-if="modStatus.cleo_redux" type="default" size="small" style="cursor: pointer;"
+                <NTag v-if="modStatus.cleo_redux && isManualBinding('cleo_redux')" type="default" size="small" style="cursor: pointer;"
+                  @click="handleUnmarkManual('cleo_redux')">
+                  取消选择
+                </NTag>
+                <NTag v-if="modStatus.cleo_redux && !isManualBinding('cleo_redux')" type="default" size="small" style="cursor: pointer;"
                   @click="handleManualSelect('cleo_redux')">
                   手动选择
                 </NTag>
@@ -279,7 +303,7 @@ const handleInstallOptionSelect = (key) => {
           <NPopover v-if="modStatus.modloader && getComponentLocation('modloader')" trigger="hover" placement="top">
             <template #trigger>
               <NCard :bordered="true"
-                :style="{ borderColor: modStatus.modloader ? '#18a058' : '#d03050', cursor: modStatus.modloader ? 'pointer' : 'default' }">
+                :style="{ borderColor: modStatus.modloader ? '#18a058' : '#d03050' }">
                 <div style="text-align: center;">
                   <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">ModLoader</div>
                   <div style="font-size: 12px; color: #999; margin-bottom: 8px;">MOD 加载器</div>
@@ -291,7 +315,11 @@ const handleInstallOptionSelect = (key) => {
                     <NTag v-if="modStatus.modloader && isManualBinding('modloader')" type="warning" size="small">
                       自定义
                     </NTag>
-                    <NTag v-if="modStatus.modloader" type="default" size="small" style="cursor: pointer;"
+                    <NTag v-if="modStatus.modloader && isManualBinding('modloader')" type="default" size="small" style="cursor: pointer;"
+                      @click.stop="handleUnmarkManual('modloader')">
+                      取消选择
+                    </NTag>
+                    <NTag v-if="modStatus.modloader && !isManualBinding('modloader')" type="default" size="small" style="cursor: pointer;"
                       @click.stop="handleManualSelect('modloader')">
                       手动选择
                     </NTag>
@@ -334,7 +362,11 @@ const handleInstallOptionSelect = (key) => {
                 <NTag v-if="modStatus.modloader && isManualBinding('modloader')" type="warning" size="small">
                   自定义
                 </NTag>
-                <NTag v-if="modStatus.modloader" type="default" size="small" style="cursor: pointer;"
+                <NTag v-if="modStatus.modloader && isManualBinding('modloader')" type="default" size="small" style="cursor: pointer;"
+                  @click="handleUnmarkManual('modloader')">
+                  取消选择
+                </NTag>
+                <NTag v-if="modStatus.modloader && !isManualBinding('modloader')" type="default" size="small" style="cursor: pointer;"
                   @click="handleManualSelect('modloader')">
                   手动选择
                 </NTag>

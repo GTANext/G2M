@@ -315,10 +315,12 @@ export function useModPrerequisites(gameInfo: any) {
       });
 
       if (!selectResponse?.success || !selectResponse?.data) {
-        // 用户取消选择，不显示错误
+        // 用户取消选择，不显示错误，但重新加载状态以确保UI正确
         if (selectResponse?.error && selectResponse.error.trim() !== '') {
           showError('选择文件失败', { detail: selectResponse.error });
         }
+        // 重新加载状态，确保UI显示正确（如果之前有绑定，现在应该仍然显示）
+        await loadModStatus();
         return;
       }
 
@@ -337,10 +339,14 @@ export function useModPrerequisites(gameInfo: any) {
         await loadModStatus();
       } else {
         showError('标记失败', { detail: markResponse?.error || '未知错误' });
+        // 标记失败时也重新加载状态，确保UI正确
+        await loadModStatus();
       }
     } catch (error: any) {
       console.error('手动选择失败:', error);
       showError('手动选择失败', { detail: error?.message || '未知错误' });
+      // 出错时也重新加载状态
+      await loadModStatus();
     }
   };
 

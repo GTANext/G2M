@@ -211,6 +211,7 @@ pub async fn check_mod_loaders(
     }
 
     // 检查手动绑定的标准前置插件（在所有标准检测之后）
+    // 如果存在手动绑定，应该用手动绑定的信息替换标准检测到的信息
     let manual_bindings = load_manual_bindings(&game_dir);
     for binding in &manual_bindings {
         let binding_path = game_path.join(&binding.file_path);
@@ -226,35 +227,37 @@ pub async fn check_mod_loaders(
 
             match binding.loader_type.as_str() {
                 "cleo" => {
-                    if !has_cleo {
-                        has_cleo = true;
-                        found_loaders.push(format!("CLEO ({}/{})", dir_name, binding.file_name));
-                        missing_loaders.retain(|x| x != "CLEO");
-                    }
+                    // 移除标准检测到的 CLEO 信息
+                    found_loaders.retain(|x| !x.starts_with("CLEO (") || x.contains("CLEO Redux"));
+                    has_cleo = true;
+                    found_loaders.push(format!("CLEO ({}/{})", dir_name, binding.file_name));
+                    missing_loaders.retain(|x| x != "CLEO");
                 }
                 "cleo_redux" => {
-                    if !has_cleo_redux {
-                        has_cleo_redux = true;
-                        found_loaders
-                            .push(format!("CLEO Redux ({}/{})", dir_name, binding.file_name));
-                        missing_loaders.retain(|x| x != "CLEO Redux");
-                    }
+                    // 移除标准检测到的 CLEO Redux 信息
+                    found_loaders.retain(|x| !x.starts_with("CLEO Redux ("));
+                    has_cleo_redux = true;
+                    found_loaders
+                        .push(format!("CLEO Redux ({}/{})", dir_name, binding.file_name));
+                    missing_loaders.retain(|x| x != "CLEO Redux");
                 }
                 "modloader" => {
-                    if !has_modloader {
-                        has_modloader = true;
-                        found_loaders
-                            .push(format!("ModLoader ({}/{})", dir_name, binding.file_name));
-                        missing_loaders.retain(|x| x != "ModLoader");
-                    }
+                    // 移除标准检测到的 ModLoader 信息（包括文件夹和 .asi 文件）
+                    found_loaders.retain(|x| {
+                        !x.starts_with("ModLoader (") && !x.contains("ModLoader (游戏根目录/modloader")
+                    });
+                    has_modloader = true;
+                    found_loaders
+                        .push(format!("ModLoader ({}/{})", dir_name, binding.file_name));
+                    missing_loaders.retain(|x| x != "ModLoader");
                 }
                 "dinput8" => {
-                    if !has_dinput8 {
-                        has_dinput8 = true;
-                        found_loaders
-                            .push(format!("dinput8.dll ({}/{})", dir_name, binding.file_name));
-                        missing_loaders.retain(|x| x != "dinput8.dll");
-                    }
+                    // 移除标准检测到的 dinput8.dll 信息
+                    found_loaders.retain(|x| !x.starts_with("dinput8.dll ("));
+                    has_dinput8 = true;
+                    found_loaders
+                        .push(format!("dinput8.dll ({}/{})", dir_name, binding.file_name));
+                    missing_loaders.retain(|x| x != "dinput8.dll");
                 }
                 _ => {}
             }
