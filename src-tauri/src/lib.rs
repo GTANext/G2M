@@ -1,16 +1,27 @@
 #[path = "game/index.rs"]
 mod game;
 
-use game::{
-    cancel_download, check_duplicate_directory, check_game_directories, check_mod_loaders,
-    copy_game_image, copy_image_to_custom_dir, delete_custom_prerequisite, delete_game,
-    detect_game, download_game, extract_game, get_custom_prerequisites, get_download_records,
-    get_extract_records, get_game_by_id, get_games, install_custom_prerequisite,
-    install_mod_prerequisites, launch_game, mark_mod_loader_manual, open_game_folder,
-    process_image_upload, save_base64_image, save_game, select_custom_prerequisite_files,
-    select_extract_folder, select_game_folder, select_image_file, select_mod_loader_file,
-    unmark_mod_loader_manual, update_game,
+#[path = "mod/mod.rs"]
+mod mod_core;
+
+// 从 game 模块导入所有函数
+use game::core::{
+    check_duplicate_directory, copy_game_image, copy_image_to_custom_dir, delete_game,
+    get_game_by_id, get_games, install_mod_prerequisites, launch_game, open_game_folder,
+    process_image_upload, save_base64_image, save_game, select_image_file, update_game,
 };
+use game::detection::{detect_game, select_game_folder};
+use game::download::{
+    cancel_download, download_game, extract_game, get_download_records, get_extract_records,
+    select_extract_folder,
+};
+use game::prerequisites::{
+    check_game_directories, check_mod_loaders, delete_custom_prerequisite,
+    get_custom_prerequisites, install_custom_prerequisite, mark_mod_loader_manual,
+    select_custom_prerequisite_files, select_mod_loader_file, unmark_mod_loader_manual,
+};
+
+use mod_core::install_user_mod;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -56,7 +67,8 @@ pub fn run() -> () {
             extract_game,
             get_download_records,
             get_extract_records,
-            select_extract_folder
+            select_extract_folder,
+            install_user_mod
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

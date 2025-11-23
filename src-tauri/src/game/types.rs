@@ -120,3 +120,33 @@ pub struct ManualLoaderBinding {
     pub file_path: String,      // 相对游戏目录的路径
     pub file_name: String,      // 文件名
 }
+
+// g2m_mod.json 配置文件结构
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct G2MModConfig {
+    pub mod_name: String,                    // MOD名称
+    pub files: Vec<ModFileEntry>,            // 文件/文件夹列表
+}
+
+// MOD文件/文件夹安装配置
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ModFileEntry {
+    pub source: String,                      // 源路径（相对于MOD根目录）
+    pub target: String,                      // 目标路径（相对于游戏目录，如 "CLEO/script.cs" 或 "modloader/models"）
+    pub is_directory: bool,                  // 是否为目录
+}
+
+// 用户MOD安装请求
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserModInstallRequest {
+    pub game_dir: String,                    // 游戏目录
+    pub mod_source_path: String,             // MOD源路径（文件或文件夹）
+    pub mod_name: String,                    // MOD名称（用于重命名）
+}
+
+// 用户MOD安装结果
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserModInstallResult {
+    pub installed_files: Vec<String>,        // 已安装的文件列表（相对游戏目录）
+    pub created_directories: Vec<String>,    // 创建的目录列表（相对游戏目录）
+}

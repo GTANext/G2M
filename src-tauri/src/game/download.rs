@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use tauri::{Window, AppHandle, Emitter};
 use zip::ZipArchive;
 use futures_util::StreamExt;
@@ -96,14 +96,14 @@ fn get_download_dir(_app_handle: &AppHandle) -> Result<PathBuf, String> {
 
 // 获取下载日志文件路径 - 保存到 G2M/Config/ 目录
 fn get_download_log_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    use crate::game::core::get_config_dir;
+    use crate::game::utils::get_config_dir;
     let config_dir = get_config_dir(app_handle)?;
     Ok(config_dir.join("GameDownload.json"))
 }
 
 // 获取解压日志文件路径 - 保存到 G2M/Config/ 目录
 fn get_extract_log_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    use crate::game::core::get_config_dir;
+    use crate::game::utils::get_config_dir;
     let config_dir = get_config_dir(app_handle)?;
     Ok(config_dir.join("GameExtract.json"))
 }
