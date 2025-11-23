@@ -25,6 +25,8 @@ declare module 'vue' {
     GameInfoTab2: typeof import('./components/Game/Info/Tab2.vue')['default']
     GameInfoTab3: typeof import('./components/Game/Info/Tab3.vue')['default']
     GameList: typeof import('./components/Game/List.vue')['default']
+    ModDropTarget: typeof import('./components/Mod/DropTarget.vue')['default']
+    ModFileTree: typeof import('./components/Mod/FileTree.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

@@ -1,4 +1,5 @@
 use crate::game::types::{ApiResponse, G2MModConfig};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
@@ -118,6 +119,102 @@ pub async fn read_g2m_mod_config(
 
     let config = load_g2m_mod_config(mod_path);
     Ok(ApiResponse::success(config))
+}
+
+/// 文件树节点
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FileTreeNode {
+    pub name: String,
+    pub path: String,              // 相对于 MOD 根目录的路径
+    pub is_directory: bool,
+    pub children: Option<Vec<FileTreeNode>>,
+}
+
+/// 获取目录文件树
+#[tauri::command]
+pub async fn get_mod_file_tree(
+    mod_dir: String,
+) -> Result<ApiResponse<Vec<FileTreeNode>>, String> {
+    let mod_path = Path::new(&mod_dir);
+    
+    if !mod_path.exists() {
+        return Ok(ApiResponse::error("MOD 目录不存在".to_string()));
+    }
+
+    if !mod_path.is_dir() {
+        return Ok(ApiResponse::error("路径不是目录".to_string()));
+    }
+
+    let mut tree = Vec::new();
+    
+    match build_file_tree(mod_path, mod_path, &mut tree) {
+        Ok(_) => Ok(ApiResponse::success(tree)),
+        Err(e) => Ok(ApiResponse::error(format!("读取文件树失败: {}", e))),
+    }
+}
+
+/// 递归构建文件树
+fn build_file_tree(
+    root: &Path,
+    current: &Path,
+    result: &mut Vec<FileTreeNode>,
+) -> std::io::Result<()> {
+    if !current.is_dir() {
+        return Ok(());
+    }
+
+    let entries = fs::read_dir(current)?;
+    
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        
+        // 跳过隐藏文件和系统文件
+        if name.starts_with('.') {
+            continue;
+        }
+
+        // 计算相对于根目录的路径
+        let relative_path = path.strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        if path.is_dir() {
+            let mut node = FileTreeNode {
+                name: name.clone(),
+                path: relative_path.clone(),
+                is_directory: true,
+                children: Some(Vec::new()),
+            };
+
+            // 递归处理子目录
+            if let Some(children) = &mut node.children {
+                build_file_tree(root, &path, children)?;
+            }
+
+            result.push(node);
+        } else {
+            result.push(FileTreeNode {
+                name,
+                path: relative_path,
+                is_directory: false,
+                children: None,
+            });
+        }
+    }
+
+    // 排序：目录在前，文件在后，然后按名称排序
+    result.sort_by(|a, b| {
+        match (a.is_directory, b.is_directory) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.cmp(&b.name),
+        }
+    });
+
+    Ok(())
 }
 
 /// 保存 g2m_mod.json 配置文件

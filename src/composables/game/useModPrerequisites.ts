@@ -1,6 +1,7 @@
 import { ref, computed, watch } from 'vue';
 import { tauriInvoke, installModPrerequisites } from '@/utils/tauri';
 import { useMessage } from '@/composables/ui/useMessage';
+import { useGameDirectories } from '@/composables/game/useGameDirectories';
 import type { CustomPrerequisiteInfo, ApiResponse, ModLoaderStatus, ModInstallRequest } from '@/types';
 
 export function useModPrerequisites(gameInfo: any) {
@@ -36,6 +37,10 @@ export function useModPrerequisites(gameInfo: any) {
   const availableTargetDirs = ref([
     { label: '游戏根目录', value: 'root', disabled: false }
   ]);
+
+  // 使用游戏目录检测 composable
+  const gameDirRef = computed(() => gameInfo?.value?.dir || '');
+  const { hasPlugins, hasScripts, checkGameDirectories } = useGameDirectories(gameDirRef);
 
   // 根据游戏类型定义可用组件
   const availableComponents = computed(() => {
@@ -384,32 +389,33 @@ export function useModPrerequisites(gameInfo: any) {
   };
 
   // 检查游戏目录并设置默认安装位置
-  const checkGameDirectories = async () => {
+  const updateGameDirectories = async () => {
     if (!gameInfo?.value || !gameInfo.value.dir) return;
 
-    try {
-      const response = await tauriInvoke<ApiResponse<any>>('check_game_directories', {
-        gameDir: gameInfo.value.dir
-      });
+    // 使用 composable 检测目录
+    await checkGameDirectories(gameInfo.value.dir);
 
-      if (response?.success && response?.data) {
-        const data = response.data;
-        const options = [
-          { label: '游戏根目录', value: 'root', disabled: false }
-        ];
+    // 根据检测结果更新可用目标目录选项
+    const options = [
+      { label: '游戏根目录', value: 'root', disabled: false }
+    ];
 
-        if (data.has_plugins) {
-          options.push({ label: 'plugins目录', value: 'plugins', disabled: false });
-        }
-        if (data.has_scripts) {
-          options.push({ label: 'scripts目录', value: 'scripts', disabled: false });
-        }
+    if (hasPlugins.value) {
+      options.push({ label: 'plugins目录', value: 'plugins', disabled: false });
+    }
+    if (hasScripts.value) {
+      options.push({ label: 'scripts目录', value: 'scripts', disabled: false });
+    }
 
-        availableTargetDirs.value = options;
-        customPrerequisiteForm.value.targetDir = data.default_dir || 'root';
-      }
-    } catch (error) {
-      console.error('检查游戏目录失败:', error);
+    availableTargetDirs.value = options;
+
+    // 设置默认目录：优先 plugins，其次 scripts，最后 root
+    if (hasPlugins.value) {
+      customPrerequisiteForm.value.targetDir = 'plugins';
+    } else if (hasScripts.value) {
+      customPrerequisiteForm.value.targetDir = 'scripts';
+    } else {
+      customPrerequisiteForm.value.targetDir = 'root';
     }
   };
 
@@ -482,7 +488,7 @@ export function useModPrerequisites(gameInfo: any) {
           sourcePaths: [],
           targetDir: 'plugins'
         };
-        await checkGameDirectories();
+        await updateGameDirectories();
         await loadCustomPrerequisites();
         await loadModStatus();
       } else {
@@ -532,7 +538,7 @@ export function useModPrerequisites(gameInfo: any) {
   watch(() => gameInfo?.value, (newGameInfo) => {
     if (newGameInfo) {
       loadModStatus();
-      checkGameDirectories();
+      updateGameDirectories();
       loadCustomPrerequisites();
     }
   }, { immediate: true });
@@ -540,7 +546,7 @@ export function useModPrerequisites(gameInfo: any) {
   // 监听对话框打开，检查目录
   watch(() => showCustomPrerequisiteDialog.value, (isOpen) => {
     if (isOpen) {
-      checkGameDirectories();
+      updateGameDirectories();
     }
   });
 
@@ -575,7 +581,7 @@ export function useModPrerequisites(gameInfo: any) {
     handleManualSelect,
     handleUnmarkManual,
     isManualBinding,
-    checkGameDirectories,
+    updateGameDirectories,
     loadCustomPrerequisites,
     selectCustomPrerequisiteFiles,
     handleInstallCustomPrerequisite,
