@@ -24,7 +24,6 @@ const {
 
         <a-form ref="formRef" :model="formData" :rules="rules" layout="vertical"
             :style="{ maxWidth: '800px', margin: '0 auto' }">
-            <!-- MOD 根目录 -->
             <a-form-item label="MOD 根目录" name="modDir" required>
                 <a-input-group compact>
                     <a-input v-model:value="formData.modDir" placeholder="请选择 MOD 根目录" :readonly="true"
@@ -39,17 +38,14 @@ const {
                 </a-input-group>
             </a-form-item>
 
-            <!-- MOD 名称 -->
             <a-form-item label="MOD 名称" name="name" required>
                 <a-input v-model:value="formData.name" placeholder="请输入 MOD 名称" />
             </a-form-item>
 
-            <!-- 作者 -->
             <a-form-item label="作者（可选）">
                 <a-input v-model:value="formData.author" placeholder="请输入作者名称" />
             </a-form-item>
 
-            <!-- 文件/文件夹列表 -->
             <a-form-item label="MOD 文件/文件夹" required>
                 <div :style="{ marginBottom: '12px' }">
                     <a-space>
@@ -70,13 +66,13 @@ const {
 
                 <a-table :columns="[
                     {
-                        title: '源路径（相对于 MOD 根目录）',
+                        title: '源路径(MOD根目录)',
                         dataIndex: 'source',
                         key: 'source',
                         width: '30%'
                     },
                     {
-                        title: '目标路径（相对于游戏目录）',
+                        title: '目标路径(游戏目录)',
                         dataIndex: 'target',
                         key: 'target',
                         width: '50%'
@@ -109,11 +105,8 @@ const {
                     </template>
                 </a-table>
 
-                <a-empty v-if="formData.modfiles.length === 0" description="暂无文件，请添加文件或文件夹"
-                    :style="{ marginTop: '24px' }" />
             </a-form-item>
 
-            <!-- 操作按钮 -->
             <a-form-item>
                 <a-space>
                     <a-button type="primary" :loading="saving" @click="saveConfig">
