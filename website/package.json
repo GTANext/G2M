@@ -1,0 +1,17 @@
+{
+  "devDependencies": {
+    "medium-zoom": "^1.1.0",
+    "vitepress": "^1.6.4"
+  },
+  "scripts": {
+    "dev": "vitepress dev docs",
+    "build": "vitepress build docs",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "dependencies": {
+    "@fontsource/maple-mono": "^5.2.6",
+    "@theojs/lumen": "^6.4.5"
+  }
+}
