@@ -138,7 +138,7 @@ pub struct ModFileEntry {
     pub is_directory: bool,                  // 是否为目录
 }
 
-// .G2M/info.json 文件结构（游戏信息）
+// .gtamodx/info.json 文件结构（游戏信息）
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct G2MGameInfo {
     pub name: String,
@@ -149,7 +149,7 @@ pub struct G2MGameInfo {
     pub r#type: Option<String>,
 }
 
-// .G2M/mods.json 文件结构（MOD列表）
+// .gtamodx/mods.json 文件结构（MOD列表）
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct G2MModsList {
     #[serde(default)]
@@ -169,7 +169,7 @@ pub struct G2MGameConfig {
     pub mods: Vec<G2MModInfo>,               // MOD列表
 }
 
-// .G2M/mods.json 中的 MOD 信息
+// .gtamodx/mods.json 中的 MOD 信息
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct G2MModInfo {
     pub name: String,                        // MOD名称

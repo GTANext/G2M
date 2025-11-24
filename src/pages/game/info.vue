@@ -11,6 +11,7 @@ import {
 import { useGameInfo } from '@/composables/game/useGameInfo'
 import { useGameActions } from '@/composables/game/useGameActions'
 import { useGameApi } from '@/composables/api/useGameApi'
+import { useGameListView } from '@/composables/ui/useGameListView'
 import { formatTime } from '@/utils/format'
 import { isTauriEnvironment } from '@/utils/tauri'
 
@@ -51,6 +52,7 @@ const activeKey = ref('1');
 const gameApi = useGameApi()
 const dialog = useDialog()
 const message = useNaiveMessage()
+const { confirmDelete } = useGameListView()
 
 // 编辑对话框状态和函数
 const editDialogVisible = ref(false)
@@ -123,28 +125,14 @@ const handleChangeDir = async (game) => {
   })
 }
 
-// 删除游戏确认
-const confirmDelete = (game) => {
-  dialog.warning({
-    title: '确认删除游戏',
-    content: `确定要删除游戏 "${game.name}" 吗？此操作不可撤销。`,
-    positiveText: '确认删除',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      try {
-        const response = await gameApi.deleteGame(game.id);
-        if (response.success) {
-          message.success(`游戏 "${game.name}" 删除成功！`);
-          router.push('/');
-        } else {
-          throw new Error(response.error || '删除游戏失败');
-        }
-      } catch (error) {
-        console.error('删除游戏失败:', error);
-        message.error(`删除游戏失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      }
+// 删除游戏复用 useGameListView 逻辑
+const handleDeleteGame = (game) => {
+  confirmDelete(game, {
+    onDeleted: async () => {
+      await loadGameInfo()
+      router.push('/game/list')
     }
-  });
+  })
 }
 
 const handleSaveEdit = async (editForm) => {
@@ -214,7 +202,7 @@ onMounted(async () => {
       <NTabs v-model:value="activeKey" type="line" animated>
         <NTabPane name="1" tab="基本信息">
           <GameInfoTab1 :game-info="gameInfo" :loading="actionLoading" @launch="handleLaunchGame"
-            @open-folder="handleOpenFolder" @edit="startEdit" @delete="confirmDelete" />
+            @open-folder="handleOpenFolder" @edit="startEdit" @delete="handleDeleteGame" />
         </NTabPane>
         <NTabPane name="2" tab="前置安装">
           <GameInfoTab2 :game-info="gameInfo" />

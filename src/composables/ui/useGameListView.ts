@@ -220,7 +220,7 @@ export function useGameListView() {
       console.log('导航到游戏详情页面', game);
       router.push(`/game/info?id=${game.id}`);
     },
-    confirmDelete: (game: any) => {
+    confirmDelete: (game: any, options?: { onDeleted?: () => Promise<void> | void }) => {
       Modal.confirm({
         title: '确认删除游戏',
         content: `确定要删除游戏 "${game.name}" 吗？此操作不可撤销。`,
@@ -229,12 +229,13 @@ export function useGameListView() {
         cancelText: '取消',
         async onOk() {
           try {
-            // showInfo('正在删除游戏...', { duration: 2 });
             const response = await gameApi.deleteGame(game.id);
             if (response.success) {
               showSuccess(`游戏 "${game.name}" 删除成功！`);
-              // 刷新游戏列表
               await fetchGames();
+              if (options?.onDeleted) {
+                await options.onDeleted();
+              }
             } else {
               throw new Error(response.error || '删除游戏失败');
             }

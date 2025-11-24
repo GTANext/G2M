@@ -2,6 +2,13 @@ use crate::game::types::{G2MGameConfig, G2MGameInfo, G2MModInfo, G2MModsList};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::ffi::OsStrExt;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::Storage::FileSystem::{
+    GetFileAttributesW, SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN, INVALID_FILE_ATTRIBUTES,
+};
 use tauri::AppHandle;
 
 /// 根据exe文件名识别游戏类型
@@ -47,12 +54,38 @@ pub fn get_game_version_from_md5(_game_type: &str, _md5: &str) -> Option<String>
     None
 }
 
-/// 获取 .G2M 目录路径
+/// 获取 .gtamodx 目录路径
 fn get_g2m_dir_path(game_dir: &str) -> PathBuf {
-    Path::new(game_dir).join(".G2M")
+    Path::new(game_dir).join(".gtamodx")
 }
 
-/// 迁移旧的 g2m.json 到新的 .G2M 目录结构
+#[cfg(target_os = "windows")]
+fn ensure_hidden_attribute(dir: &Path) {
+    if !dir.exists() {
+        return;
+    }
+
+    let mut encoded: Vec<u16> = dir.as_os_str().encode_wide().collect();
+    if !encoded.ends_with(&[0]) {
+        encoded.push(0);
+    }
+
+    unsafe {
+        let attrs = GetFileAttributesW(encoded.as_ptr());
+        if attrs == INVALID_FILE_ATTRIBUTES {
+            return;
+        }
+
+        if attrs & FILE_ATTRIBUTE_HIDDEN == 0 {
+            let _ = SetFileAttributesW(encoded.as_ptr(), attrs | FILE_ATTRIBUTE_HIDDEN);
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn ensure_hidden_attribute(_dir: &Path) {}
+
+/// 迁移旧的 g2m.json 到新的 .gtamodx 目录结构
 fn migrate_old_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
     let game_path = Path::new(game_dir);
     let old_g2m_json_path = game_path.join("g2m.json");
@@ -76,12 +109,13 @@ fn migrate_old_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
         }
     };
 
-    // 创建 .G2M 目录
+    // 创建 .gtamodx 目录
     let g2m_dir = get_g2m_dir_path(game_dir);
     if let Err(e) = fs::create_dir_all(&g2m_dir) {
-        eprintln!("创建 .G2M 目录失败: {}", e);
+        eprintln!("创建 .gtamodx 目录失败: {}", e);
         return None;
     }
+    ensure_hidden_attribute(&g2m_dir);
 
     // 写入 info.json
     let info = G2MGameInfo {
@@ -113,11 +147,11 @@ fn migrate_old_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
     // 删除旧的 g2m.json
     let _ = fs::remove_file(&old_g2m_json_path);
 
-    eprintln!("已成功迁移旧的 g2m.json 到 .G2M 目录结构");
+    eprintln!("已成功迁移旧的 g2m.json 到 .gtamodx 目录结构");
     Some(old_config)
 }
 
-/// 读取 .G2M/info.json 和 .G2M/mods.json 文件
+/// 读取 .gtamodx/info.json 和 .gtamodx/mods.json 文件
 pub fn read_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
     let g2m_dir = get_g2m_dir_path(game_dir);
     let info_path = g2m_dir.join("info.json");
@@ -171,7 +205,7 @@ pub fn read_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
     })
 }
 
-/// 写入 .G2M/info.json 和 .G2M/mods.json 文件到游戏根目录
+/// 写入 .gtamodx/info.json 和 .gtamodx/mods.json 文件到游戏根目录
 /// 会保留现有的 mods 字段
 pub fn write_g2m_json(
     game_dir: &str,
@@ -182,11 +216,12 @@ pub fn write_g2m_json(
 ) {
     let g2m_dir = get_g2m_dir_path(game_dir);
 
-    // 创建 .G2M 目录
+    // 创建 .gtamodx 目录
     if let Err(e) = fs::create_dir_all(&g2m_dir) {
-        eprintln!("警告: 无法创建 .G2M 目录: {}", e);
+        eprintln!("警告: 无法创建 .gtamodx 目录: {}", e);
         return;
     }
+    ensure_hidden_attribute(&g2m_dir);
 
     // 获取或创建配置（如果不存在会自动扫描 MOD）
     let config = get_or_create_g2m_json(game_dir, name, exe, img, game_type);
@@ -228,7 +263,7 @@ pub fn write_g2m_json(
     }
 }
 
-/// 从游戏目录自动识别游戏信息（用于创建 .G2M 配置）
+/// 从游戏目录自动识别游戏信息（用于创建 .gtamodx 配置）
 fn auto_detect_game_info(game_dir: &str) -> G2MGameConfig {
     let game_path = Path::new(game_dir);
     let mut config = G2MGameConfig {
@@ -281,8 +316,8 @@ fn auto_detect_game_info(game_dir: &str) -> G2MGameConfig {
     config
 }
 
-/// 添加 MOD 到 .G2M/mods.json 的 mods 列表
-/// 如果 .G2M 目录不存在，会自动创建并尝试识别游戏信息
+/// 添加 MOD 到 .gtamodx/mods.json 的 mods 列表
+/// 如果 .gtamodx 目录不存在，会自动创建并尝试识别游戏信息
 pub fn add_mod_to_g2m_json(
     game_dir: &str,
     mod_name: String,
@@ -312,15 +347,18 @@ pub fn add_mod_to_g2m_json(
         mod_source_path,
     });
 
-    // 创建 .G2M 目录（如果不存在）
+    // 创建 .gtamodx 目录（如果不存在）
     if let Err(e) = fs::create_dir_all(&g2m_dir) {
-        return Err(format!("创建 .G2M 目录失败: {}", e));
+        return Err(format!("创建 .gtamodx 目录失败: {}", e));
     }
+    ensure_hidden_attribute(&g2m_dir);
+    if let Err(e) = fs::create_dir_all(&g2m_dir) {
+        return Err(format!("创建 .gtamodx 目录失败: {}", e));
+    }
+    ensure_hidden_attribute(&g2m_dir);
 
     // 保存更新后的 mods.json
-    let mods_list = G2MModsList {
-        mods: config.mods,
-    };
+    let mods_list = G2MModsList { mods: config.mods };
     match serde_json::to_string_pretty(&mods_list) {
         Ok(json_content) => {
             fs::write(&mods_path, json_content)
@@ -331,7 +369,7 @@ pub fn add_mod_to_g2m_json(
     }
 }
 
-/// 从 .G2M/mods.json 的 mods 列表中移除 MOD
+/// 从 .gtamodx/mods.json 的 mods 列表中移除 MOD
 #[allow(dead_code)]
 pub fn remove_mod_from_g2m_json(game_dir: &str, mod_source_path: &str) -> Result<(), String> {
     let g2m_dir = get_g2m_dir_path(game_dir);
@@ -340,7 +378,7 @@ pub fn remove_mod_from_g2m_json(game_dir: &str, mod_source_path: &str) -> Result
     // 读取现有的配置
     let mut config = match read_g2m_json(game_dir) {
         Some(c) => c,
-        None => return Err(".G2M 目录或配置文件不存在".to_string()),
+        None => return Err(".gtamodx 目录或配置文件不存在".to_string()),
     };
 
     // 移除指定的 MOD
@@ -352,9 +390,7 @@ pub fn remove_mod_from_g2m_json(game_dir: &str, mod_source_path: &str) -> Result
     }
 
     // 保存更新后的 mods.json
-    let mods_list = G2MModsList {
-        mods: config.mods,
-    };
+    let mods_list = G2MModsList { mods: config.mods };
     match serde_json::to_string_pretty(&mods_list) {
         Ok(json_content) => {
             fs::write(&mods_path, json_content)
@@ -441,7 +477,7 @@ pub fn scan_installed_mods(game_dir: &str) -> Vec<G2MModInfo> {
     mods
 }
 
-/// 获取或创建 .G2M 配置，如果不存在则自动扫描已安装的 MOD
+/// 获取或创建 .gtamodx 配置，如果不存在则自动扫描已安装的 MOD
 pub fn get_or_create_g2m_json(
     game_dir: &str,
     name: &str,

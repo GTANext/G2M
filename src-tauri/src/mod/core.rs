@@ -51,7 +51,7 @@ fn auto_install_mod(
         cleo_lower_dir.clone()
     } else {
         // 如果 CLEO 目录不存在，默认创建根目录下的 CLEO（GTA SA 使用小写）
-        // 检查是否有 .G2M 配置来确定游戏类型
+        // 检查是否有 .gtamodx 配置来确定游戏类型
         let game_type = read_g2m_json(game_dir.to_str().unwrap_or(""))
             .and_then(|c| c.r#type)
             .or_else(|| {
@@ -70,7 +70,7 @@ fn auto_install_mod(
                 }
                 None
             });
-        
+
         // 根据游戏类型决定 CLEO 目录名称
         match game_type.as_deref() {
             Some("gtasa") => cleo_lower_dir.clone(),
@@ -89,10 +89,12 @@ fn auto_install_mod(
     if !cleo_target_dir.exists() {
         fs::create_dir_all(&cleo_target_dir).map_err(|e| format!("创建 CLEO 目录失败: {}", e))?;
         // 根据目录名称决定记录格式
-        let cleo_dir_name = if cleo_target_dir.file_name()
+        let cleo_dir_name = if cleo_target_dir
+            .file_name()
             .and_then(|n| n.to_str())
             .map(|n| n == "cleo")
-            .unwrap_or(false) {
+            .unwrap_or(false)
+        {
             "cleo"
         } else {
             "CLEO"
@@ -130,7 +132,7 @@ fn auto_install_mod(
             if ext_lower == "cs" {
                 // .cs 文件复制到 CLEO 目录
                 let dest = cleo_target_dir.join(&new_file_name);
-                
+
                 // 检查 CLEO_PLUGINS 目录中的冲突
                 let cleo_plugins_file = cleo_target_dir.join("CLEO_PLUGINS").join(file_name);
                 if cleo_plugins_file.exists() {
@@ -141,7 +143,7 @@ fn auto_install_mod(
                         ));
                     }
                 }
-                
+
                 // 检查目标文件冲突
                 if dest.exists() && !overwrite {
                     return Err(format!(
@@ -149,14 +151,16 @@ fn auto_install_mod(
                         new_file_name
                     ));
                 }
-                
+
                 fs::copy(mod_source_path, &dest)
                     .map_err(|e| format!("复制 .cs 文件失败: {}", e))?;
-                
-                let cleo_path = if cleo_target_dir.file_name()
+
+                let cleo_path = if cleo_target_dir
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .map(|n| n == "cleo")
-                    .unwrap_or(false) {
+                    .unwrap_or(false)
+                {
                     format!("cleo/{}", new_file_name)
                 } else {
                     format!("CLEO/{}", new_file_name)
@@ -165,7 +169,7 @@ fn auto_install_mod(
             } else if ext_lower == "js" || ext_lower == "ts" {
                 // .js/.ts 文件（CLEO Redux）复制到 plugins/CLEO 目录
                 let dest = cleo_plugins_dir.join(&new_file_name);
-                
+
                 // 检查冲突
                 if dest.exists() && !overwrite {
                     return Err(format!(
@@ -173,7 +177,7 @@ fn auto_install_mod(
                         new_file_name
                     ));
                 }
-                
+
                 fs::copy(mod_source_path, &dest)
                     .map_err(|e| format!("复制 .js/.ts 文件失败: {}", e))?;
                 installed_files.push(format!("plugins/CLEO/{}", new_file_name));
@@ -238,7 +242,7 @@ fn auto_install_mod(
             if has_cs_files {
                 // 包含 .cs 文件，复制到 CLEO 目录
                 let dest = cleo_target_dir.join(&new_dir_name);
-                
+
                 // 检查冲突（对于目录，检查是否存在且非空）
                 if check_dir_conflict(&dest) && !overwrite {
                     return Err(format!(
@@ -246,14 +250,16 @@ fn auto_install_mod(
                         new_dir_name
                     ));
                 }
-                
+
                 copy_dir_all(mod_source_path, &dest)
                     .map_err(|e| format!("复制 CLEO 目录失败: {}", e))?;
-                
-                let cleo_path = if cleo_target_dir.file_name()
+
+                let cleo_path = if cleo_target_dir
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .map(|n| n == "cleo")
-                    .unwrap_or(false) {
+                    .unwrap_or(false)
+                {
                     format!("cleo/{}", new_dir_name)
                 } else {
                     format!("CLEO/{}", new_dir_name)
@@ -262,7 +268,7 @@ fn auto_install_mod(
             } else if has_js_ts_files {
                 // 包含 .js/.ts 文件（CLEO Redux），复制到 plugins/CLEO 目录
                 let dest = cleo_plugins_dir.join(&new_dir_name);
-                
+
                 // 检查冲突（对于目录，检查是否存在且非空）
                 if check_dir_conflict(&dest) && !overwrite {
                     return Err(format!(
@@ -270,7 +276,7 @@ fn auto_install_mod(
                         new_dir_name
                     ));
                 }
-                
+
                 copy_dir_all(mod_source_path, &dest)
                     .map_err(|e| format!("复制 CLEO Redux 目录失败: {}", e))?;
                 installed_files.push(format!("plugins/CLEO/{}", new_dir_name));
@@ -368,7 +374,7 @@ pub async fn install_user_mod(
         // 使用配置文件安装
         let install_result = install_mod_with_config(mod_source_path, game_dir, &config)
             .map_err(|e| format!("使用配置安装 MOD 失败: {}", e))?;
-        
+
         // 记录 MOD 到 g2m.json
         let mod_source_path_str = mod_source_path.to_string_lossy().to_string();
         if let Err(e) = add_mod_to_g2m_json(
@@ -377,9 +383,9 @@ pub async fn install_user_mod(
             config.author.clone(),
             mod_source_path_str,
         ) {
-            eprintln!("警告: 无法将 MOD 记录到 .G2M/mods.json: {}", e);
+            eprintln!("警告: 无法将 MOD 记录到 .gtamodx/mods.json: {}", e);
         }
-        
+
         install_result
     } else {
         // 自动识别安装
@@ -390,7 +396,7 @@ pub async fn install_user_mod(
             request.overwrite,
         )
         .map_err(|e| format!("自动安装 MOD 失败: {}", e))?;
-        
+
         // 记录 MOD 到 g2m.json（没有 author 信息）
         let mod_source_path_str = mod_source_path.to_string_lossy().to_string();
         if let Err(e) = add_mod_to_g2m_json(
@@ -399,9 +405,9 @@ pub async fn install_user_mod(
             None,
             mod_source_path_str,
         ) {
-            eprintln!("警告: 无法将 MOD 记录到 .G2M/mods.json: {}", e);
+            eprintln!("警告: 无法将 MOD 记录到 .gtamodx/mods.json: {}", e);
         }
-        
+
         install_result
     };
 

@@ -30,3 +30,6 @@ zip = "0.6"
 flate2 = "1.0"
 futures-util = "0.3"
 md5 = "0.7"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
