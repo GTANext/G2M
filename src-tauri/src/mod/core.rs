@@ -297,7 +297,8 @@ fn auto_install_mod(
     })
 }
 
-/// 根据 g2m_mod.json 配置安装 MOD
+/// 根据 g2m.json 配置安装 MOD
+/// 严格按照配置文件中的 modfile 列表，将指定文件复制到指定目录
 fn install_mod_with_config(
     mod_source_path: &Path,
     game_dir: &Path,
@@ -313,36 +314,83 @@ fn install_mod_with_config(
         mod_source_path
     };
 
-    for file_entry in &config.modfile {
+    println!("开始安装 MOD: {}", config.name);
+    println!("MOD 根目录: {}", mod_root.display());
+    println!("游戏目录: {}", game_dir.display());
+    println!("配置文件中的文件数量: {}", config.modfile.len());
+
+    // 遍历配置文件中的每个文件条目
+    for (index, file_entry) in config.modfile.iter().enumerate() {
+        // 构建源路径（相对于 MOD 根目录）
         let source_path = mod_root.join(&file_entry.source);
 
+        // 检查源文件是否存在
         if !source_path.exists() {
-            eprintln!("警告: 源文件不存在: {}", source_path.display());
-            continue;
+            let error_msg = format!(
+                "源文件不存在: {}\n源路径: {}\nMOD根目录: {}",
+                file_entry.source,
+                source_path.display(),
+                mod_root.display()
+            );
+            eprintln!("警告: {}", error_msg);
+            return Err(error_msg);
         }
 
+        // 构建目标路径（相对于游戏目录）
         let target_path = game_dir.join(&file_entry.target);
+
+        println!(
+            "[{}/{}] 复制: {} -> {}",
+            index + 1,
+            config.modfile.len(),
+            source_path.display(),
+            target_path.display()
+        );
 
         // 确保目标目录存在
         if let Some(parent) = target_path.parent() {
             if !parent.exists() {
-                fs::create_dir_all(parent).map_err(|e| format!("创建目标目录失败: {}", e))?;
+                fs::create_dir_all(parent).map_err(|e| {
+                    format!("创建目标目录失败: {}\n目标路径: {}", e, parent.display())
+                })?;
                 if let Ok(parent_str) = parent.strip_prefix(game_dir) {
-                    created_directories.push(parent_str.to_string_lossy().replace('\\', "/"));
+                    let dir_str = parent_str.to_string_lossy().replace('\\', "/");
+                    if !created_directories.contains(&dir_str) {
+                        created_directories.push(dir_str);
+                    }
                 }
             }
         }
 
+        // 根据文件类型复制
         if file_entry.is_directory {
             // 复制目录
-            copy_dir_all(&source_path, &target_path).map_err(|e| format!("复制目录失败: {}", e))?;
+            copy_dir_all(&source_path, &target_path).map_err(|e| {
+                format!(
+                    "复制目录失败\n源路径: {}\n目标路径: {}\n错误: {}",
+                    source_path.display(),
+                    target_path.display(),
+                    e
+                )
+            })?;
+            println!("  ✓ 目录复制成功");
         } else {
             // 复制文件
-            fs::copy(&source_path, &target_path).map_err(|e| format!("复制文件失败: {}", e))?;
+            fs::copy(&source_path, &target_path).map_err(|e| {
+                format!(
+                    "复制文件失败\n源路径: {}\n目标路径: {}\n错误: {}",
+                    source_path.display(),
+                    target_path.display(),
+                    e
+                )
+            })?;
+            println!("  ✓ 文件复制成功");
         }
 
         installed_files.push(file_entry.target.clone());
     }
+
+    println!("MOD 安装完成，共安装 {} 个文件/目录", installed_files.len());
 
     Ok(UserModInstallResult {
         installed_files,
@@ -357,23 +405,57 @@ pub async fn install_user_mod(
 ) -> Result<ApiResponse<UserModInstallResult>, String> {
     let mod_source_path = Path::new(&request.mod_source_path);
     let game_dir = Path::new(&request.game_dir);
+    let mod_source_path_str = mod_source_path.to_string_lossy().to_string();
+    let game_dir_str = game_dir.to_string_lossy().to_string();
 
     // 验证路径
     if !mod_source_path.exists() {
-        return Ok(ApiResponse::error("MOD 源路径不存在".to_string()));
+        return Ok(ApiResponse::error(format!(
+            "MOD 源路径不存在\n路径: {}\nMOD名称: {}",
+            mod_source_path_str, request.mod_name
+        )));
     }
 
     if !game_dir.exists() || !game_dir.is_dir() {
-        return Ok(ApiResponse::error("游戏目录不存在".to_string()));
+        return Ok(ApiResponse::error(format!(
+            "游戏目录不存在或不是有效目录\n游戏目录: {}\nMOD名称: {}",
+            game_dir_str, request.mod_name
+        )));
     }
 
-    // 检查是否有 g2m_mod.json 配置文件
+    // 检查 MOD 源路径是否在游戏目录内（会导致无限递归）
+    let mod_source_canonical = mod_source_path.canonicalize().ok();
+    let game_dir_canonical = game_dir.canonicalize().ok();
+
+    let is_inside_game_dir =
+        if let (Some(mod_path), Some(game_path)) = (mod_source_canonical, game_dir_canonical) {
+            mod_path.starts_with(&game_path)
+        } else {
+            // 如果规范化失败，使用字符串比较（不区分大小写）
+            let mod_path_str = mod_source_path_str.to_lowercase();
+            let game_dir_str_lower = game_dir_str.to_lowercase();
+            mod_path_str.starts_with(&game_dir_str_lower)
+        };
+
+    if is_inside_game_dir {
+        return Ok(ApiResponse::error(format!(
+            "MOD 源路径不能位于游戏目录内，这会导致无限递归\nMOD源路径: {}\n游戏目录: {}\n\n请将 MOD 文件移动到游戏目录外的位置后再安装",
+            mod_source_path_str, game_dir_str
+        )));
+    }
+
+    // 检查是否有 g2m.json 配置文件
     let config = load_g2m_mod_config(mod_source_path);
 
     let result = if let Some(config) = config {
         // 使用配置文件安装
-        let install_result = install_mod_with_config(mod_source_path, game_dir, &config)
-            .map_err(|e| format!("使用配置安装 MOD 失败: {}", e))?;
+        let install_result =
+            install_mod_with_config(mod_source_path, game_dir, &config).map_err(|e| {
+                format!(
+                    "使用配置安装 MOD 失败\nMOD名称: {}\n源路径: {}\n游戏目录: {}\n错误详情: {}",
+                    config.name, mod_source_path_str, game_dir_str, e
+                )
+            })?;
 
         // 记录 MOD 到 g2m.json
         let mod_source_path_str = mod_source_path.to_string_lossy().to_string();
@@ -395,7 +477,12 @@ pub async fn install_user_mod(
             &request.mod_name,
             request.overwrite,
         )
-        .map_err(|e| format!("自动安装 MOD 失败: {}", e))?;
+        .map_err(|e| {
+            format!(
+                "自动安装 MOD 失败\nMOD名称: {}\n源路径: {}\n游戏目录: {}\n错误详情: {}",
+                request.mod_name, mod_source_path_str, game_dir_str, e
+            )
+        })?;
 
         // 记录 MOD 到 g2m.json（没有 author 信息）
         let mod_source_path_str = mod_source_path.to_string_lossy().to_string();

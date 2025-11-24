@@ -4,15 +4,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
-/// 读取 g2m_mod.json 配置文件
+/// 读取 g2m.json 配置文件
 pub fn load_g2m_mod_config(mod_source_path: &Path) -> Option<G2MModConfig> {
-    let config_path = mod_source_path.join("g2m_mod.json");
+    let config_path = mod_source_path.join("g2m.json");
 
     // 如果 mod_source_path 是文件，则检查其所在目录
     let config_path = if mod_source_path.is_file() {
         mod_source_path
             .parent()
-            .and_then(|p| Some(p.join("g2m_mod.json")))
+            .and_then(|p| Some(p.join("g2m.json")))
             .unwrap_or(config_path)
     } else {
         config_path
@@ -26,12 +26,12 @@ pub fn load_g2m_mod_config(mod_source_path: &Path) -> Option<G2MModConfig> {
         Ok(content) => match serde_json::from_str::<G2MModConfig>(&content) {
             Ok(config) => Some(config),
             Err(e) => {
-                eprintln!("解析 g2m_mod.json 失败: {}", e);
+                eprintln!("解析 g2m.json 失败: {}", e);
                 None
             }
         },
         Err(e) => {
-            eprintln!("读取 g2m_mod.json 失败: {}", e);
+            eprintln!("读取 g2m.json 失败: {}", e);
             None
         }
     }
@@ -106,7 +106,7 @@ pub async fn select_mod_files(
     }
 }
 
-/// 读取 g2m_mod.json 配置文件（Tauri 命令）
+/// 读取 g2m.json 配置文件（Tauri 命令）
 #[tauri::command]
 pub async fn read_g2m_mod_config(
     mod_dir: String,
@@ -217,7 +217,7 @@ fn build_file_tree(
     Ok(())
 }
 
-/// 保存 g2m_mod.json 配置文件
+/// 保存 g2m.json 配置文件
 #[tauri::command]
 pub async fn save_g2m_mod_config(
     mod_dir: String,
@@ -229,14 +229,14 @@ pub async fn save_g2m_mod_config(
         return Ok(ApiResponse::error("MOD 目录不存在".to_string()));
     }
 
-    let config_path = mod_path.join("g2m_mod.json");
+    let config_path = mod_path.join("g2m.json");
 
     // 序列化配置为 JSON
     match serde_json::to_string_pretty(&config) {
         Ok(json_content) => {
             match fs::write(&config_path, json_content) {
                 Ok(_) => Ok(ApiResponse::success(())),
-                Err(e) => Ok(ApiResponse::error(format!("写入 g2m_mod.json 失败: {}", e))),
+                Err(e) => Ok(ApiResponse::error(format!("写入 g2m.json 失败: {}", e))),
             }
         }
         Err(e) => Ok(ApiResponse::error(format!("序列化配置失败: {}", e))),

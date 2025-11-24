@@ -56,19 +56,56 @@ pub fn is_texture_or_model_directory(dir_path: &Path) -> bool {
     false
 }
 
+/// 检查路径是否是另一个路径的子路径（规范化比较）
+fn is_subpath_of(path: &Path, parent: &Path) -> bool {
+    // 尝试规范化路径
+    let path_canonical = path.canonicalize().ok();
+    let parent_canonical = parent.canonicalize().ok();
+    
+    if let (Some(p), Some(par)) = (path_canonical, parent_canonical) {
+        return p.starts_with(&par);
+    }
+    
+    // 如果规范化失败，使用字符串比较（不区分大小写）
+    let path_str = path.to_string_lossy().to_lowercase();
+    let parent_str = parent.to_string_lossy().to_lowercase();
+    path_str.starts_with(&parent_str)
+}
+
 /// 递归复制目录
 pub fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    // 检查源路径和目标路径是否相同
+    if is_subpath_of(dst, src) && is_subpath_of(src, dst) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("源路径和目标路径相同或会导致循环复制: {} -> {}", src.display(), dst.display())
+        ));
+    }
+    
+    // 检查目标路径是否是源路径的子目录（会导致无限递归）
+    if is_subpath_of(dst, src) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("目标路径是源路径的子目录，会导致无限递归: {} -> {}", src.display(), dst.display())
+        ));
+    }
+    
     if !dst.exists() {
         fs::create_dir_all(dst)?;
     }
 
     for entry in fs::read_dir(src)? {
         let entry = entry?;
+        let entry_path = entry.path();
         let ty = entry.file_type()?;
         if ty.is_dir() {
-            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
+            let dst_entry = dst.join(entry.file_name());
+            // 再次检查，防止递归复制到自身
+            if !is_subpath_of(&dst_entry, &entry_path) {
+                copy_dir_all(&entry_path, &dst_entry)?;
+            }
         } else {
-            fs::copy(entry.path(), dst.join(entry.file_name()))?;
+            fs::copy(&entry_path, dst.join(entry.file_name()))?;
         }
     }
     Ok(())

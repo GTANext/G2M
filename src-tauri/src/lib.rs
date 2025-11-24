@@ -4,10 +4,13 @@ mod game;
 #[path = "mod/mod.rs"]
 mod mod_core;
 
+#[path = "utils/log.rs"]
+mod log;
+
 // 从 game 模块导入所有函数
 use game::core::{
     check_duplicate_directory, copy_game_image, copy_image_to_custom_dir, delete_game,
-    get_game_by_id, get_games, install_mod_prerequisites, launch_game, open_game_folder,
+    get_game_by_id, get_game_mods, get_games, install_mod_prerequisites, launch_game, open_game_folder,
     process_image_upload, save_base64_image, save_game, select_image_file, update_game,
 };
 use game::detection::{detect_game, select_game_folder};
@@ -31,6 +34,9 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> () {
+    // 初始化日志系统，设置 panic hook
+    log::init_logger();
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -42,6 +48,7 @@ pub fn run() -> () {
             save_game,
             get_games,
             get_game_by_id,
+            get_game_mods,
             update_game,
             delete_game,
             check_duplicate_directory,

@@ -1,6 +1,6 @@
 use crate::game::utils::{
     calculate_file_md5, copy_dir_all, detect_game_type_from_exe, get_config_dir,
-    get_game_version_from_md5, write_g2m_json,
+    get_game_version_from_md5, read_g2m_json, write_g2m_json,
 };
 use crate::game::{
     ApiResponse, CopyImageResponse, GameInfo, GameList, ModInstallRequest, ModInstallResult,
@@ -1257,4 +1257,17 @@ pub async fn process_image_upload(
     Ok(ApiResponse::success(CopyImageResponse {
         image_path: relative_path,
     }))
+}
+
+/// 获取游戏目录下的已安装MOD列表
+#[tauri::command]
+pub async fn get_game_mods(game_dir: String) -> Result<ApiResponse<Vec<crate::game::types::G2MModInfo>>, String> {
+    // 读取 .gtamodx/mods.json
+    match read_g2m_json(&game_dir) {
+        Some(config) => Ok(ApiResponse::success(config.mods)),
+        None => {
+            // 如果配置文件不存在，返回空列表
+            Ok(ApiResponse::success(Vec::new()))
+        }
+    }
 }

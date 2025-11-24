@@ -121,7 +121,7 @@ pub struct ManualLoaderBinding {
     pub file_name: String,      // 文件名
 }
 
-// g2m_mod.json 配置文件结构
+// g2m.json 配置文件结构（MOD配置文件）
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct G2MModConfig {
     pub name: String,                        // MOD名称

@@ -27,6 +27,7 @@ declare module 'vue' {
     GameList: typeof import('./components/Game/List.vue')['default']
     ModDropTarget: typeof import('./components/Mod/DropTarget.vue')['default']
     ModFileTree: typeof import('./components/Mod/FileTree.vue')['default']
+    ModInstallDialog: typeof import('./components/Mod/InstallDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }
