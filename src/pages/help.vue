@@ -2,20 +2,6 @@
 import { SmileTwoTone } from '@ant-design/icons-vue';
 const activeKey = ref([]);
 const text = `不知道喵`;
-const qqGroups = [
-    {
-        name: '254239242',
-        link: 'https://qm.qq.com/q/4zCXv1Lmcw',
-    },
-    {
-        name: '894712495',
-        link: 'https://qm.qq.com/q/nEjjiknj6S',
-    },
-    {
-        name: '829270254',
-        link: 'https://qm.qq.com/q/gcBGq9A82k',
-    },
-]
 </script>
 
 <template>

@@ -2,8 +2,6 @@
 import { ref } from 'vue'
 import { FolderOpenOutlined, SaveOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { useBuildModConfig } from '@/composables/mod/useBuildModConfig'
-import FileTree from '@/components/Mod/FileTree.vue'
-import DropTarget from '@/components/Mod/DropTarget.vue'
 
 const {
     formData,
@@ -127,7 +125,7 @@ const filePathDialogVisible = ref(false)
                                 <a-spin :spinning="loadingFileTree" />
                             </template>
                             <div class="tree-scroll">
-                                <FileTree :tree="fileTree" :added-files="formData.modfiles" @drag-start="() => { }"
+                                <ModFileTree :tree="fileTree" :added-files="formData.modfiles" @drag-start="() => { }"
                                     @remove="handleRemoveFromModfiles" />
                             </div>
                         </a-card>
@@ -135,7 +133,7 @@ const filePathDialogVisible = ref(false)
                     <a-col :span="12" :style="{ height: '420px' }">
                         <a-card size="small" class="mapping-card" title="游戏目录">
                             <div class="tree-scroll">
-                                <DropTarget :mod-name="formData.name" :added-files="formData.modfiles"
+                                <ModDropTarget :mod-name="formData.name" :added-files="formData.modfiles"
                                     :mod-tree="fileTree" @drop="handleFileDrop" @remove="handleRemoveFromModfiles"
                                     @update-target="handleUpdateTargetPath" />
                             </div>

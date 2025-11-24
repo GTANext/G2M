@@ -3,9 +3,11 @@ import { ref } from 'vue'
 import { notification } from 'ant-design-vue'
 import { DownloadOutlined, FileZipOutlined } from '@ant-design/icons-vue'
 import { useMessage } from '@/composables/ui/useMessage'
+import { useCommon } from '@/composables/ui/useCommon'
 import { useDownloadRecords, useGameUtils } from '@/composables'
 import { isTauriEnvironment } from '@/utils/tauri'
-import GameCard from '@/components/Game/Card.vue'
+
+const { qqGroups, externalLinks } = useCommon()
 
 const { showSuccess } = useMessage()
 const { downloadRecords, loadDownloadRecords, getGameDownloadStatus, getDownloadRecord } = useDownloadRecords()
@@ -81,12 +83,16 @@ openNotification()
 </script>
 
 <template>
-  <G2MHeader title="游戏下载">
+  <!-- <G2MHeader title="游戏下载">
     <template #right>
       <a-typography-text type="secondary">从云端下载 GTA 游戏文件</a-typography-text>
     </template>
-  </G2MHeader>
-
+  </G2MHeader> -->
+  <a-alert
+    :message="`如果游戏下载失败请加群：${qqGroups.map(group => group.name).join(', ')}`"
+    type="warning"
+    show-icon
+  />
   <NGrid :cols="3" :x-gap="16" :y-gap="16" style="margin-top: 24px;">
     <NGridItem v-for="game in games" :key="game.type">
       <GameCard :game="game" display-mode="simple" :get-game-icon="(game) => getGameIcon(game)" :clickable="false">
