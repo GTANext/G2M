@@ -8,7 +8,7 @@ export function useGameForm() {
   const imageHandler = useImageHandler();
   const { showError, showSuccess, showInfo } = useMessage();
 
-  // 表单数据 - 使用 any 类型
+  // 表单数据 
   const formData: any = reactive({
     name: '',
     dir: '',
@@ -59,7 +59,7 @@ export function useGameForm() {
     detectionResult.value = null;
     imagePreview.value = '';
     selectedImageFile.value = '';
-    
+
     if (formRef.value) {
       formRef.value.resetFields();
     }
@@ -71,14 +71,14 @@ export function useGameForm() {
       const response: any = await gameApi.selectGameFolder();
       if (response?.success && response?.data) {
         const selectedPath = response.data;
-        
-        // 先检查是否有重复目录 - 使用 any 类型
+
+        // 先检查是否有重复目录 
         const duplicateCheck: any = await gameApi.checkDuplicateDirectory(selectedPath);
         if (!duplicateCheck?.success) {
           showError('该目录已被其他游戏使用', { detail: duplicateCheck?.error });
           return;
         }
-        
+
         formData.dir = selectedPath;
         await detectGameInFolder(selectedPath);
       } else {
@@ -104,7 +104,7 @@ export function useGameForm() {
         formData.name = result.game_name;
         formData.exe = result.executable;
         formData.type = result.type;
-        
+
         showSuccess(`检测到游戏: ${result.game_name}`);
       } else {
         showInfo('未检测到支持的游戏，请手动填写游戏信息');
@@ -119,7 +119,7 @@ export function useGameForm() {
   // 验证表单
   const validateForm = async (): Promise<boolean> => {
     if (!formRef.value) return false;
-    
+
     try {
       await formRef.value.validate();
       return true;
@@ -156,16 +156,16 @@ export function useGameForm() {
   const selectImage = async () => {
     try {
       uploadingImage.value = true;
-      
+
       // 使用 base64 图片处理
       const imageResult: any = await imageHandler.selectImageFile();
-      
+
       if (imageResult) {
         // 直接使用完整的 data URL 作为预览和存储
         imagePreview.value = imageResult.dataUrl;
         selectedImageFile.value = imageResult.fileName;
         formData.img = imageResult.dataUrl;  // 直接保存完整的 data URL
-        
+
         showSuccess('图片选择成功');
       }
     } catch (error) {
@@ -191,7 +191,7 @@ export function useGameForm() {
     // @ts-ignore
     const GAME_TYPE_NAMES: any = {
       'gta3': 'GTA III',
-      'gtavc': 'GTA Vice City', 
+      'gtavc': 'GTA Vice City',
       'gtasa': 'GTA San Andreas'
     };
     return GAME_TYPE_NAMES[gameType] || '未知游戏';

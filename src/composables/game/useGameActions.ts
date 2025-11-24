@@ -5,15 +5,15 @@ import { useMessage } from '@/composables/ui/useMessage';
 export function useGameActions() {
   const gameApi = useGameApi();
   const { showError, showSuccess } = useMessage();
-  
-  // 加载状态 - 使用 any 类型
+
+  // 加载状态 
   const loading: any = ref({
     launch: false,
     openFolder: false,
     saveEdit: false
   });
 
-  // 错误信息 - 使用 any 类型
+  // 错误信息 
   const error: any = ref(null);
 
   // 启动游戏
@@ -97,15 +97,15 @@ export function useGameActions() {
 
       if (response?.success) {
         showSuccess('保存成功！');
-        
-        // 更新本地游戏数据 - 使用 any 类型
+
+        // 更新本地游戏数据 
         if (gameInfo && response.data) {
           (gameInfo as any).name = editForm.name;
           (gameInfo as any).dir = editForm.dir;
           (gameInfo as any).exe = editForm.exe;
           (gameInfo as any).img = editForm.img;
         }
-        
+
         return true;
       } else {
         const errorMsg = response?.error || '保存失败';

@@ -1,6 +1,6 @@
 <script setup>
 import { useWindowControl } from '@/composables/api/useApp'
-import { useNavigation } from '@/composables/ui/useNavigation'
+import { useCommon } from '@/composables/ui/useCommon'
 import {
     AppstoreOutlined,
     SettingOutlined,
@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons-vue'
 
 const { isMaximized, minimizeWindow, toggleMaximize, closeWindow } = useWindowControl()
-const { navItems, isActive, handleNavClick } = useNavigation()
+const { navItems, isActive, handleNavClick, externalLinks } = useCommon()
 </script>
 
 <template>
@@ -38,7 +38,7 @@ const { navItems, isActive, handleNavClick } = useNavigation()
 
             <div class="titlebar-right">
                 <a-space size="small" class="no-drag">
-                    <a-button type="text" size="small" title="设置" href="https://github.com/GTANext/G2M" target="_blank">
+                    <a-button type="text" size="small" title="GitHub" :href="externalLinks.github" target="_blank">
                         <template #icon>
                             <GithubOutlined />
                         </template>

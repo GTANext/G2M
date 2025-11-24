@@ -4,10 +4,10 @@ import { useMessage } from '@/composables/ui/useMessage';
 
 export function useGameApi() {
   const { showError } = useMessage();
-  // 加载状态 - 使用 any 类型
+  // 加载状态
   const loadingState: any = ref({ loading: false, error: null });
-  
-  // 游戏列表 - 使用 any 类型
+
+  // 游戏列表 
   const games: any = ref([]);
 
   // 获取游戏列表
@@ -15,15 +15,15 @@ export function useGameApi() {
     try {
       loadingState.value.loading = true;
       loadingState.value.error = null;
-      
+
       const response: any = await tauriInvoke('get_games');
-      
+
       if (response?.success && response?.data) {
         games.value = response.data;
       } else {
         loadingState.value.error = response?.error || '获取游戏列表失败';
       }
-      
+
       return response;
     } catch (error) {
       showError('获取游戏列表失败');
@@ -97,9 +97,9 @@ export function useGameApi() {
   // 启动游戏
   const launchGame = async (gameDir: string, executable: string): Promise<any> => {
     try {
-      const response: any = await tauriInvoke('launch_game', { 
-        gameDir: gameDir, 
-        executable: executable 
+      const response: any = await tauriInvoke('launch_game', {
+        gameDir: gameDir,
+        executable: executable
       });
       return response;
     } catch (error) {
@@ -144,7 +144,7 @@ export function useGameApi() {
   // 检查重复目录
   const checkDuplicateDirectory = async (dir: any, excludeGameId?: number): Promise<any> => {
     try {
-      const response: any = await tauriInvoke('check_duplicate_directory', { 
+      const response: any = await tauriInvoke('check_duplicate_directory', {
         dir,
         excludeGameId: excludeGameId || null
       });

@@ -1,26 +1,15 @@
 <script setup>
-const qqGroups = [
-    {
-        name: '254239242',
-        link: 'https://qm.qq.com/q/4zCXv1Lmcw',
-    },
-    {
-        name: '894712495',
-        link: 'https://qm.qq.com/q/nEjjiknj6S',
-    },
-    {
-        name: '829270254',
-        link: 'https://qm.qq.com/q/gcBGq9A82k',
-    },
-]
+import { useCommon } from '@/composables/ui/useCommon'
+
+const { qqGroups, externalLinks } = useCommon()
 </script>
 
 <template>
     <a-flex :align="'center'" :justify="'center'" :style="{ height: '100%' }">
         <a-result status="error" title="出错啦" sub-title="你似乎来到了没有知识存在的荒原">
             <template #extra>
-                <a-button key="console" type="primary" href="https://space.bilibili.com/435502585" target="_blank">哔哩哔哩</a-button>
-                <a-button key="buy" href="https://github.com/GTANext/G2M" target="_blank">GitHub</a-button>
+                <a-button key="bilibili" type="primary" :href="externalLinks.bilibili" target="_blank">哔哩哔哩</a-button>
+                <a-button key="github" :href="externalLinks.github" target="_blank">GitHub</a-button>
             </template>
 
             <div class="desc">

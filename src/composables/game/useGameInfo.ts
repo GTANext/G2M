@@ -8,17 +8,17 @@ import type { ModLoaderStatus, ApiResponse, ModInstallRequest, ModInstallResult 
 export function useGameInfo(gameId: any) {
   const gameApi = useGameApi();
   const { showError } = useMessage();
-  
-  // 游戏数据 - 使用 any 类型
+
+  // 游戏数据 
   const gameData: any = ref({});
-  
+
   // 加载状态
   const loading = ref(false);
-  
+
   // MOD 加载器状态
   const modLoaderStatus = ref<ModLoaderStatus | null>(null);
   const modLoaderLoading = ref(false);
-  
+
   // MOD 安装状态
   const isInstalling = ref(false);
   const installResult = ref<ModInstallResult | null>(null);
@@ -32,17 +32,17 @@ export function useGameInfo(gameId: any) {
   const getGameTypeName = computed(() => {
     const gameType = gameData.value?.type;
     if (!gameType) return '未知游戏';
-    
+
     // 先尝试直接匹配
     // @ts-ignore - 忽略类型检查
     let typeName = (GAME_TYPE_NAMES as any)[gameType];
-    
+
     // 如果直接匹配失败，尝试小写匹配
     if (!typeName) {
       // @ts-ignore - 忽略类型检查
       typeName = (GAME_TYPE_NAMES as any)[gameType.toLowerCase()];
     }
-    
+
     return typeName || '未知游戏';
   });
 
@@ -57,29 +57,29 @@ export function useGameInfo(gameId: any) {
       // 如果是其他格式的图片路径，也直接返回
       return gameData.value.img;
     }
-    
+
     // 如果没有自定义图片，根据游戏类型返回默认图片
     const gameType = gameData.value?.type;
     if (gameType) {
       // 默认图片映射 - 支持大小写兼容
       const iconMap: Record<string, string> = {
         'GTA3': '/images/gta3.jpg',
-        'GTAVC': '/images/gtavc.jpg', 
+        'GTAVC': '/images/gtavc.jpg',
         'GTASA': '/images/gtasa.jpg',
         'gta3': '/images/gta3.jpg',
         'gtavc': '/images/gtavc.jpg',
         'gtasa': '/images/gtasa.jpg'
       };
-      
+
       // 先尝试直接匹配，如果失败则尝试小写匹配
       let gameImage = iconMap[gameType];
       if (!gameImage) {
         gameImage = iconMap[gameType.toLowerCase()];
       }
-      
+
       return gameImage || '/images/null.svg';
     }
-    
+
     // 最后的退路
     return '/images/null.svg';
   });
@@ -120,7 +120,7 @@ export function useGameInfo(gameId: any) {
     try {
       loading.value = true;
       const response = await gameApi.getGameById(gameId.value);
-      
+
       if (response?.success && response?.data) {
         gameData.value = response.data;
       } else {
@@ -162,11 +162,11 @@ export function useGameInfo(gameId: any) {
       modLoaderLoading.value = true;
       // 获取游戏类型，用于正确检测CLEO文件
       const gameType = gameData.value?.type || null;
-      const response = await tauriInvoke<ApiResponse<ModLoaderStatus>>('check_mod_loaders', { 
+      const response = await tauriInvoke<ApiResponse<ModLoaderStatus>>('check_mod_loaders', {
         gameDir,
         gameType
       });
-      
+
       if (response?.success && response?.data) {
         modLoaderStatus.value = response.data;
         // 返回格式化的状态对象，正确映射 ModLoaderStatus 属性
@@ -218,7 +218,7 @@ export function useGameInfo(gameId: any) {
       gameType = gameData.value?.type || '';
       selectedComponents = undefined;
     }
-    
+
     if (!gameDir || !gameType) {
       const errorMsg = '游戏目录或游戏类型为空，无法安装 MOD 前置';
       console.error('安装参数错误:', { gameDir, gameType, selectedComponents });
@@ -229,22 +229,22 @@ export function useGameInfo(gameId: any) {
     try {
       isInstalling.value = true;
       installResult.value = null;
-      
+
       const request: ModInstallRequest = {
         game_dir: gameDir,
         game_type: gameType,
         components: selectedComponents // 传递选择的组件
       };
-      
+
       console.log('发送安装请求:', request);
       const response = await installModPrerequisites(request);
-      
+
       if (response?.success && response?.data) {
         installResult.value = response.data;
-        
+
         // 安装成功后重新检查 MOD 状态
         await checkModLoaders(gameDir);
-        
+
         return { success: true, message: '安装成功', data: response.data };
       } else {
         const errorMsg = response?.error || '安装 MOD 前置失败';
@@ -271,7 +271,7 @@ export function useGameInfo(gameId: any) {
     modLoaderLoading,
     isInstalling,
     installResult,
-    
+
     // 计算属性
     getGameTypeName,
     getGameImage,
@@ -280,7 +280,7 @@ export function useGameInfo(gameId: any) {
     getGameName,
     getGameId,
     hasMissingModLoaders,
-    
+
     // 方法
     setGameData,
     loadGameInfo,

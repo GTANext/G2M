@@ -7,7 +7,29 @@ import {
     QuestionCircleOutlined
 } from '@ant-design/icons-vue'
 
-export function useNavigation() {
+// QQ 交流群配置
+export const QQ_GROUPS = [
+    {
+        name: '254239242',
+        link: 'https://qm.qq.com/q/4zCXv1Lmcw',
+    },
+    {
+        name: '894712495',
+        link: 'https://qm.qq.com/q/nEjjiknj6S',
+    },
+    {
+        name: '829270254',
+        link: 'https://qm.qq.com/q/gcBGq9A82k',
+    },
+]
+
+// 外部链接配置
+export const EXTERNAL_LINKS = {
+    github: 'https://github.com/GTANext/G2M',
+    bilibili: 'https://space.bilibili.com/435502585',
+}
+
+export function useCommon() {
     const router = useRouter()
     const route = useRoute()
 
@@ -32,9 +54,14 @@ export function useNavigation() {
     }
 
     return {
+        // 导航相关
         navItems,
         activeRoute,
         isActive,
-        handleNavClick
+        handleNavClick,
+
+        // 通用信息
+        qqGroups: QQ_GROUPS,
+        externalLinks: EXTERNAL_LINKS,
     }
 }
