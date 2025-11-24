@@ -8,6 +8,7 @@ use std::fs;
 use std::path::Path;
 
 /// 检查文件冲突
+#[allow(dead_code)]
 fn check_file_conflict(dest_path: &Path) -> bool {
     dest_path.exists()
 }
@@ -38,7 +39,6 @@ fn auto_install_mod(
 
     // 检查游戏目录结构，确定安装位置
     let plugins_dir = game_dir.join("plugins");
-    let scripts_dir = game_dir.join("scripts");
     let cleo_dir = game_dir.join("CLEO");
     let cleo_lower_dir = game_dir.join("cleo"); // GTA SA 使用小写
     let cleo_plugins_dir = plugins_dir.join("CLEO"); // CLEO Redux 目录
@@ -51,7 +51,7 @@ fn auto_install_mod(
         cleo_lower_dir.clone()
     } else {
         // 如果 CLEO 目录不存在，默认创建根目录下的 CLEO（GTA SA 使用小写）
-        // 检查是否有 g2m.json 来确定游戏类型
+        // 检查是否有 .G2M 配置来确定游戏类型
         let game_type = read_g2m_json(game_dir.to_str().unwrap_or(""))
             .and_then(|c| c.r#type)
             .or_else(|| {
@@ -377,7 +377,7 @@ pub async fn install_user_mod(
             config.author.clone(),
             mod_source_path_str,
         ) {
-            eprintln!("警告: 无法将 MOD 记录到 g2m.json: {}", e);
+            eprintln!("警告: 无法将 MOD 记录到 .G2M/mods.json: {}", e);
         }
         
         install_result
@@ -399,7 +399,7 @@ pub async fn install_user_mod(
             None,
             mod_source_path_str,
         ) {
-            eprintln!("警告: 无法将 MOD 记录到 g2m.json: {}", e);
+            eprintln!("警告: 无法将 MOD 记录到 .G2M/mods.json: {}", e);
         }
         
         install_result

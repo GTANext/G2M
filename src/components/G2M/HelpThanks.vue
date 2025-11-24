@@ -5,13 +5,13 @@ const items = [
         name: '狂风晨',
         avatar: '/images/avatar/kfc.jpg',
         link: 'https://space.bilibili.com/1945126',
-        description: 'G2M开发者的老公',
+        description: 'G2M产品经理',
     },
     {
         name: 'Cyber蝈蝈总',
         avatar: '/images/avatar/Cyber.jpg',
         link: 'https://space.bilibili.com/37706580',
-        description: 'G2M开发者的老婆',
+        description: '金牌赞助~',
     }
 ]
 </script>

@@ -1,4 +1,4 @@
-use crate::game::types::{G2MGameConfig, G2MModInfo};
+use crate::game::types::{G2MGameConfig, G2MGameInfo, G2MModInfo, G2MModsList};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -47,32 +47,131 @@ pub fn get_game_version_from_md5(_game_type: &str, _md5: &str) -> Option<String>
     None
 }
 
-/// 读取 g2m.json 文件
-pub fn read_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
-    let game_path = Path::new(game_dir);
-    let g2m_json_path = game_path.join("g2m.json");
+/// 获取 .G2M 目录路径
+fn get_g2m_dir_path(game_dir: &str) -> PathBuf {
+    Path::new(game_dir).join(".G2M")
+}
 
-    if !g2m_json_path.exists() {
+/// 迁移旧的 g2m.json 到新的 .G2M 目录结构
+fn migrate_old_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
+    let game_path = Path::new(game_dir);
+    let old_g2m_json_path = game_path.join("g2m.json");
+
+    if !old_g2m_json_path.exists() {
         return None;
     }
 
-    match fs::read_to_string(&g2m_json_path) {
+    // 读取旧的 g2m.json
+    let old_config = match fs::read_to_string(&old_g2m_json_path) {
         Ok(content) => match serde_json::from_str::<G2MGameConfig>(&content) {
-            Ok(config) => Some(config),
+            Ok(config) => config,
             Err(e) => {
-                eprintln!("解析 g2m.json 失败: {}", e);
-                None
+                eprintln!("解析旧的 g2m.json 失败: {}", e);
+                return None;
             }
         },
         Err(e) => {
-            eprintln!("读取 g2m.json 失败: {}", e);
-            None
+            eprintln!("读取旧的 g2m.json 失败: {}", e);
+            return None;
+        }
+    };
+
+    // 创建 .G2M 目录
+    let g2m_dir = get_g2m_dir_path(game_dir);
+    if let Err(e) = fs::create_dir_all(&g2m_dir) {
+        eprintln!("创建 .G2M 目录失败: {}", e);
+        return None;
+    }
+
+    // 写入 info.json
+    let info = G2MGameInfo {
+        name: old_config.name.clone(),
+        exe: old_config.exe.clone(),
+        img: old_config.img.clone(),
+        r#type: old_config.r#type.clone(),
+    };
+    let info_path = g2m_dir.join("info.json");
+    if let Ok(info_json) = serde_json::to_string_pretty(&info) {
+        if let Err(e) = fs::write(&info_path, info_json) {
+            eprintln!("写入 info.json 失败: {}", e);
+            return None;
         }
     }
+
+    // 写入 mods.json
+    let mods_list = G2MModsList {
+        mods: old_config.mods.clone(),
+    };
+    let mods_path = g2m_dir.join("mods.json");
+    if let Ok(mods_json) = serde_json::to_string_pretty(&mods_list) {
+        if let Err(e) = fs::write(&mods_path, mods_json) {
+            eprintln!("写入 mods.json 失败: {}", e);
+            return None;
+        }
+    }
+
+    // 删除旧的 g2m.json
+    let _ = fs::remove_file(&old_g2m_json_path);
+
+    eprintln!("已成功迁移旧的 g2m.json 到 .G2M 目录结构");
+    Some(old_config)
 }
 
-/// 写入 g2m.json 文件到游戏根目录
-/// 只包含 name, exe, img, type, mods（不包含 id, md5, version, time, deleted）
+/// 读取 .G2M/info.json 和 .G2M/mods.json 文件
+pub fn read_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
+    let g2m_dir = get_g2m_dir_path(game_dir);
+    let info_path = g2m_dir.join("info.json");
+    let mods_path = g2m_dir.join("mods.json");
+
+    // 如果新格式不存在，尝试迁移旧格式
+    if !info_path.exists() || !mods_path.exists() {
+        if let Some(migrated_config) = migrate_old_g2m_json(game_dir) {
+            return Some(migrated_config);
+        }
+        return None;
+    }
+
+    // 读取 info.json
+    let info = match fs::read_to_string(&info_path) {
+        Ok(content) => match serde_json::from_str::<G2MGameInfo>(&content) {
+            Ok(info) => info,
+            Err(e) => {
+                eprintln!("解析 info.json 失败: {}", e);
+                return None;
+            }
+        },
+        Err(e) => {
+            eprintln!("读取 info.json 失败: {}", e);
+            return None;
+        }
+    };
+
+    // 读取 mods.json
+    let mods_list = match fs::read_to_string(&mods_path) {
+        Ok(content) => match serde_json::from_str::<G2MModsList>(&content) {
+            Ok(list) => list,
+            Err(e) => {
+                eprintln!("解析 mods.json 失败: {}", e);
+                return None;
+            }
+        },
+        Err(e) => {
+            eprintln!("读取 mods.json 失败: {}", e);
+            return None;
+        }
+    };
+
+    // 组合成 G2MGameConfig 格式（用于兼容）
+    Some(G2MGameConfig {
+        name: info.name,
+        exe: info.exe,
+        img: info.img,
+        r#type: info.r#type,
+        mods: mods_list.mods,
+    })
+}
+
+/// 写入 .G2M/info.json 和 .G2M/mods.json 文件到游戏根目录
 /// 会保留现有的 mods 字段
 pub fn write_g2m_json(
     game_dir: &str,
@@ -81,42 +180,55 @@ pub fn write_g2m_json(
     img: &Option<String>,
     game_type: &Option<String>,
 ) {
-    let game_path = Path::new(game_dir);
-    let g2m_json_path = game_path.join("g2m.json");
+    let g2m_dir = get_g2m_dir_path(game_dir);
+
+    // 创建 .G2M 目录
+    if let Err(e) = fs::create_dir_all(&g2m_dir) {
+        eprintln!("警告: 无法创建 .G2M 目录: {}", e);
+        return;
+    }
 
     // 获取或创建配置（如果不存在会自动扫描 MOD）
     let config = get_or_create_g2m_json(game_dir, name, exe, img, game_type);
     let existing_mods = config.mods;
 
-    // 创建 g2m.json 内容
-    let mut g2m_data = serde_json::json!({
-        "name": name,
-        "exe": exe,
-        "mods": existing_mods,
-    });
-
-    // 添加可选字段
-    if let Some(img_value) = img {
-        g2m_data["img"] = serde_json::Value::String(img_value.clone());
-    }
-    if let Some(type_value) = game_type {
-        g2m_data["type"] = serde_json::Value::String(type_value.clone());
-    }
-
-    match serde_json::to_string_pretty(&g2m_data) {
+    // 写入 info.json
+    let info = G2MGameInfo {
+        name: name.to_string(),
+        exe: exe.to_string(),
+        img: img.clone(),
+        r#type: game_type.clone(),
+    };
+    let info_path = g2m_dir.join("info.json");
+    match serde_json::to_string_pretty(&info) {
         Ok(json_content) => {
-            if let Err(e) = fs::write(&g2m_json_path, json_content) {
-                // 如果写入失败，记录警告但不影响游戏保存
-                eprintln!("警告: 无法在游戏目录创建 g2m.json 文件: {}", e);
+            if let Err(e) = fs::write(&info_path, json_content) {
+                eprintln!("警告: 无法在游戏目录创建 info.json 文件: {}", e);
             }
         }
         Err(e) => {
-            eprintln!("警告: 无法序列化 g2m.json 数据: {}", e);
+            eprintln!("警告: 无法序列化 info.json 数据: {}", e);
+        }
+    }
+
+    // 写入 mods.json
+    let mods_list = G2MModsList {
+        mods: existing_mods,
+    };
+    let mods_path = g2m_dir.join("mods.json");
+    match serde_json::to_string_pretty(&mods_list) {
+        Ok(json_content) => {
+            if let Err(e) = fs::write(&mods_path, json_content) {
+                eprintln!("警告: 无法在游戏目录创建 mods.json 文件: {}", e);
+            }
+        }
+        Err(e) => {
+            eprintln!("警告: 无法序列化 mods.json 数据: {}", e);
         }
     }
 }
 
-/// 从游戏目录自动识别游戏信息（用于创建 g2m.json）
+/// 从游戏目录自动识别游戏信息（用于创建 .G2M 配置）
 fn auto_detect_game_info(game_dir: &str) -> G2MGameConfig {
     let game_path = Path::new(game_dir);
     let mut config = G2MGameConfig {
@@ -169,8 +281,8 @@ fn auto_detect_game_info(game_dir: &str) -> G2MGameConfig {
     config
 }
 
-/// 添加 MOD 到 g2m.json 的 mods 列表
-/// 如果 g2m.json 不存在，会自动创建并尝试识别游戏信息
+/// 添加 MOD 到 .G2M/mods.json 的 mods 列表
+/// 如果 .G2M 目录不存在，会自动创建并尝试识别游戏信息
 pub fn add_mod_to_g2m_json(
     game_dir: &str,
     mod_name: String,
@@ -178,10 +290,10 @@ pub fn add_mod_to_g2m_json(
     mod_source_path: String,
 ) -> Result<(), String> {
     use crate::game::types::G2MModInfo;
-    let game_path = Path::new(game_dir);
-    let g2m_json_path = game_path.join("g2m.json");
+    let g2m_dir = get_g2m_dir_path(game_dir);
+    let mods_path = g2m_dir.join("mods.json");
 
-    // 读取现有的 g2m.json，如果不存在则自动识别游戏信息
+    // 读取现有的配置，如果不存在则自动识别游戏信息
     let mut config = read_g2m_json(game_dir).unwrap_or_else(|| auto_detect_game_info(game_dir));
 
     // 检查是否已存在相同的 MOD（根据 mod_source_path）
@@ -200,26 +312,35 @@ pub fn add_mod_to_g2m_json(
         mod_source_path,
     });
 
-    // 保存更新后的配置
-    match serde_json::to_string_pretty(&config) {
+    // 创建 .G2M 目录（如果不存在）
+    if let Err(e) = fs::create_dir_all(&g2m_dir) {
+        return Err(format!("创建 .G2M 目录失败: {}", e));
+    }
+
+    // 保存更新后的 mods.json
+    let mods_list = G2MModsList {
+        mods: config.mods,
+    };
+    match serde_json::to_string_pretty(&mods_list) {
         Ok(json_content) => {
-            fs::write(&g2m_json_path, json_content)
-                .map_err(|e| format!("写入 g2m.json 失败: {}", e))?;
+            fs::write(&mods_path, json_content)
+                .map_err(|e| format!("写入 mods.json 失败: {}", e))?;
             Ok(())
         }
-        Err(e) => Err(format!("序列化 g2m.json 失败: {}", e)),
+        Err(e) => Err(format!("序列化 mods.json 失败: {}", e)),
     }
 }
 
-/// 从 g2m.json 的 mods 列表中移除 MOD
+/// 从 .G2M/mods.json 的 mods 列表中移除 MOD
+#[allow(dead_code)]
 pub fn remove_mod_from_g2m_json(game_dir: &str, mod_source_path: &str) -> Result<(), String> {
-    let game_path = Path::new(game_dir);
-    let g2m_json_path = game_path.join("g2m.json");
+    let g2m_dir = get_g2m_dir_path(game_dir);
+    let mods_path = g2m_dir.join("mods.json");
 
-    // 读取现有的 g2m.json
+    // 读取现有的配置
     let mut config = match read_g2m_json(game_dir) {
         Some(c) => c,
-        None => return Err("g2m.json 文件不存在".to_string()),
+        None => return Err(".G2M 目录或配置文件不存在".to_string()),
     };
 
     // 移除指定的 MOD
@@ -230,14 +351,17 @@ pub fn remove_mod_from_g2m_json(game_dir: &str, mod_source_path: &str) -> Result
         return Err("未找到指定的 MOD".to_string());
     }
 
-    // 保存更新后的配置
-    match serde_json::to_string_pretty(&config) {
+    // 保存更新后的 mods.json
+    let mods_list = G2MModsList {
+        mods: config.mods,
+    };
+    match serde_json::to_string_pretty(&mods_list) {
         Ok(json_content) => {
-            fs::write(&g2m_json_path, json_content)
-                .map_err(|e| format!("写入 g2m.json 失败: {}", e))?;
+            fs::write(&mods_path, json_content)
+                .map_err(|e| format!("写入 mods.json 失败: {}", e))?;
             Ok(())
         }
-        Err(e) => Err(format!("序列化 g2m.json 失败: {}", e)),
+        Err(e) => Err(format!("序列化 mods.json 失败: {}", e)),
     }
 }
 
@@ -252,7 +376,6 @@ pub fn scan_installed_mods(game_dir: &str) -> Vec<G2MModInfo> {
     if cleo_dir.exists() && cleo_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&cleo_dir) {
             for entry in entries.flatten() {
-                let path = entry.path();
                 let file_name = entry.file_name();
                 let file_name_str = file_name.to_string_lossy();
 
@@ -318,7 +441,7 @@ pub fn scan_installed_mods(game_dir: &str) -> Vec<G2MModInfo> {
     mods
 }
 
-/// 获取或创建 g2m.json，如果不存在则自动扫描已安装的 MOD
+/// 获取或创建 .G2M 配置，如果不存在则自动扫描已安装的 MOD
 pub fn get_or_create_g2m_json(
     game_dir: &str,
     name: &str,

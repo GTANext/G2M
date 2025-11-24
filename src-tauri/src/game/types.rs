@@ -138,7 +138,25 @@ pub struct ModFileEntry {
     pub is_directory: bool,                  // 是否为目录
 }
 
-// g2m.json 文件结构（游戏根目录）
+// .G2M/info.json 文件结构（游戏信息）
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct G2MGameInfo {
+    pub name: String,
+    pub exe: String,
+    #[serde(default)]
+    pub img: Option<String>,
+    #[serde(default)]
+    pub r#type: Option<String>,
+}
+
+// .G2M/mods.json 文件结构（MOD列表）
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct G2MModsList {
+    #[serde(default)]
+    pub mods: Vec<G2MModInfo>,
+}
+
+// 兼容旧版本的 g2m.json 文件结构（用于迁移）
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct G2MGameConfig {
     pub name: String,
@@ -151,7 +169,7 @@ pub struct G2MGameConfig {
     pub mods: Vec<G2MModInfo>,               // MOD列表
 }
 
-// g2m.json 中的 MOD 信息
+// .G2M/mods.json 中的 MOD 信息
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct G2MModInfo {
     pub name: String,                        // MOD名称

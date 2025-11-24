@@ -137,8 +137,12 @@ export function useGameForm() {
         return false;
       }
 
-      // 直接保存游戏，图片已经是 base64 格式存储在 formData.img 中
-      await gameApi.saveGame(formData);
+      const payload = {
+        ...formData,
+        img: typeof formData.img === 'string' && formData.img.trim() !== '' ? formData.img : null
+      };
+
+      await gameApi.saveGame(payload);
       showSuccess('游戏添加成功！');
       resetForm();
       return true;

@@ -5,7 +5,7 @@ import { notification } from 'ant-design-vue'
 import { NOTIFICATION_STYLE } from '@/constants/ui'
 
 export function useBuildModConfig() {
-    const { showSuccess, showError } = useMessage()
+    const { showSuccess, showError, showWarning } = useMessage()
 
     // 表单数据
     const formData = ref<{
@@ -64,7 +64,7 @@ export function useBuildModConfig() {
                 // 加载文件树
                 await loadFileTree(response.data)
 
-                // 检查目录内是否有 g2m_mod.json 文件，如果有则自动读取配置
+                // 检查目录内是否有 g2m.json 文件，如果有则自动读取配置
                 try {
                     const configResponse: any = await tauriInvoke('read_g2m_mod_config', {
                         modDir: response.data
@@ -82,7 +82,7 @@ export function useBuildModConfig() {
                         }))
                         // 同步 targetKeys
                         targetKeys.value = formData.value.modfiles.map(f => f.source)
-                        showSuccess('已自动加载 g2m_mod.json 配置')
+                        showSuccess('已自动加载 g2m.json 配置')
                     } else {
                         // 如果没有找到配置文件，清空已添加的文件和名称
                         formData.value.name = ''
@@ -99,7 +99,7 @@ export function useBuildModConfig() {
                     // 显示信息通知
                     notification.info({
                         message: '提示',
-                        description: '未找到 g2m_mod.json 配置文件或读取失败',
+                        description: '未找到 g2m.json 配置文件或读取失败',
                         placement: 'topRight',
                         style: NOTIFICATION_STYLE,
                         duration: 3
@@ -359,6 +359,10 @@ export function useBuildModConfig() {
         }
 
         formData.value.modfiles.push(newItem)
+        // 同步 Transfer 的 targetKeys，保持数据联动
+        if (!targetKeys.value.includes(node.path)) {
+            targetKeys.value = [...targetKeys.value, node.path]
+        }
 
         // 根据目录层级排序：先按目标路径的层级深度，再按路径字母顺序
         formData.value.modfiles.sort((a, b) => {
@@ -391,6 +395,13 @@ export function useBuildModConfig() {
     // 保存配置
     const saveConfig = async () => {
         try {
+            const trimmedName = formData.value.name.trim()
+            if (!trimmedName) {
+                showWarning('标题为空请填写')
+                return
+            }
+            formData.value.name = trimmedName
+
             // 验证表单
             await formRef.value?.validate()
 
@@ -420,7 +431,7 @@ export function useBuildModConfig() {
             })
 
             if (response?.success) {
-                showSuccess('保存成功！g2m_mod.json 已创建')
+                showSuccess('保存成功！g2m.json 已创建')
                 // 可以重置表单或保持当前状态
             } else {
                 showError(response?.error || '保存失败')
@@ -457,6 +468,7 @@ export function useBuildModConfig() {
         transferDataSource,
         targetKeys,
         targetTreeData,
+        handleTransferChange,
         selectModDirectory,
         addModFile,
         removeModFile,

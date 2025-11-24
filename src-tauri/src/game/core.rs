@@ -21,12 +21,12 @@ pub async fn launch_game(
 ) -> Result<ApiResponse<()>, String> {
     let game_path = Path::new(&game_dir);
     let exe_path = game_path.join(&executable);
-
+    
     // 检查游戏目录是否存在
     if !game_path.exists() {
         return Ok(ApiResponse::error("游戏目录不存在".to_string()));
     }
-
+    
     // 检查可执行文件是否存在
     if !exe_path.exists() {
         return Ok(ApiResponse::error(format!(
@@ -34,7 +34,7 @@ pub async fn launch_game(
             executable
         )));
     }
-
+    
     // 启动游戏进程
     let result = if cfg!(target_os = "windows") && run_as_admin.unwrap_or(false) {
         // 在 Windows 上以管理员权限启动
@@ -43,7 +43,7 @@ pub async fn launch_game(
         // 普通启动
         Command::new(&exe_path).current_dir(&game_path).spawn()
     };
-
+    
     match result {
         Ok(_) => Ok(ApiResponse::success(())),
         Err(e) => {
@@ -91,12 +91,12 @@ fn launch_with_admin_privileges(
 #[tauri::command]
 pub async fn open_game_folder(game_dir: String) -> Result<ApiResponse<()>, String> {
     let game_path = Path::new(&game_dir);
-
+    
     // 检查目录是否存在
     if !game_path.exists() {
         return Ok(ApiResponse::error("游戏目录不存在".to_string()));
     }
-
+    
     // 使用 tauri_plugin_opener 打开目录
     match tauri_plugin_opener::open_path(game_path, None::<&str>) {
         Ok(_) => Ok(ApiResponse::success(())),
@@ -208,7 +208,7 @@ pub async fn save_game(
         }
     }
 
-    // 在游戏根目录生成 g2m.json 文件
+    // 在游戏根目录生成 .G2M/info.json 和 .G2M/mods.json 文件
     write_g2m_json(
         &new_game.dir,
         &new_game.name,
@@ -335,7 +335,7 @@ pub async fn update_game(
                 }
             }
         }
-
+        
         // 保存更新后的游戏列表
         match serde_json::to_string_pretty(&game_list) {
             Ok(json_content) => {
@@ -348,19 +348,25 @@ pub async fn update_game(
             }
         }
 
-        // 更新 g2m.json 文件
-        // 如果目录改变了，删除旧目录的 g2m.json（如果存在）
+        // 更新 .G2M 目录
+        // 如果目录改变了，删除旧目录的 .G2M 目录和 g2m.json（如果存在）
         if old_dir != dir {
             let old_game_path = Path::new(&old_dir);
+            // 删除旧的 .G2M 目录
+            let old_g2m_dir = old_game_path.join(".G2M");
+            if old_g2m_dir.exists() {
+                let _ = fs::remove_dir_all(&old_g2m_dir);
+            }
+            // 删除旧的 g2m.json（如果存在，用于迁移）
             let old_g2m_json_path = old_game_path.join("g2m.json");
             if old_g2m_json_path.exists() {
                 let _ = fs::remove_file(&old_g2m_json_path);
             }
         }
 
-        // 在新目录（或当前目录）写入 g2m.json
+        // 在新目录（或当前目录）写入 .G2M/info.json 和 .G2M/mods.json
         write_g2m_json(&dir, &name, &exe, &img, &r#type);
-
+        
         Ok(ApiResponse::success(()))
     } else {
         Ok(ApiResponse::error("未找到指定的游戏".to_string()))
@@ -393,7 +399,7 @@ pub async fn delete_game(id: u32, app_handle: tauri::AppHandle) -> Result<ApiRes
     // 查找要删除的游戏
     let initial_len = game_list.games.len();
     game_list.games.retain(|game| game.id != id);
-
+    
     // 检查是否找到并删除了游戏
     if game_list.games.len() == initial_len {
         return Ok(ApiResponse::error("未找到指定的游戏".to_string()));
@@ -410,7 +416,7 @@ pub async fn delete_game(id: u32, app_handle: tauri::AppHandle) -> Result<ApiRes
             return Ok(ApiResponse::error(format!("序列化游戏列表失败: {}", e)));
         }
     }
-
+    
     Ok(ApiResponse::success(()))
 }
 
@@ -526,9 +532,9 @@ pub async fn copy_game_image(
         .take(10)
         .map(char::from)
         .collect();
-
+    
     let new_filename = format!("{}_{}.{}", random_string, timestamp, extension);
-
+    
     let dest_path = custom_img_dir.join(&new_filename);
 
     // 复制文件
@@ -551,7 +557,7 @@ pub async fn install_mod_prerequisites(
     _app_handle: tauri::AppHandle,
 ) -> Result<ApiResponse<ModInstallResult>, String> {
     let game_path = Path::new(&request.game_dir);
-
+    
     if !game_path.exists() || !game_path.is_dir() {
         return Ok(ApiResponse::error("游戏目录不存在".to_string()));
     }
@@ -580,14 +586,14 @@ pub async fn install_mod_prerequisites(
         project_root.join("src-tauri").join("G2M").join("Module")
     } else {
         // 在生产环境中，使用exe文件所在目录
-        let exe_dir = std::env::current_exe()
-            .map_err(|e| format!("获取程序路径失败: {}", e))?
-            .parent()
-            .ok_or("无法获取程序目录")?
-            .to_path_buf();
+    let exe_dir = std::env::current_exe()
+        .map_err(|e| format!("获取程序路径失败: {}", e))?
+        .parent()
+        .ok_or("无法获取程序目录")?
+        .to_path_buf();
         exe_dir.join("G2M").join("Module")
     };
-
+    
     if !module_dir.exists() {
         return Ok(ApiResponse::error(format!(
             "G2M/Module 目录不存在: {}",
@@ -639,7 +645,7 @@ pub async fn install_mod_prerequisites(
     if components_to_install.contains(&"dinput8".to_string()) {
         let dinput8_source = module_dir.join("dinput8.dll");
         let dinput8_dest = game_path.join("dinput8.dll");
-
+        
         if dinput8_source.exists() {
             if let Err(e) = fs::copy(&dinput8_source, &dinput8_dest) {
                 return Ok(ApiResponse::error(format!("复制 dinput8.dll 失败: {}", e)));
@@ -663,7 +669,7 @@ pub async fn install_mod_prerequisites(
             }
             // 判断创建的目录类型
             let dir_name = if is_plugins_dir(&asi_dest_dir) {
-                plugins_created = true;
+            plugins_created = true;
                 "plugins"
             } else if is_scripts_dir(&asi_dest_dir) {
                 "scripts"
@@ -831,7 +837,7 @@ pub async fn install_mod_prerequisites(
                 return Ok(ApiResponse::error(format!("创建目录失败: {}", e)));
             }
             let dir_name = if is_plugins_dir(&redux_dest_dir) {
-                plugins_created = true;
+            plugins_created = true;
                 "plugins"
             } else if is_scripts_dir(&redux_dest_dir) {
                 "scripts"
@@ -925,15 +931,15 @@ pub async fn install_mod_prerequisites(
         };
 
         // 复制 modloader.asi 到目标目录
-        let asi_source = modloader_dir.join("modloader.asi");
+                let asi_source = modloader_dir.join("modloader.asi");
         let asi_dest = asi_dest_dir.join("modloader.asi");
-        if asi_source.exists() {
-            if let Err(e) = fs::copy(&asi_source, &asi_dest) {
+                if asi_source.exists() {
+                    if let Err(e) = fs::copy(&asi_source, &asi_dest) {
                 return Ok(ApiResponse::error(format!(
                     "复制 modloader.asi 失败: {}",
                     e
                 )));
-            }
+                    }
             let dest_path_str = if is_plugins_dir(&asi_dest_dir) {
                 "plugins/modloader.asi".to_string()
             } else if is_scripts_dir(&asi_dest_dir) {
@@ -944,20 +950,20 @@ pub async fn install_mod_prerequisites(
             installed_files.push(dest_path_str);
         } else {
             return Ok(ApiResponse::error("modloader.asi 文件不存在".to_string()));
-        }
+                }
 
-        // 复制 modloader 文件夹到游戏根目录
-        let modloader_source = modloader_dir.join("modloader");
-        let modloader_dest = game_path.join("modloader");
-        if modloader_source.exists() {
-            if let Err(e) = copy_dir_all(&modloader_source, &modloader_dest) {
+                // 复制 modloader 文件夹到游戏根目录
+                let modloader_source = modloader_dir.join("modloader");
+                let modloader_dest = game_path.join("modloader");
+                if modloader_source.exists() {
+                    if let Err(e) = copy_dir_all(&modloader_source, &modloader_dest) {
                 return Ok(ApiResponse::error(format!(
                     "复制 modloader 目录失败: {}",
                     e
                 )));
-            }
-            created_directories.push("modloader".to_string());
-        }
+                    }
+                    created_directories.push("modloader".to_string());
+                }
 
         println!(
             "已安装: ModLoader (到 {} 目录)",
@@ -965,9 +971,9 @@ pub async fn install_mod_prerequisites(
                 "plugins"
             } else if is_scripts_dir(&asi_dest_dir) {
                 "scripts"
-            } else {
+        } else {
                 "根目录"
-            }
+        }
         );
     }
 
@@ -978,7 +984,7 @@ pub async fn install_mod_prerequisites(
 
     println!(
         "安装完成，已安装 {} 个文件，创建 {} 个目录",
-        result.installed_files.len(),
+             result.installed_files.len(), 
         result.created_directories.len()
     );
 
@@ -995,7 +1001,7 @@ pub async fn save_base64_image(
     app_handle: tauri::AppHandle,
 ) -> Result<ApiResponse<CopyImageResponse>, String> {
     use base64::{engine::general_purpose, Engine as _};
-
+    
     // 获取配置目录
     let config_dir = match get_config_dir(&app_handle) {
         Ok(dir) => dir,
@@ -1042,7 +1048,7 @@ pub async fn save_base64_image(
         .take(8)
         .map(char::from)
         .collect();
-
+    
     let new_file_name = format!(
         "{}_{}.{}",
         Path::new(&file_name)
@@ -1052,7 +1058,7 @@ pub async fn save_base64_image(
         random_string,
         extension
     );
-
+    
     let target_path = custom_img_dir.join(&new_file_name);
 
     // 保存图片文件
@@ -1134,7 +1140,7 @@ pub async fn copy_image_to_custom_dir(
         .take(8)
         .map(char::from)
         .collect();
-
+    
     let new_file_name = format!("{}_{}.{}", original_name, random_string, extension);
     let target_path = custom_img_dir.join(&new_file_name);
 
@@ -1156,9 +1162,9 @@ pub async fn select_image_file(
 ) -> Result<ApiResponse<String>, String> {
     use std::sync::mpsc;
     use tauri_plugin_dialog::DialogExt;
-
+    
     let (tx, rx) = mpsc::channel();
-
+    
     app_handle
         .dialog()
         .file()
@@ -1167,7 +1173,7 @@ pub async fn select_image_file(
         .pick_file(move |path| {
             let _ = tx.send(path);
         });
-
+    
     match rx.recv() {
         Ok(Some(path)) => {
             let path_str = path.to_string();
@@ -1185,7 +1191,7 @@ pub async fn process_image_upload(
     app_handle: tauri::AppHandle,
 ) -> Result<ApiResponse<CopyImageResponse>, String> {
     use base64::{engine::general_purpose, Engine as _};
-
+    
     // 获取配置目录
     let config_dir = match get_config_dir(&app_handle) {
         Ok(dir) => dir,
@@ -1228,16 +1234,16 @@ pub async fn process_image_upload(
 
     // 生成新文件名：随机字符串+时间戳.扩展名
     let timestamp = Utc::now().timestamp();
-
+    
     // 生成10位随机字母数字字符串
     let random_string: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(10)
         .map(char::from)
         .collect();
-
+    
     let new_filename = format!("{}_{}.{}", random_string, timestamp, extension);
-
+    
     let dest_path = custom_img_dir.join(&new_filename);
 
     // 写入文件

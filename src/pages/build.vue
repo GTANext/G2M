@@ -20,6 +20,54 @@ const {
     handleFileDrop
 } = useBuildModConfig()
 
+const handleRemoveFromModfiles = (fileData) => {
+    const sourcePath = fileData?.source || fileData?.path
+    if (!sourcePath) {
+        return
+    }
+    const index = formData.value.modfiles.findIndex(f => f.source === sourcePath)
+    if (index > -1) {
+        removeModFile(index)
+    }
+}
+
+const handleUpdateTargetPath = (fileData, targetNode) => {
+    const sourcePath = fileData?.source || fileData?.path
+    if (!sourcePath) {
+        return
+    }
+    const index = formData.value.modfiles.findIndex(f => f.source === sourcePath)
+    if (index === -1) {
+        return
+    }
+
+    let newTarget = targetNode?.path || ''
+    const fileName = fileData.name || sourcePath.split('/').pop()
+
+    if (newTarget) {
+        newTarget = `${newTarget}/${fileName}`
+    } else {
+        newTarget = fileName
+    }
+
+    const updatedFiles = [...formData.value.modfiles]
+    updatedFiles[index] = {
+        ...updatedFiles[index],
+        target: newTarget
+    }
+
+    updatedFiles.sort((a, b) => {
+        const depthA = a.target.split('/').length
+        const depthB = b.target.split('/').length
+        if (depthA !== depthB) {
+            return depthA - depthB
+        }
+        return a.target.localeCompare(b.target)
+    })
+
+    formData.value.modfiles = updatedFiles
+}
+
 // 查看文件路径对话框
 const filePathDialogVisible = ref(false)
 </script>
@@ -27,10 +75,24 @@ const filePathDialogVisible = ref(false)
 <template>
     <a-card>
         <template #title>
-            <span>构建 g2m_mod.json</span>
+            <span>构建 g2m.json</span>
         </template>
 
-        <a-form ref="formRef" :model="formData" :rules="rules" layout="vertical">
+        <div v-if="!formData.modDir" :style="{ textAlign: 'center', padding: '80px 20px' }">
+            <a-empty description="请先选择 MOD 文件夹">
+                <template #image>
+                    <FolderOpenOutlined :style="{ fontSize: '64px', color: '#d9d9d9' }" />
+                </template>
+                <a-button type="primary" :loading="selectingModDir" @click="selectModDirectory" size="large">
+                    <template #icon>
+                        <FolderOpenOutlined />
+                    </template>
+                    选择 MOD 文件夹
+                </a-button>
+            </a-empty>
+        </div>
+
+        <a-form v-else ref="formRef" :model="formData" :rules="rules" layout="vertical">
             <a-form-item label="MOD文件夹" name="modDir" required>
                 <a-input-group compact>
                     <a-input v-model:value="formData.modDir" placeholder="请选择 MOD 文件夹" :readonly="true"
@@ -58,80 +120,29 @@ const filePathDialogVisible = ref(false)
             </a-row>
 
             <a-form-item label="文件映射" required>
-                <a-row :gutter="16" :style="{ minHeight: '400px' }">
-                    <a-col :span="12">
-                        <a-card size="small" title="MOD 文件树" :style="{ height: '100%' }">
+                <a-row :gutter="16" :style="{ minHeight: '420px' }">
+                    <a-col :span="12" :style="{ height: '420px' }">
+                        <a-card size="small" class="mapping-card" title="MOD 文件树">
                             <template #extra>
                                 <a-spin :spinning="loadingFileTree" />
                             </template>
-                            <FileTree :tree="fileTree" :added-files="formData.modfiles" @drag-start="() => { }" @remove="(fileData) => {
-                                const index = formData.modfiles.findIndex(f => f.source === fileData.path)
-                                if (index > -1) {
-                                    removeModFile(index)
-                                }
-                            }" />
+                            <div class="tree-scroll">
+                                <FileTree :tree="fileTree" :added-files="formData.modfiles" @drag-start="() => { }"
+                                    @remove="handleRemoveFromModfiles" />
+                            </div>
                         </a-card>
                     </a-col>
-                    <a-col :span="12">
-                        <a-card size="small" :style="{ height: '100%' }">
-                            <DropTarget :mod-name="formData.name" :added-files="formData.modfiles"
-                                @drop="handleFileDrop" @remove="(fileData) => {
-                                    const index = formData.modfiles.findIndex(f => f.source === fileData.path)
-                                    if (index > -1) {
-                                        removeModFile(index)
-                                    }
-                                }" @update-target="(fileData, targetNode) => {
-                                    // fileData 是从 addedFiles 中来的，结构是 { source, target, isDirectory }
-                                    // 但拖拽时传递的可能是原始数据 { path, name, is_directory }
-                                    const sourcePath = fileData.source || fileData.path
-                                    const index = formData.modfiles.findIndex(f => f.source === sourcePath)
-
-                                    if (index > -1) {
-                                        // 更新目标路径
-                                        let newTarget = targetNode.path || ''
-                                        const isDirectory = fileData.isDirectory !== undefined ? fileData.isDirectory : (fileData.is_directory !== undefined ? fileData.is_directory : false)
-                                        const fileName = fileData.name || sourcePath.split('/').pop()
-
-                                        if (isDirectory) {
-                                            if (newTarget) {
-                                                newTarget = `${newTarget}/${fileName}`
-                                            } else {
-                                                newTarget = fileName
-                                            }
-                                        } else {
-                                            if (newTarget) {
-                                                newTarget = `${newTarget}/${fileName}`
-                                            } else {
-                                                newTarget = fileName
-                                            }
-                                        }
-
-                                        // 使用 Vue 3 的响应式更新方式
-                                        const updatedFiles = [...formData.modfiles]
-                                        updatedFiles[index] = {
-                                            ...updatedFiles[index],
-                                            target: newTarget
-                                        }
-
-                                        // 重新排序
-                                        updatedFiles.sort((a, b) => {
-                                            const depthA = a.target.split('/').length
-                                            const depthB = b.target.split('/').length
-                                            if (depthA !== depthB) {
-                                                return depthA - depthB
-                                            }
-                                            return a.target.localeCompare(b.target)
-                                        })
-
-                                        // 替换整个数组以触发响应式更新
-                                        formData.modfiles = updatedFiles
-                                    }
-                                }" />
+                    <a-col :span="12" :style="{ height: '420px' }">
+                        <a-card size="small" class="mapping-card" title="游戏目录">
+                            <div class="tree-scroll">
+                                <DropTarget :mod-name="formData.name" :added-files="formData.modfiles"
+                                    :mod-tree="fileTree" @drop="handleFileDrop" @remove="handleRemoveFromModfiles"
+                                    @update-target="handleUpdateTargetPath" />
+                            </div>
                         </a-card>
                     </a-col>
                 </a-row>
             </a-form-item>
-
 
             <a-form-item>
                 <a-space>
@@ -154,7 +165,6 @@ const filePathDialogVisible = ref(false)
             </a-form-item>
         </a-form>
 
-        <!-- 文件路径查看对话框 -->
         <a-modal v-model:open="filePathDialogVisible" title="文件路径映射" :width="800" :footer="null">
             <a-table :columns="[
                 {
@@ -188,8 +198,21 @@ const filePathDialogVisible = ref(false)
     flex-direction: column;
 }
 
-:deep(.ant-card-body > div) {
+:deep(.mapping-card) {
+    height: 100%;
+}
+
+:deep(.mapping-card .ant-card-body) {
+    height: 100%;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+:deep(.mapping-card .tree-scroll) {
     flex: 1;
-    overflow: hidden;
+    overflow: auto;
+    overflow-x: hidden;
+    margin-bottom: 35px;
 }
 </style>

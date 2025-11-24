@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { FolderOutlined, FileOutlined } from '@ant-design/icons-vue'
 
 const props = defineProps({
     modName: {
@@ -13,10 +14,70 @@ const props = defineProps({
     gameDir: {
         type: String,
         default: ''
+    },
+    modTree: {
+        type: Array,
+        default: () => []
     }
 })
 
 const emit = defineEmits(['drop', 'remove', 'update-target'])
+
+const sortTreeNodes = (nodes = []) => {
+    nodes.sort((a, b) => {
+        // 判断是否为文件夹：
+        // 1. 明确标记为 isFolder 的节点（系统文件夹如 CLEO、plugins 等）
+        // 2. 有 fileData 且 fileData.isDirectory 为 true 的节点（用户添加的文件夹）
+        // 3. 没有 fileData 但有 children 的节点（系统文件夹）
+        const aIsFolder = a.isFolder || (a.fileData?.isDirectory === true) || (!a.fileData && !!a.children && a.children.length > 0)
+        const bIsFolder = b.isFolder || (b.fileData?.isDirectory === true) || (!b.fileData && !!b.children && b.children.length > 0)
+
+        if (aIsFolder !== bIsFolder) {
+            return aIsFolder ? -1 : 1
+        }
+
+        return (a.title || '').localeCompare(b.title || '')
+    })
+
+    nodes.forEach(node => {
+        if (node.children && node.children.length > 0) {
+            sortTreeNodes(node.children)
+        }
+    })
+}
+
+const findNodeInModTree = (nodes = [], targetPath) => {
+    for (const node of nodes) {
+        if (node.path === targetPath) {
+            return node
+        }
+        if (node.children && node.children.length > 0) {
+            const found = findNodeInModTree(node.children, targetPath)
+            if (found) {
+                return found
+            }
+        }
+    }
+    return null
+}
+
+const convertModChildrenToPreview = (children = [], parentNode) => {
+    return children.map(child => {
+        const childNode = {
+            key: `preview-${parentNode.key}-${child.path || child.name}`,
+            title: child.name,
+            path: child.path || child.name,
+            isLeaf: !child.is_directory,
+            preview: true
+        }
+
+        if (child.children && child.children.length > 0) {
+            childNode.children = convertModChildrenToPreview(child.children, childNode)
+        }
+
+        return childNode
+    })
+}
 
 // 构建目标文件夹树结构：根目录下包含 CLEO、CLEO Redux、plugins、scripts、modloader
 const buildTargetTree = () => {
@@ -188,8 +249,13 @@ const buildTargetTree = () => {
                 }
             })
 
-            // 即使没有子文件，文件夹也应该可以展开（isLeaf: false）
-            // 这样用户可以看到文件夹结构
+            if (fileNode.children.length === 0) {
+                const originalNode = findNodeInModTree(props.modTree, file.source)
+                if (originalNode && originalNode.children) {
+                    fileNode.children = convertModChildrenToPreview(originalNode.children, fileNode)
+                    fileNode.hasPreviewChildren = true
+                }
+            }
         }
 
         // 找到或创建目标节点
@@ -223,13 +289,21 @@ const buildTargetTree = () => {
         }
     })
 
+    // 仅对根目录文件排序，保留系统文件夹的固定顺序
+    sortTreeNodes(rootFiles)
+    children.forEach(child => {
+        if (child.children && child.children.length > 0) {
+            sortTreeNodes(child.children)
+        }
+    })
+
     return [
         {
             key: 'root',
             title: '根目录',
             path: '',
             isLeaf: false,
-            children: rootFiles.length > 0 ? [...rootFiles, ...children] : children
+            children: rootFiles.length > 0 ? [...children, ...rootFiles] : children
         }
     ]
 }
@@ -342,7 +416,7 @@ const handleDrop = (e, node) => {
             // 判断是否是文件夹节点
             // 1没有 fileData 属性（不是文件节点）
             // 是根目录（key === 'root'）或者是文件夹节点（isLeaf === false 或有 children）
-            const isFolderNode = !node.fileData && (
+            const isFolderNode = !node.fileData && !node.preview && (
                 node.key === 'root' ||
                 node.isLeaf === false ||
                 (node.children !== undefined)
@@ -395,9 +469,9 @@ const handleFileDragStart = (e, fileData) => {
 // 处理文件拖拽结束
 const handleFileDragEnd = (e) => {
     e.stopPropagation()
-    if (typeof window !== 'undefined' && window.__dragRemoveData) {
-        delete window.__dragRemoveData
-    }
+    // 不在 dragend 时删除数据，让 drop 事件处理完后再删除
+    // 这样可以确保拖拽到 FileTree 时能正确获取数据
+    // 数据会在 handleDrop 中成功处理后删除，或者在 FileTree 的 handleDrop 中删除
 }
 </script>
 
@@ -405,7 +479,7 @@ const handleFileDragEnd = (e) => {
     <div data-tauri-drag-region="false" style="height: 100%;">
         <a-tree :key="treeKey" :tree-data="targetTreeData" v-model:expandedKeys="expandedKeys" block-node>
             <template #title="{ dataRef }">
-                <div :draggable="dataRef.fileData ? true : false" @dragstart="(e) => {
+                <div class="drop-node" :draggable="dataRef.fileData ? true : false" @dragstart="(e) => {
                     if (dataRef.fileData) {
                         handleFileDragStart(e, dataRef.fileData)
                     }
@@ -419,9 +493,37 @@ const handleFileDragEnd = (e) => {
                         cursor: dataRef.fileData ? 'move' : 'default',
                         userSelect: 'none'
                     }">
-                    {{ dataRef.title }}
+                    <div class="node-left">
+                        <component :is="dataRef.fileData?.isDirectory ? FolderOutlined : FileOutlined"
+                            v-if="dataRef.fileData" class="node-icon" />
+                        <span class="node-title">{{ dataRef.title }}</span>
+                    </div>
+                    <div class="node-actions" v-if="dataRef.fileData"></div>
                 </div>
             </template>
         </a-tree>
     </div>
 </template>
+
+<style scoped>
+.drop-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.node-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.node-icon {
+    font-size: 14px;
+}
+
+.node-title {
+    flex: 1;
+}
+</style>
