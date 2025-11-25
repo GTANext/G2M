@@ -2,7 +2,6 @@ import { defineConfig } from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  base: "/G2M/",
   lang: 'zh-CN',
   title: "G2M",
   description: "可视化管理III.VC.SA的MOD",
