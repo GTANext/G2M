@@ -1,11 +1,14 @@
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { tauriInvoke } from '@/utils/tauri';
 import { useMessage } from '@/composables/ui/useMessage';
 
 export function useGameApi() {
   const { showError } = useMessage();
   // 加载状态
-  const loadingState: any = ref({ loading: false, error: null });
+  const loadingState = reactive({
+    loading: false,
+    error: null as string | null
+  });
 
   // 游戏列表 
   const games: any = ref([]);
@@ -13,24 +16,24 @@ export function useGameApi() {
   // 获取游戏列表
   const getGames = async (): Promise<any> => {
     try {
-      loadingState.value.loading = true;
-      loadingState.value.error = null;
+      loadingState.loading = true;
+      loadingState.error = null;
 
       const response: any = await tauriInvoke('get_games');
 
       if (response?.success && response?.data) {
         games.value = response.data;
       } else {
-        loadingState.value.error = response?.error || '获取游戏列表失败';
+        loadingState.error = response?.error || '获取游戏列表失败';
       }
 
       return response;
     } catch (error) {
       showError('获取游戏列表失败');
-      loadingState.value.error = '获取游戏列表失败';
+      loadingState.error = '获取游戏列表失败';
       throw error;
     } finally {
-      loadingState.value.loading = false;
+      loadingState.loading = false;
     }
   };
 

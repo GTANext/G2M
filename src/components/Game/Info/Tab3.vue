@@ -15,7 +15,7 @@ const { showError, showWarning } = useMessage();
 
 // MOD列表
 const mods = ref([]);
-const loading = computed(() => modApi.loadingState.value.loading);
+const loading = computed(() => modApi.loadingState.loading);
 
 // 拖拽状态
 const isDragging = ref(false);

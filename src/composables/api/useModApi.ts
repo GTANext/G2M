@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { tauriInvoke } from '@/utils/tauri';
 import { useMessage } from '@/composables/ui/useMessage';
 
@@ -22,15 +22,18 @@ export interface UserModInstallResult {
 
 export function useModApi() {
   const { showError, showSuccess } = useMessage();
-  const loadingState = ref({ loading: false, error: null as string | null });
+  const loadingState = reactive({
+    loading: false,
+    error: null as string | null
+  });
 
   /**
    * 获取游戏目录下的已安装MOD列表
    */
   const getGameMods = async (gameDir: string): Promise<G2MModInfo[]> => {
     try {
-      loadingState.value.loading = true;
-      loadingState.value.error = null;
+      loadingState.loading = true;
+      loadingState.error = null;
 
       const response: any = await tauriInvoke('get_game_mods', { gameDir });
 
@@ -39,18 +42,18 @@ export function useModApi() {
       } else {
         const errorMsg = response?.error || '获取MOD列表失败';
         const detailMsg = `游戏目录: ${gameDir}\n错误: ${errorMsg}`;
-        loadingState.value.error = errorMsg;
+        loadingState.error = errorMsg;
         showError('获取MOD列表失败', { detail: detailMsg });
         return [];
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       const detailMsg = `游戏目录: ${gameDir}\n错误: ${errorMsg}`;
-      loadingState.value.error = errorMsg;
+      loadingState.error = errorMsg;
       showError('获取MOD列表失败', { detail: detailMsg });
       return [];
     } finally {
-      loadingState.value.loading = false;
+      loadingState.loading = false;
     }
   };
 
@@ -59,8 +62,8 @@ export function useModApi() {
    */
   const installUserMod = async (request: UserModInstallRequest): Promise<UserModInstallResult | null> => {
     try {
-      loadingState.value.loading = true;
-      loadingState.value.error = null;
+      loadingState.loading = true;
+      loadingState.error = null;
 
       const response: any = await tauriInvoke('install_user_mod', { request });
 
@@ -70,18 +73,18 @@ export function useModApi() {
       } else {
         const errorMsg = response?.error || '安装MOD失败';
         const detailMsg = `MOD名称: ${request.mod_name}\n源路径: ${request.mod_source_path}\n游戏目录: ${request.game_dir}\n错误: ${errorMsg}`;
-        loadingState.value.error = errorMsg;
+        loadingState.error = errorMsg;
         showError('安装MOD失败', { detail: detailMsg });
         return null;
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       const detailMsg = `MOD名称: ${request.mod_name}\n源路径: ${request.mod_source_path}\n游戏目录: ${request.game_dir}\n错误: ${errorMsg}`;
-      loadingState.value.error = errorMsg;
+      loadingState.error = errorMsg;
       showError('安装MOD失败', { detail: detailMsg });
       return null;
     } finally {
-      loadingState.value.loading = false;
+      loadingState.loading = false;
     }
   };
 
