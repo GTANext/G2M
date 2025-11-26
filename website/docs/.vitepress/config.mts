@@ -42,8 +42,53 @@ export default defineConfig({
     // 顶部栏
     nav: [
       { text: "首页", link: "/" },
+      {
+        text: 'API 文档',
+        items: [
+          { text: '概览', link: '/api/overview' },
+          { text: '后端 API', link: '/api/backend' },
+          { text: '前端 API', link: '/api/frontend' },
+          { text: '类型定义', link: '/api/types' },
+          { text: '使用示例', link: '/api/examples' },
+        ],
+      },
       { text: "哔哩哔哩", link: "https://space.bilibili.com/435502585" }
     ],
+
+    
+    // 侧边栏
+    sidebar: {
+      '/api/': [
+        {
+          base: '/api/',
+          text: 'API 文档',
+          link: 'overview',
+          items: [
+            {
+              text: '概览',
+              link: 'overview',
+            },
+            {
+              text: '后端 API',
+              link: 'backend',
+            },
+            {
+              text: '前端 API',
+              link: 'frontend',
+            },
+            {
+              text: '类型定义',
+              link: 'types',
+            },
+            {
+              text: '使用示例',
+              link: 'examples',
+            },
+          ],
+        },
+      ],
+    },
+
 
     // 社交链接
     socialLinks: [

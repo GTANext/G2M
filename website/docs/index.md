@@ -15,8 +15,8 @@ hero:
     alt: GTAMODX
   actions:
     - theme: brand
-      text: 阅读文档
-      link: /quickstart
+      text: API 文档
+      link: /api/overview
     - theme: alt
       text: GitHub↗
       link: https://github.com/GTANext/G2M
