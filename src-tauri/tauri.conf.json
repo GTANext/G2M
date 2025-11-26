@@ -12,10 +12,10 @@
   "app": {
     "windows": [
       {
-        "title": "G2M",
+        "title": "G2M: 可视化管理III.VC.SA的MOD/CLEO",
         "width": 1200,
         "height": 680,
-        "decorations": "可视化管理III.VC.SA的MOD/CLEO",
+        "decorations": false,
         "resizable": true,
         "visible": true,
         "center": true,
