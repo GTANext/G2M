@@ -26,6 +26,81 @@ fn check_dir_conflict(dest_path: &Path) -> bool {
     }
 }
 
+/// 安装 MOD 到指定目录
+/// 将 MOD 文件/目录复制到用户指定的游戏目录子目录
+fn install_mod_to_directory(
+    mod_source_path: &Path,
+    game_dir: &Path,
+    target_directory: &str,
+    _mod_name: &str,
+    overwrite: bool,
+) -> Result<UserModInstallResult, String> {
+    let mut installed_files = Vec::new();
+    let mut created_directories = Vec::new();
+
+    // 构建目标目录路径（相对于游戏目录）
+    let target_dir = game_dir.join(target_directory);
+
+    // 确保目标目录存在
+    if !target_dir.exists() {
+        fs::create_dir_all(&target_dir)
+            .map_err(|e| format!("创建目标目录失败: {}\n目标路径: {}", e, target_dir.display()))?;
+        created_directories.push(target_directory.to_string());
+    }
+
+    // 处理源路径
+    if mod_source_path.is_file() {
+        // 处理单个文件
+        let file_name = mod_source_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or("无法获取文件名")?;
+
+        let dest = target_dir.join(file_name);
+
+        // 检查冲突
+        if dest.exists() && !overwrite {
+            return Err(format!(
+                "文件冲突: {}/{} 已存在，请选择是否覆盖",
+                target_directory, file_name
+            ));
+        }
+
+        fs::copy(mod_source_path, &dest)
+            .map_err(|e| format!("复制文件失败: {}\n目标路径: {}", e, dest.display()))?;
+
+        installed_files.push(format!("{}/{}", target_directory, file_name));
+    } else if mod_source_path.is_dir() {
+        // 处理目录
+        let dir_name = mod_source_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or("无法获取目录名")?;
+
+        let dest = target_dir.join(dir_name);
+
+        // 检查冲突（对于目录，检查是否存在且非空）
+        if check_dir_conflict(&dest) && !overwrite {
+            return Err(format!(
+                "目录冲突: {}/{} 已存在且非空，请选择是否覆盖",
+                target_directory, dir_name
+            ));
+        }
+
+        copy_dir_all(mod_source_path, &dest)
+            .map_err(|e| format!("复制目录失败: {}\n目标路径: {}", e, dest.display()))?;
+
+        installed_files.push(format!("{}/{}", target_directory, dir_name));
+    } else {
+        return Err("源路径既不是文件也不是目录".to_string());
+    }
+
+    Ok(UserModInstallResult {
+        installed_files,
+        created_directories,
+    })
+}
+
 /// 自动识别并安装 MOD 文件
 /// 根据游戏目录结构和文件类型自动选择安装位置
 fn auto_install_mod(
@@ -398,6 +473,130 @@ fn install_mod_with_config(
     })
 }
 
+fn classify_install_type(path: &str) -> Option<String> {
+    let lowered = path.to_lowercase();
+    if lowered.starts_with("plugins/cleo") {
+        Some("cleo_redux".to_string())
+    } else if lowered.starts_with("cleo/") || lowered.ends_with(".cs") {
+        Some("cleo".to_string())
+    } else if lowered.starts_with("modloader/") {
+        Some("modloader".to_string())
+    } else if lowered.ends_with(".asi") {
+        Some("asi".to_string())
+    } else if lowered.ends_with(".dll") {
+        Some("dll".to_string())
+    } else {
+        None
+    }
+}
+
+/// 从路径中提取原始文件名（去掉 [MOD名称] 前缀）
+fn extract_original_filename(path: &str) -> String {
+    let file_name = path.split('/').last().unwrap_or(path);
+    
+    // 如果文件名以 [ 开头，尝试提取原始文件名
+    if file_name.starts_with('[') {
+        // 查找第一个 ] 的位置
+        if let Some(end_bracket) = file_name.find(']') {
+            // 提取 ] 之后的部分作为原始文件名
+            let original = &file_name[end_bracket + 1..];
+            if !original.is_empty() {
+                return original.to_string();
+            }
+        }
+    }
+    
+    // 如果路径包含 modloader/[MOD名称]/，需要提取最后一个文件名部分
+    // 例如：modloader/[MOD名称]/[MOD名称]文件名 -> 文件名
+    if path.contains("modloader/") || path.contains("modloader\\") {
+        // 如果文件名仍然包含 [MOD名称] 前缀，再次提取
+        if file_name.starts_with('[') {
+            if let Some(end_bracket) = file_name.find(']') {
+                let original = &file_name[end_bracket + 1..];
+                if !original.is_empty() {
+                    return original.to_string();
+                }
+            }
+        }
+    }
+    
+    file_name.to_string()
+}
+
+/// 将实际路径转换为变量格式，如 "${cleo}/文件名.cs"
+fn convert_path_to_variable_format(path: &str, r#type: Option<&String>) -> Option<String> {
+    let normalized = path.replace('\\', "/");
+    
+    // 确定变量名
+    let var_name = if let Some(typ) = r#type {
+        match typ.as_str() {
+            "cleo" => "cleo",
+            "cleo_redux" => "cleo_redux",
+            "modloader" => "modloader",
+            "asi" => "asi",
+            "dll" => "dll",
+            _ => {
+                // 根据路径特征推断
+                let lower = normalized.to_lowercase();
+                if lower.starts_with("plugins/cleo") {
+                    "cleo_redux"
+                } else if lower.starts_with("cleo/") || lower.ends_with(".cs") {
+                    "cleo"
+                } else if lower.starts_with("modloader/") {
+                    "modloader"
+                } else if lower.ends_with(".asi") {
+                    "asi"
+                } else if lower.ends_with(".dll") {
+                    "dll"
+                } else {
+                    return Some(normalized); // 无法识别，返回原路径
+                }
+            }
+        }
+    } else {
+        // 没有type，根据路径特征推断
+        let lower = normalized.to_lowercase();
+        if lower.starts_with("plugins/cleo") {
+            "cleo_redux"
+        } else if lower.starts_with("cleo/") || lower.ends_with(".cs") {
+            "cleo"
+        } else if lower.starts_with("modloader/") {
+            "modloader"
+        } else if lower.ends_with(".asi") {
+            "asi"
+        } else if lower.ends_with(".dll") {
+            "dll"
+        } else {
+            return Some(normalized); // 无法识别，返回原路径
+        }
+    };
+    
+    // 提取原始文件名（去掉 [MOD名称] 前缀）
+    let original_file_name = extract_original_filename(&normalized);
+    
+    // 生成变量格式路径
+    Some(format!("${{{}}}/{}", var_name, original_file_name))
+}
+
+fn summarize_install_metadata(result: &UserModInstallResult) -> (Option<String>, Option<String>) {
+    let primary = result
+        .installed_files
+        .first()
+        .cloned()
+        .or_else(|| result.created_directories.first().cloned());
+    let normalized = primary.as_ref().map(|path| path.replace('\\', "/"));
+    let r#type = normalized
+        .as_ref()
+        .and_then(|path| classify_install_type(path));
+    
+    // 将路径转换为变量格式
+    let variable_path = normalized
+        .as_ref()
+        .and_then(|path| convert_path_to_variable_format(path, r#type.as_ref()));
+    
+    (r#type, variable_path)
+}
+
 /// 安装用户 MOD
 #[tauri::command]
 pub async fn install_user_mod(
@@ -448,7 +647,7 @@ pub async fn install_user_mod(
     let config = load_g2m_mod_config(mod_source_path);
 
     let result = if let Some(config) = config {
-        // 使用配置文件安装
+        // 有 g2m.json：直接读取配置并执行文件复制操作
         let install_result =
             install_mod_with_config(mod_source_path, game_dir, &config).map_err(|e| {
                 format!(
@@ -457,20 +656,50 @@ pub async fn install_user_mod(
                 )
             })?;
 
-        // 记录 MOD 到 g2m.json
-        let mod_source_path_str = mod_source_path.to_string_lossy().to_string();
+        // 记录 MOD 到 .gtamodx/mods.json
+        let (r#type, install_hint) = summarize_install_metadata(&install_result);
         if let Err(e) = add_mod_to_g2m_json(
             &request.game_dir,
             config.name.clone(),
             config.author.clone(),
-            mod_source_path_str,
+            r#type,
+            install_hint,
+        ) {
+            eprintln!("警告: 无法将 MOD 记录到 .gtamodx/mods.json: {}", e);
+        }
+
+        install_result
+    } else if let Some(ref target_dir) = request.target_directory {
+        // 没有 g2m.json，但用户指定了目标目录：安装到指定目录
+        let install_result = install_mod_to_directory(
+            mod_source_path,
+            game_dir,
+            target_dir,
+            &request.mod_name,
+            request.overwrite,
+        )
+        .map_err(|e| {
+            format!(
+                "安装 MOD 到指定目录失败\nMOD名称: {}\n源路径: {}\n游戏目录: {}\n目标目录: {}\n错误详情: {}",
+                request.mod_name, mod_source_path_str, game_dir_str, target_dir, e
+            )
+        })?;
+
+        // 记录 MOD 到 .gtamodx/mods.json（没有 author 信息）
+        let (r#type, install_hint) = summarize_install_metadata(&install_result);
+        if let Err(e) = add_mod_to_g2m_json(
+            &request.game_dir,
+            request.mod_name.clone(),
+            None,
+            r#type,
+            install_hint,
         ) {
             eprintln!("警告: 无法将 MOD 记录到 .gtamodx/mods.json: {}", e);
         }
 
         install_result
     } else {
-        // 自动识别安装
+        // 没有 g2m.json，也没有指定目标目录：自动检测文件后缀
         let install_result = auto_install_mod(
             mod_source_path,
             game_dir,
@@ -479,18 +708,19 @@ pub async fn install_user_mod(
         )
         .map_err(|e| {
             format!(
-                "自动安装 MOD 失败\nMOD名称: {}\n源路径: {}\n游戏目录: {}\n错误详情: {}",
+                "自动安装 MOD 失败\nMOD名称: {}\n源路径: {}\n游戏目录: {}\n错误详情: {}\n\n提示: 如果自动检测失败，请手动选择安装目录",
                 request.mod_name, mod_source_path_str, game_dir_str, e
             )
         })?;
 
-        // 记录 MOD 到 g2m.json（没有 author 信息）
-        let mod_source_path_str = mod_source_path.to_string_lossy().to_string();
+        // 记录 MOD 到 .gtamodx/mods.json（没有 author 信息）
+        let (r#type, install_hint) = summarize_install_metadata(&install_result);
         if let Err(e) = add_mod_to_g2m_json(
             &request.game_dir,
             request.mod_name.clone(),
             None,
-            mod_source_path_str,
+            r#type,
+            install_hint,
         ) {
             eprintln!("警告: 无法将 MOD 记录到 .gtamodx/mods.json: {}", e);
         }

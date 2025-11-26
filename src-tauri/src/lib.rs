@@ -24,7 +24,7 @@ use game::prerequisites::{
     select_custom_prerequisite_files, select_mod_loader_file, unmark_mod_loader_manual,
 };
 
-use mod_core::{get_mod_file_tree, install_user_mod, read_g2m_mod_config, save_g2m_mod_config, select_mod_directory, select_mod_files};
+use mod_core::{get_mod_file_tree, install_user_mod, read_g2m_mod_config, save_g2m_mod_config, select_game_install_directory, select_mod_directory, select_mod_files};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -80,7 +80,8 @@ pub fn run() -> () {
             read_g2m_mod_config,
             get_mod_file_tree,
             select_mod_directory,
-            select_mod_files
+            select_mod_files,
+            select_game_install_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

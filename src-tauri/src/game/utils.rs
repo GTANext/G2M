@@ -195,13 +195,16 @@ pub fn read_g2m_json(game_dir: &str) -> Option<G2MGameConfig> {
         }
     };
 
+    let mut mods = mods_list.mods;
+    sanitize_mod_entries(&mut mods);
+
     // 组合成 G2MGameConfig 格式（用于兼容）
     Some(G2MGameConfig {
         name: info.name,
         exe: info.exe,
         img: info.img,
         r#type: info.r#type,
-        mods: mods_list.mods,
+        mods,
     })
 }
 
@@ -224,7 +227,8 @@ pub fn write_g2m_json(
     ensure_hidden_attribute(&g2m_dir);
 
     // 获取或创建配置（如果不存在会自动扫描 MOD）
-    let config = get_or_create_g2m_json(game_dir, name, exe, img, game_type);
+    let mut config = get_or_create_g2m_json(game_dir, name, exe, img, game_type);
+    sanitize_mod_entries(&mut config.mods);
     let existing_mods = config.mods;
 
     // 写入 info.json
@@ -318,33 +322,115 @@ fn auto_detect_game_info(game_dir: &str) -> G2MGameConfig {
 
 /// 添加 MOD 到 .gtamodx/mods.json 的 mods 列表
 /// 如果 .gtamodx 目录不存在，会自动创建并尝试识别游戏信息
+fn normalize_install_path(path: Option<String>) -> Option<String> {
+    path.and_then(|raw| {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let normalized = trimmed.replace('\\', "/");
+        if normalized.contains(':') {
+            None
+        } else {
+            Some(normalized)
+        }
+    })
+}
+
+fn normalize_type(r#type: Option<String>) -> Option<String> {
+    r#type
+        .map(|t| t.trim().to_lowercase())
+        .and_then(|t| if t.is_empty() { None } else { Some(t) })
+}
+
+fn detect_type_from_path(path: &str) -> Option<String> {
+    let lowered = path.replace('\\', "/").to_lowercase();
+    if lowered.starts_with("plugins/cleo") {
+        Some("cleo_redux".to_string())
+    } else if lowered.starts_with("cleo/") || lowered.ends_with(".cs") {
+        Some("cleo".to_string())
+    } else if lowered.starts_with("modloader/") {
+        Some("modloader".to_string())
+    } else if lowered.ends_with(".asi") {
+        Some("asi".to_string())
+    } else if lowered.ends_with(".dll") {
+        Some("dll".to_string())
+    } else {
+        None
+    }
+}
+
+fn sanitize_mod_entries(mods: &mut Vec<G2MModInfo>) {
+    // 为没有ID的MOD生成数字ID
+    let mut max_id = 0u32;
+    for entry in mods.iter() {
+        if entry.id > max_id {
+            max_id = entry.id;
+        }
+    }
+    
+    for entry in mods.iter_mut() {
+        // 如果MOD没有ID（id为0），生成一个
+        if entry.id == 0 {
+            max_id += 1;
+            entry.id = max_id;
+        }
+        entry.install_path = normalize_install_path(entry.install_path.clone());
+        entry.r#type = normalize_type(entry.r#type.clone()).or_else(|| {
+            entry
+                .install_path
+                .as_ref()
+                .and_then(|path| detect_type_from_path(path))
+        });
+    }
+}
+
 pub fn add_mod_to_g2m_json(
     game_dir: &str,
     mod_name: String,
     mod_author: Option<String>,
-    mod_source_path: String,
+    r#type: Option<String>,
+    install_path: Option<String>,
 ) -> Result<(), String> {
     use crate::game::types::G2MModInfo;
+    
     let g2m_dir = get_g2m_dir_path(game_dir);
     let mods_path = g2m_dir.join("mods.json");
 
     // 读取现有的配置，如果不存在则自动识别游戏信息
     let mut config = read_g2m_json(game_dir).unwrap_or_else(|| auto_detect_game_info(game_dir));
+    sanitize_mod_entries(&mut config.mods);
 
-    // 检查是否已存在相同的 MOD（根据 mod_source_path）
-    if config
-        .mods
-        .iter()
-        .any(|m| m.mod_source_path == mod_source_path)
-    {
+    let normalized_install_path = normalize_install_path(install_path);
+    let normalized_type = normalize_type(r#type).or_else(|| {
+        normalized_install_path
+            .as_ref()
+            .and_then(|path| detect_type_from_path(path))
+    });
+
+    // 生成唯一ID（基于现有MOD数量 + 1，类似游戏列表）
+    let mod_id = if config.mods.is_empty() {
+        1
+    } else {
+        config.mods.iter().map(|m| m.id).max().unwrap_or(0) + 1
+    };
+
+    // 检查是否已存在相同的 MOD（同名且安装路径一致）
+    if config.mods.iter().any(|m| {
+        m.name == mod_name
+            && (m.install_path.is_none() && normalized_install_path.is_none()
+                || m.install_path == normalized_install_path)
+    }) {
         return Err("MOD 已存在于列表中".to_string());
     }
 
-    // 添加新的 MOD
+    // 添加新的 MOD（每次安装都生成新的唯一数字ID）
     config.mods.push(G2MModInfo {
+        id: mod_id,
         name: mod_name,
         author: mod_author,
-        mod_source_path,
+        r#type: normalized_type,
+        install_path: normalized_install_path,
     });
 
     // 创建 .gtamodx 目录（如果不存在）
@@ -367,7 +453,11 @@ pub fn add_mod_to_g2m_json(
 
 /// 从 .gtamodx/mods.json 的 mods 列表中移除 MOD
 #[allow(dead_code)]
-pub fn remove_mod_from_g2m_json(game_dir: &str, mod_source_path: &str) -> Result<(), String> {
+pub fn remove_mod_from_g2m_json(
+    game_dir: &str,
+    mod_name: &str,
+    install_path: Option<&str>,
+) -> Result<(), String> {
     let g2m_dir = get_g2m_dir_path(game_dir);
     let mods_path = g2m_dir.join("mods.json");
 
@@ -376,10 +466,19 @@ pub fn remove_mod_from_g2m_json(game_dir: &str, mod_source_path: &str) -> Result
         Some(c) => c,
         None => return Err(".gtamodx 目录或配置文件不存在".to_string()),
     };
+    sanitize_mod_entries(&mut config.mods);
 
     // 移除指定的 MOD
     let initial_len = config.mods.len();
-    config.mods.retain(|m| m.mod_source_path != mod_source_path);
+    config.mods.retain(|m| {
+        let same_name = m.name == mod_name;
+        let same_path = match (m.install_path.as_deref(), install_path) {
+            (None, None) => true,
+            (Some(existing), Some(target)) => existing == target,
+            _ => false,
+        };
+        !(same_name && same_path)
+    });
 
     if config.mods.len() == initial_len {
         return Err("未找到指定的 MOD".to_string());
@@ -416,17 +515,24 @@ pub fn scan_installed_mods(game_dir: &str) -> Vec<G2MModInfo> {
                     // 提取 MOD 名称（去除 [ 和 ]）
                     if let Some(end_bracket) = file_name_str.find(']') {
                         let mod_name = file_name_str[1..end_bracket].to_string();
-                        let mod_source_path = format!("CLEO/{}", file_name_str);
+                        let install_path = format!("CLEO/{}", file_name_str);
 
                         // 检查是否已存在相同的 MOD
-                        if !mods
-                            .iter()
-                            .any(|m: &G2MModInfo| m.mod_source_path == mod_source_path)
-                        {
+                        if !mods.iter().any(|m: &G2MModInfo| {
+                            m.name == mod_name && m.install_path.as_deref() == Some(&install_path)
+                        }) {
+                            // 生成唯一ID（基于现有MOD数量 + 1）
+                            let mod_id = if mods.is_empty() {
+                                1
+                            } else {
+                                mods.iter().map(|m| m.id).max().unwrap_or(0) + 1
+                            };
                             mods.push(G2MModInfo {
+                                id: mod_id,
                                 name: mod_name.clone(),
                                 author: None,
-                                mod_source_path,
+                                r#type: detect_type_from_path(&install_path),
+                                install_path: Some(install_path),
                             });
                         }
                     }
@@ -450,17 +556,24 @@ pub fn scan_installed_mods(game_dir: &str) -> Vec<G2MModInfo> {
                         // 提取 MOD 名称（去除 [ 和 ]）
                         if let Some(end_bracket) = dir_name_str.find(']') {
                             let mod_name = dir_name_str[1..end_bracket].to_string();
-                            let mod_source_path = format!("modloader/{}", dir_name_str);
+                            let install_path = format!("modloader/{}", dir_name_str);
 
                             // 检查是否已存在相同的 MOD
-                            if !mods
-                                .iter()
-                                .any(|m: &G2MModInfo| m.mod_source_path == mod_source_path)
-                            {
+                            if !mods.iter().any(|m: &G2MModInfo| {
+                                m.name == mod_name && m.install_path.as_deref() == Some(&install_path)
+                            }) {
+                                // 生成唯一ID（基于现有MOD数量 + 1）
+                                let mod_id = if mods.is_empty() {
+                                    1
+                                } else {
+                                    mods.iter().map(|m| m.id).max().unwrap_or(0) + 1
+                                };
                                 mods.push(G2MModInfo {
+                                    id: mod_id,
                                     name: mod_name.clone(),
                                     author: None,
-                                    mod_source_path,
+                                    r#type: detect_type_from_path(&install_path),
+                                    install_path: Some(install_path),
                                 });
                             }
                         }
@@ -487,7 +600,8 @@ pub fn get_or_create_g2m_json(
     }
 
     // 如果不存在，扫描已安装的 MOD
-    let scanned_mods = scan_installed_mods(game_dir);
+    let mut scanned_mods = scan_installed_mods(game_dir);
+    sanitize_mod_entries(&mut scanned_mods);
 
     // 创建新的配置
     G2MGameConfig {

@@ -1,11 +1,13 @@
-import { reactive, ref } from 'vue';
+import { reactive } from 'vue';
 import { tauriInvoke } from '@/utils/tauri';
 import { useMessage } from '@/composables/ui/useMessage';
 
 export interface G2MModInfo {
+  id: number; // MOD唯一ID
   name: string;
   author?: string | null;
-  mod_source_path: string;
+  type?: string | null; // 安装类型
+  install_path?: string | null;
 }
 
 export interface UserModInstallRequest {
@@ -13,6 +15,7 @@ export interface UserModInstallRequest {
   mod_source_path: string;
   mod_name: string;
   overwrite?: boolean;
+  target_directory?: string; // 目标安装目录
 }
 
 export interface UserModInstallResult {
@@ -72,14 +75,14 @@ export function useModApi() {
         return response.data;
       } else {
         const errorMsg = response?.error || '安装MOD失败';
-        const detailMsg = `MOD名称: ${request.mod_name}\n源路径: ${request.mod_source_path}\n游戏目录: ${request.game_dir}\n错误: ${errorMsg}`;
+        const detailMsg = `MOD名称: ${request.mod_name}\n游戏目录: ${request.game_dir}\n错误: ${errorMsg}`;
         loadingState.error = errorMsg;
         showError('安装MOD失败', { detail: detailMsg });
         return null;
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      const detailMsg = `MOD名称: ${request.mod_name}\n源路径: ${request.mod_source_path}\n游戏目录: ${request.game_dir}\n错误: ${errorMsg}`;
+      const detailMsg = `MOD名称: ${request.mod_name}\n游戏目录: ${request.game_dir}\n错误: ${errorMsg}`;
       loadingState.error = errorMsg;
       showError('安装MOD失败', { detail: detailMsg });
       return null;
@@ -114,11 +117,47 @@ export function useModApi() {
     }
   };
 
+  /**
+   * 选择游戏目录中的安装目录（返回相对游戏目录的路径）
+   */
+  const selectGameInstallDirectory = async (gameDir: string): Promise<string | null> => {
+    try {
+      const response: any = await tauriInvoke('select_game_install_directory', { gameDir });
+      if (response?.success && response?.data) {
+        return response.data;
+      } else {
+        const errorMsg = response?.error || '未选择安装目录';
+        if (errorMsg !== '未选择安装目录' && errorMsg !== '') {
+          showError('选择安装目录失败', { detail: `游戏目录: ${gameDir}\n错误: ${errorMsg}` });
+        }
+        return null;
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      showError('选择安装目录失败', { detail: `游戏目录: ${gameDir}\n错误: ${errorMsg}` });
+      return null;
+    }
+  };
+
+  /**
+   * 检查MOD是否有g2m.json配置文件
+   */
+  const checkModConfig = async (modDir: string): Promise<boolean> => {
+    try {
+      const response: any = await tauriInvoke('read_g2m_mod_config', { modDir });
+      return response?.success && response?.data !== null && response?.data !== undefined;
+    } catch {
+      return false;
+    }
+  };
+
   return {
     loadingState,
     getGameMods,
     installUserMod,
     selectModFiles,
+    selectGameInstallDirectory,
+    checkModConfig,
   };
 }
 

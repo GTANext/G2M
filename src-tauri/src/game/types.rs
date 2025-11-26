@@ -172,10 +172,20 @@ pub struct G2MGameConfig {
 // .gtamodx/mods.json 中的 MOD 信息
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct G2MModInfo {
-    pub name: String,                        // MOD名称
+    #[serde(default = "generate_default_id")]
+    pub id: u32, // MOD唯一ID（数字）
+    pub name: String, // MOD名称
     #[serde(default)]
-    pub author: Option<String>,              // 作者信息（可选）
-    pub mod_source_path: String,             // MOD源路径（用于标识MOD）
+    pub author: Option<String>, // 作者信息（可选）
+    #[serde(default, alias = "category")]
+    pub r#type: Option<String>, // 安装类型（cleo、modloader、asi 等）
+    #[serde(default)]
+    pub install_path: Option<String>, // 相对游戏目录的安装路径提示
+}
+
+// 为向后兼容生成默认ID（从1开始）
+fn generate_default_id() -> u32 {
+    1
 }
 
 // 用户MOD安装请求
@@ -186,6 +196,8 @@ pub struct UserModInstallRequest {
     pub mod_name: String,                    // MOD名称（用于重命名）
     #[serde(default)]
     pub overwrite: bool,                     // 是否覆盖冲突文件/目录
+    #[serde(default)]
+    pub target_directory: Option<String>,    // 目标安装目录（相对游戏目录的路径，可选）
 }
 
 // 用户MOD安装结果

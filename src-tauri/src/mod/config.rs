@@ -106,6 +106,51 @@ pub async fn select_mod_files(
     }
 }
 
+/// 选择游戏目录中的安装目录（返回相对游戏目录的路径）
+#[tauri::command]
+pub async fn select_game_install_directory(
+    app_handle: AppHandle,
+    game_dir: String,
+) -> Result<ApiResponse<String>, String> {
+    use std::sync::mpsc;
+    use tauri_plugin_dialog::DialogExt;
+
+    let game_path = PathBuf::from(&game_dir);
+    if !game_path.exists() || !game_path.is_dir() {
+        return Ok(ApiResponse::error("游戏目录不存在".to_string()));
+    }
+
+    let (tx, rx) = mpsc::channel();
+
+    app_handle
+        .dialog()
+        .file()
+        .set_title("选择安装目录")
+        .set_directory(game_path.clone())
+        .pick_folder(move |path| {
+            if let Some(selected_path) = path {
+                // 将 FilePath 转换为 PathBuf
+                let selected_path_buf = PathBuf::from(selected_path.to_string());
+                let game_path_buf = PathBuf::from(&game_dir);
+                
+                // 计算相对于游戏目录的路径
+                let relative_path = selected_path_buf
+                    .strip_prefix(&game_path_buf)
+                    .map(|p| p.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_else(|_| selected_path_buf.to_string_lossy().to_string());
+                let _ = tx.send(Some(relative_path));
+            } else {
+                let _ = tx.send(None);
+            }
+        });
+
+    match rx.recv() {
+        Ok(Some(relative_path)) => Ok(ApiResponse::success(relative_path)),
+        Ok(None) => Ok(ApiResponse::error(String::new())), // 用户取消
+        Err(_) => Ok(ApiResponse::error("选择目录失败".to_string())),
+    }
+}
+
 /// 读取 g2m.json 配置文件（Tauri 命令）
 #[tauri::command]
 pub async fn read_g2m_mod_config(
