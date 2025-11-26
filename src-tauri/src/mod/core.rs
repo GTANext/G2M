@@ -43,8 +43,13 @@ fn install_mod_to_directory(
 
     // 确保目标目录存在
     if !target_dir.exists() {
-        fs::create_dir_all(&target_dir)
-            .map_err(|e| format!("创建目标目录失败: {}\n目标路径: {}", e, target_dir.display()))?;
+        fs::create_dir_all(&target_dir).map_err(|e| {
+            format!(
+                "创建目标目录失败: {}\n目标路径: {}",
+                e,
+                target_dir.display()
+            )
+        })?;
         created_directories.push(target_directory.to_string());
     }
 
@@ -114,10 +119,23 @@ fn auto_install_mod(
 
     // 检查游戏目录结构，确定安装位置
     let plugins_dir = game_dir.join("plugins");
+    let scripts_dir = game_dir.join("scripts");
     let cleo_dir = game_dir.join("CLEO");
     let cleo_lower_dir = game_dir.join("cleo"); // GTA SA 使用小写
     let cleo_plugins_dir = plugins_dir.join("CLEO"); // CLEO Redux 目录
     let modloader_dir = game_dir.join("modloader");
+
+    // 辅助函数：确定 ASI/DLL 文件的安装目录（优先级：plugins > scripts > 根目录）
+    let determine_asi_install_dir = || -> std::path::PathBuf {
+        if plugins_dir.exists() {
+            plugins_dir.clone()
+        } else if scripts_dir.exists() {
+            scripts_dir.clone()
+        } else {
+            // 默认创建并使用 plugins 目录
+            game_dir.join("plugins")
+        }
+    };
 
     // 确定 CLEO 目录位置（优先使用已存在的目录）
     let cleo_target_dir = if cleo_dir.exists() {
@@ -256,6 +274,56 @@ fn auto_install_mod(
                 fs::copy(mod_source_path, &dest)
                     .map_err(|e| format!("复制 .js/.ts 文件失败: {}", e))?;
                 installed_files.push(format!("plugins/CLEO/{}", new_file_name));
+            } else if ext_lower == "asi" || ext_lower == "dll" {
+                // ASI/DLL 文件：优先安装到 plugins，没有则使用 scripts，都没有则安装到根目录
+                let asi_dest_dir = determine_asi_install_dir();
+
+                // 确保目标目录存在
+                if !asi_dest_dir.exists() {
+                    fs::create_dir_all(&asi_dest_dir)
+                        .map_err(|e| format!("创建 ASI/DLL 安装目录失败: {}", e))?;
+                    let dir_name = if asi_dest_dir == plugins_dir {
+                        "plugins"
+                    } else if asi_dest_dir == scripts_dir {
+                        "scripts"
+                    } else {
+                        "" // 根目录
+                    };
+                    if !dir_name.is_empty() && !created_directories.contains(&dir_name.to_string())
+                    {
+                        created_directories.push(dir_name.to_string());
+                    }
+                }
+
+                // ASI/DLL 文件不使用 [MOD名称] 前缀，直接使用原始文件名
+                let dest = if asi_dest_dir == plugins_dir || asi_dest_dir == scripts_dir {
+                    // 安装到 plugins 或 scripts 目录
+                    asi_dest_dir.join(file_name)
+                } else {
+                    // 安装到根目录
+                    game_dir.join(file_name)
+                };
+
+                // 检查冲突
+                if dest.exists() && !overwrite {
+                    return Err(format!(
+                        "文件冲突: {} 已存在，请选择是否覆盖",
+                        dest.display()
+                    ));
+                }
+
+                fs::copy(mod_source_path, &dest)
+                    .map_err(|e| format!("复制 .asi/.dll 文件失败: {}", e))?;
+
+                // 记录安装路径（使用原始文件名，不带 [MOD名称] 前缀）
+                if asi_dest_dir == plugins_dir {
+                    installed_files.push(format!("plugins/{}", file_name));
+                } else if asi_dest_dir == scripts_dir {
+                    installed_files.push(format!("scripts/{}", file_name));
+                } else {
+                    // 根目录，直接使用文件名
+                    installed_files.push(file_name.to_string());
+                }
             } else if is_texture_or_model_file(mod_source_path) {
                 // 贴图/模型文件复制到 modloader 目录
                 let dest = mod_modloader_dir.join(&new_file_name);
@@ -481,6 +549,10 @@ fn classify_install_type(path: &str) -> Option<String> {
         Some("cleo".to_string())
     } else if lowered.starts_with("modloader/") {
         Some("modloader".to_string())
+    } else if lowered.starts_with("plugins/") {
+        Some("plugins".to_string())
+    } else if lowered.starts_with("scripts/") {
+        Some("scripts".to_string())
     } else if lowered.ends_with(".asi") {
         Some("asi".to_string())
     } else if lowered.ends_with(".dll") {
@@ -493,7 +565,7 @@ fn classify_install_type(path: &str) -> Option<String> {
 /// 从路径中提取原始文件名（去掉 [MOD名称] 前缀）
 fn extract_original_filename(path: &str) -> String {
     let file_name = path.split('/').last().unwrap_or(path);
-    
+
     // 如果文件名以 [ 开头，尝试提取原始文件名
     if file_name.starts_with('[') {
         // 查找第一个 ] 的位置
@@ -505,7 +577,7 @@ fn extract_original_filename(path: &str) -> String {
             }
         }
     }
-    
+
     // 如果路径包含 modloader/[MOD名称]/，需要提取最后一个文件名部分
     // 例如：modloader/[MOD名称]/[MOD名称]文件名 -> 文件名
     if path.contains("modloader/") || path.contains("modloader\\") {
@@ -519,35 +591,75 @@ fn extract_original_filename(path: &str) -> String {
             }
         }
     }
-    
+
     file_name.to_string()
 }
 
-/// 将实际路径转换为变量格式，如 "${cleo}/文件名.cs"
+/// 将实际路径转换为变量格式或直接文件名
+/// 规则：
+/// - 游戏根目录的 ASI/DLL 文件：直接返回文件名（如 "插件.asi"）
+/// - plugins/scripts 目录：使用变量格式（如 "${plugins}/插件.asi"）
+/// - cleo/cleo_redux/modloader：使用变量格式（如 "${cleo}/文件名.cs"）
 fn convert_path_to_variable_format(path: &str, r#type: Option<&String>) -> Option<String> {
     let normalized = path.replace('\\', "/");
-    
-    // 确定变量名
+    let lower = normalized.to_lowercase();
+
+    // 提取原始文件名（去掉 [MOD名称] 前缀）
+    let original_file_name = extract_original_filename(&normalized);
+
+    // 检查路径深度：如果路径不包含 "/"，说明在根目录
+    let is_root = !normalized.contains('/');
+
+    // 确定变量名和格式
     let var_name = if let Some(typ) = r#type {
         match typ.as_str() {
-            "cleo" => "cleo",
-            "cleo_redux" => "cleo_redux",
-            "modloader" => "modloader",
-            "asi" => "asi",
-            "dll" => "dll",
+            "cleo" => Some("cleo"),
+            "cleo_redux" => Some("cleo_redux"),
+            "modloader" => Some("modloader"),
+            "plugins" => Some("plugins"),
+            "scripts" => Some("scripts"),
+            "asi" => {
+                // ASI 文件：如果在根目录，不使用变量；如果在子目录，使用变量
+                if is_root {
+                    return Some(original_file_name); // 直接返回文件名
+                } else if lower.starts_with("plugins/") {
+                    return Some(format!("${{plugins}}/{}", original_file_name));
+                } else if lower.starts_with("scripts/") {
+                    return Some(format!("${{scripts}}/{}", original_file_name));
+                } else {
+                    return Some(original_file_name); // 其他情况也直接返回文件名
+                }
+            }
+            "dll" => {
+                // DLL 文件：如果在根目录，不使用变量；如果在子目录，使用变量
+                if is_root {
+                    return Some(original_file_name); // 直接返回文件名
+                } else if lower.starts_with("plugins/") {
+                    return Some(format!("${{plugins}}/{}", original_file_name));
+                } else if lower.starts_with("scripts/") {
+                    return Some(format!("${{scripts}}/{}", original_file_name));
+                } else {
+                    return Some(original_file_name); // 其他情况也直接返回文件名
+                }
+            }
             _ => {
                 // 根据路径特征推断
-                let lower = normalized.to_lowercase();
                 if lower.starts_with("plugins/cleo") {
-                    "cleo_redux"
+                    Some("cleo_redux")
                 } else if lower.starts_with("cleo/") || lower.ends_with(".cs") {
-                    "cleo"
+                    Some("cleo")
                 } else if lower.starts_with("modloader/") {
-                    "modloader"
+                    Some("modloader")
+                } else if lower.starts_with("plugins/") {
+                    Some("plugins")
+                } else if lower.starts_with("scripts/") {
+                    Some("scripts")
                 } else if lower.ends_with(".asi") {
-                    "asi"
+                    // ASI 文件在根目录
+                    return Some(original_file_name);
                 } else if lower.ends_with(".dll") {
-                    "dll"
+                    // DLL 文件在根目录
+                    return Some(original_file_name);
                 } else {
                     return Some(normalized); // 无法识别，返回原路径
                 }
@@ -555,27 +667,33 @@ fn convert_path_to_variable_format(path: &str, r#type: Option<&String>) -> Optio
         }
     } else {
         // 没有type，根据路径特征推断
-        let lower = normalized.to_lowercase();
         if lower.starts_with("plugins/cleo") {
-            "cleo_redux"
+            Some("cleo_redux")
         } else if lower.starts_with("cleo/") || lower.ends_with(".cs") {
-            "cleo"
+            Some("cleo")
         } else if lower.starts_with("modloader/") {
-            "modloader"
+            Some("modloader")
+        } else if lower.starts_with("plugins/") {
+            Some("plugins")
+        } else if lower.starts_with("scripts/") {
+            Some("scripts")
         } else if lower.ends_with(".asi") {
-            "asi"
+            // ASI 文件在根目录，直接返回文件名
+            return Some(original_file_name);
         } else if lower.ends_with(".dll") {
-            "dll"
+            // DLL 文件在根目录，直接返回文件名
+            return Some(original_file_name);
         } else {
             return Some(normalized); // 无法识别，返回原路径
         }
     };
-    
-    // 提取原始文件名（去掉 [MOD名称] 前缀）
-    let original_file_name = extract_original_filename(&normalized);
-    
-    // 生成变量格式路径
-    Some(format!("${{{}}}/{}", var_name, original_file_name))
+
+    // 如果有变量名，生成变量格式路径
+    if let Some(var) = var_name {
+        Some(format!("${{{}}}/{}", var, original_file_name))
+    } else {
+        Some(original_file_name)
+    }
 }
 
 fn summarize_install_metadata(result: &UserModInstallResult) -> (Option<String>, Option<String>) {
@@ -588,12 +706,12 @@ fn summarize_install_metadata(result: &UserModInstallResult) -> (Option<String>,
     let r#type = normalized
         .as_ref()
         .and_then(|path| classify_install_type(path));
-    
+
     // 将路径转换为变量格式
     let variable_path = normalized
         .as_ref()
         .and_then(|path| convert_path_to_variable_format(path, r#type.as_ref()));
-    
+
     (r#type, variable_path)
 }
 

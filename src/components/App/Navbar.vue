@@ -1,6 +1,7 @@
 <script setup>
 import { useWindowControl } from '@/composables/api/useApp'
 import { useCommon } from '@/composables/ui/useCommon'
+import { useAppInfo } from '@/composables/api/useApp'
 import {
     AppstoreOutlined,
     SettingOutlined,
@@ -12,6 +13,11 @@ import {
 
 const { isMaximized, minimizeWindow, toggleMaximize, closeWindow } = useWindowControl()
 const { navItems, isActive, handleNavClick, externalLinks } = useCommon()
+const { appInfo, getAppInfo } = useAppInfo()
+
+onMounted(async () => {
+    await getAppInfo()
+})
 </script>
 
 <template>
@@ -20,7 +26,7 @@ const { navItems, isActive, handleNavClick, externalLinks } = useCommon()
             <div class="titlebar-left">
                 <div class="app-info">
                     <span class="app-name">G2M</span>
-                    <span class="app-subtitle">MOD 管理器</span>
+                    <span class="app-subtitle">MOD 管理器 v{{ appInfo?.version || '0.0.0' }}</span>
                 </div>
             </div>
 

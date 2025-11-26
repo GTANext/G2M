@@ -1,4 +1,50 @@
 import { ref, onMounted } from 'vue'
+import { tauriInvoke } from '@/utils/tauri'
+import { useMessage } from '@/composables/ui/useMessage'
+
+export interface AppInfo {
+  name: string
+  version: string
+  identifier: string
+  description?: string | null
+}
+
+/**
+ * 获取应用信息
+ */
+export function useAppInfo() {
+  const { showError } = useMessage()
+  const appInfo = ref<AppInfo | null>(null)
+  const loading = ref(false)
+
+  const getAppInfo = async (): Promise<AppInfo | null> => {
+    try {
+      loading.value = true
+      const response: any = await tauriInvoke('get_app_info')
+      
+      if (response?.success && response?.data) {
+        appInfo.value = response.data
+        return response.data
+      } else {
+        const errorMsg = response?.error || '获取应用信息失败'
+        showError('获取应用信息失败', { detail: errorMsg })
+        return null
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      showError('获取应用信息失败', { detail: errorMsg })
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return {
+    appInfo,
+    loading,
+    getAppInfo
+  }
+}
 
 export function useWindowControl() {
     const isMaximized = ref(false)

@@ -7,11 +7,15 @@ mod mod_core;
 #[path = "utils/log.rs"]
 mod log;
 
+#[path = "app/info.rs"]
+mod app_info;
+
 // 从 game 模块导入所有函数
 use game::core::{
     check_duplicate_directory, copy_game_image, copy_image_to_custom_dir, delete_game,
-    get_game_by_id, get_game_mods, get_games, install_mod_prerequisites, launch_game, open_game_folder,
-    process_image_upload, save_base64_image, save_game, select_image_file, update_game,
+    get_game_by_id, get_game_mods, get_games, install_mod_prerequisites, launch_game,
+    open_game_folder, process_image_upload, save_base64_image, save_game, select_image_file,
+    update_game,
 };
 use game::detection::{detect_game, select_game_folder};
 use game::download::{
@@ -24,7 +28,11 @@ use game::prerequisites::{
     select_custom_prerequisite_files, select_mod_loader_file, unmark_mod_loader_manual,
 };
 
-use mod_core::{get_mod_file_tree, install_user_mod, read_g2m_mod_config, save_g2m_mod_config, select_game_install_directory, select_mod_directory, select_mod_files};
+use app_info::get_app_info;
+use mod_core::{
+    get_mod_file_tree, install_user_mod, read_g2m_mod_config, save_g2m_mod_config,
+    select_game_install_directory, select_mod_directory, select_mod_files,
+};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -36,7 +44,7 @@ fn greet(name: &str) -> String {
 pub fn run() -> () {
     // 初始化日志系统，设置 panic hook
     log::init_logger();
-    
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -81,7 +89,8 @@ pub fn run() -> () {
             get_mod_file_tree,
             select_mod_directory,
             select_mod_files,
-            select_game_install_directory
+            select_game_install_directory,
+            get_app_info
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
