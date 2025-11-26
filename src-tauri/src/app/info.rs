@@ -38,11 +38,11 @@ pub fn get_app_info(app_handle: AppHandle) -> crate::game::types::ApiResponse<Ap
             }
         })
     } else {
-        // 生产环境从可执行文件目录查找
+        // 生产环境从可执行文件目录的 G2M/g2m.config.json 查找
         std::env::current_exe().ok().and_then(|exe_path| {
             exe_path
                 .parent()
-                .map(|parent| parent.join("g2m.config.json"))
+                .map(|parent| parent.join("G2M").join("g2m.config.json"))
                 .filter(|p| p.exists())
         })
     };
@@ -68,10 +68,8 @@ pub fn get_app_info(app_handle: AppHandle) -> crate::game::types::ApiResponse<Ap
                         version = base_version;
                     }
                 } else {
-                    // 如果没有 release 字段，默认使用 version + alpha（如果存在）
-                    if let Some(alpha) = config.alpha {
-                        version = format!("{}-{}", base_version, alpha);
-                    }
+                    // 如果没有 release 字段，直接输出 version
+                    version = base_version;
                 }
             }
         }
