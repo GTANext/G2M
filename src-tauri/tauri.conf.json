@@ -38,6 +38,9 @@
       "icons/logo.svg",
       "icons/logo.ico"
     ],
+    "resources": [
+      "G2M/Module"
+    ],
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
