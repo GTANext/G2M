@@ -44,11 +44,17 @@ onMounted(async () => {
 
             <div class="titlebar-right">
                 <a-space size="small" class="no-drag">
-                    <a-button type="text" size="small" title="GitHub" :href="externalLinks.github" target="_blank">
-                        <template #icon>
-                            <GithubOutlined />
-                        </template>
-                    </a-button>
+
+                    <G2MNavLoginButton />
+
+                    <a-tooltip placement="bottomRight" title="G2M的GitHub仓库, 欢迎提交PR">
+                        <a-button type="text" size="small" title="GitHub" :href="externalLinks.github" target="_blank">
+                            <template #icon>
+                                <GithubOutlined />
+                            </template>
+                            GitHub
+                        </a-button>
+                    </a-tooltip>
 
                     <a-button type="text" size="small" @click="minimizeWindow" title="最小化">
                         <MinusOutlined />
