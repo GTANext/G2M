@@ -6,10 +6,84 @@ title: 使用示例
 
 ## 基本使用
 
-### 获取游戏列表
+### 使用 useGameForm 添加游戏（推荐方式）
+
+这是最推荐的方式，提供了完整的表单管理功能。
 
 ```typescript
-import { useGameApi } from '@/composables/api/useGameApi'
+import { useGameForm } from '~/composables/ui/useGameForm'
+import { useGameList } from '~/composables/ui/useGameList'
+import { useMessage } from '~/composables/ui/useMessage'
+import { useNotification } from 'naive-ui'
+
+const { refreshGames } = useGameList()
+const { showSuccess, showError } = useMessage()
+const notification = useNotification()
+
+const {
+  formData,
+  formRef,
+  isDetecting,
+  detectionResult,
+  isAutoDetected,
+  imagePreview,
+  uploadingImage,
+  selectFolder,
+  selectImage,
+  clearImage,
+  submitForm,
+  resetForm,
+  getGameTypeName
+} = useGameForm()
+
+// 1. 选择游戏文件夹（会自动检测游戏信息）
+await selectFolder()
+
+// 2. 如果需要，选择游戏图片
+if (!imagePreview.value) {
+  await selectImage()
+}
+
+// 3. 提交表单
+try {
+  const success = await submitForm()
+  if (success) {
+    showSuccess('游戏添加成功！')
+    await refreshGames() // 刷新游戏列表
+    resetForm()
+  }
+} catch (error) {
+  showError('添加游戏失败')
+  // 显示详细错误信息（右下角）
+  notification.error({
+    title: '添加游戏失败',
+    content: error instanceof Error ? error.message : String(error),
+    duration: 5000,
+    placement: 'bottom-right'
+  })
+}
+```
+
+### 获取游戏列表
+
+**方式 1：使用 useGameList（推荐）**
+
+```typescript
+import { useGameList } from '~/composables/ui/useGameList'
+
+const { games, isLoading, fetchGames, refreshGames } = useGameList()
+
+// 获取所有游戏
+await fetchGames()
+
+// 访问游戏列表
+console.log(games.value)
+```
+
+**方式 2：使用 useGameApi**
+
+```typescript
+import { useGameApi } from '~/composables/api/useGameApi'
 
 const gameApi = useGameApi()
 
@@ -22,14 +96,58 @@ console.log(gameApi.games.value)
 
 ### 添加新游戏
 
+**方式 1：使用 useGameForm（推荐）**
+
 ```typescript
-import { useGameApi } from '@/composables/api/useGameApi'
+import { useGameForm } from '~/composables/ui/useGameForm'
+import { useGameList } from '~/composables/ui/useGameList'
+import { useMessage } from '~/composables/ui/useMessage'
+import { useNotification } from 'naive-ui'
+
+const { refreshGames } = useGameList()
+const { showSuccess, showError } = useMessage()
+const notification = useNotification()
+
+const {
+  formData,
+  selectFolder,
+  submitForm,
+  resetForm
+} = useGameForm()
+
+// 1. 选择游戏文件夹（会自动检测游戏信息）
+await selectFolder()
+
+// 2. 提交表单
+try {
+  const success = await submitForm()
+  if (success) {
+    showSuccess('游戏添加成功！')
+    await refreshGames() // 刷新游戏列表
+    resetForm()
+  }
+} catch (error) {
+  showError('添加游戏失败')
+  // 显示详细错误
+  notification.error({
+    title: '添加游戏失败',
+    content: error instanceof Error ? error.message : String(error),
+    duration: 5000,
+    placement: 'bottom-right'
+  })
+}
+```
+
+**方式 2：使用 useGameApi（手动控制）**
+
+```typescript
+import { useGameApi } from '~/composables/api/useGameApi'
 
 const gameApi = useGameApi()
 
 // 1. 选择游戏文件夹
 const folderResponse = await gameApi.selectGameFolder()
-if (!folderResponse.data) {
+if (!folderResponse?.success || !folderResponse.data) {
   console.log('用户取消了选择')
   return
 }
@@ -43,8 +161,8 @@ if (!detectResponse.success) {
 
 // 3. 检查目录是否重复
 const checkResponse = await gameApi.checkDuplicateDirectory(folderResponse.data)
-if (checkResponse.data?.is_duplicate) {
-  console.error('目录已被使用:', checkResponse.data.existing_game_name)
+if (!checkResponse.success) {
+  console.error('目录已被使用:', checkResponse.error)
   return
 }
 
@@ -57,7 +175,7 @@ const saveResponse = await gameApi.saveGame({
 })
 
 if (saveResponse.success) {
-  console.log('游戏添加成功:', saveResponse.data)
+  console.log('游戏添加成功')
   // 刷新游戏列表
   await gameApi.getGames()
 }
@@ -65,8 +183,27 @@ if (saveResponse.success) {
 
 ### 启动游戏
 
+**方式 1：使用 useGameList（推荐）**
+
 ```typescript
-import { useGameApi } from '@/composables/api/useGameApi'
+import { useGameList } from '~/composables/ui/useGameList'
+
+const { games, launchGame } = useGameList()
+
+const game = games.value[0]
+
+try {
+  await launchGame(game)
+  console.log('游戏启动成功')
+} catch (error) {
+  console.error('启动失败:', error)
+}
+```
+
+**方式 2：使用 useGameApi**
+
+```typescript
+import { useGameApi } from '~/composables/api/useGameApi'
 
 const gameApi = useGameApi()
 
@@ -86,7 +223,7 @@ if (response.success) {
 ### 获取已安装的 MOD 列表
 
 ```typescript
-import { useModApi } from '@/composables/api/useModApi'
+import { useModApi } from '~/composables/api/useModApi'
 
 const modApi = useModApi()
 
@@ -102,10 +239,12 @@ mods.forEach(mod => {
 })
 ```
 
+**注意：** 如果获取失败，`getGameMods` 会返回空数组 `[]`，并自动显示错误消息。
+
 ### 安装单个 MOD 文件
 
 ```typescript
-import { useModApi } from '@/composables/api/useModApi'
+import { useModApi } from '~/composables/api/useModApi'
 
 const modApi = useModApi()
 
@@ -128,13 +267,17 @@ if (result) {
   console.log('安装成功!')
   console.log('已安装文件:', result.installed_files)
   console.log('创建的目录:', result.created_directories)
+  // installUserMod 内部已显示成功消息
+} else {
+  // installUserMod 内部已显示错误消息
+  console.log('安装失败')
 }
 ```
 
 ### 安装带配置的 MOD
 
 ```typescript
-import { useModApi } from '@/composables/api/useModApi'
+import { useModApi } from '~/composables/api/useModApi'
 
 const modApi = useModApi()
 
@@ -153,17 +296,23 @@ const result = await modApi.installUserMod({
   mod_name: '我的MOD',
   overwrite: false
 })
+
+if (result) {
+  // 安装成功，内部已显示成功消息
+  console.log('安装成功')
+}
 ```
 
 ### 手动指定安装目录
 
 ```typescript
-import { useModApi } from '@/composables/api/useModApi'
+import { useModApi } from '~/composables/api/useModApi'
 
 const modApi = useModApi()
 
 // 1. 选择 MOD 文件/文件夹
 const modPath = await modApi.selectModFiles(false)
+if (!modPath) return
 
 // 2. 选择安装目录
 const installDir = await modApi.selectGameInstallDirectory('C:/Games/GTA_SA')
@@ -180,6 +329,10 @@ const result = await modApi.installUserMod({
   overwrite: false,
   target_directory: installDir  // 指定安装目录
 })
+
+if (result) {
+  console.log('安装成功')
+}
 ```
 
 ## 应用信息
@@ -187,7 +340,7 @@ const result = await modApi.installUserMod({
 ### 获取应用版本信息
 
 ```typescript
-import { useAppInfo } from '@/composables/api/useApp'
+import { useAppInfo } from '~/composables/api/useApp'
 
 const { appInfo, getAppInfo } = useAppInfo()
 
@@ -205,7 +358,7 @@ if (appInfo.value) {
 ### 窗口操作
 
 ```typescript
-import { useWindowControl } from '@/composables/api/useApp'
+import { useWindowControl } from '~/composables/api/useApp'
 
 const {
   isMaximized,
@@ -232,11 +385,13 @@ console.log('窗口是否最大化:', isMaximized.value)
 ### 完整的错误处理示例
 
 ```typescript
-import { useModApi } from '@/composables/api/useModApi'
-import { useMessage } from '@/composables/ui/useMessage'
+import { useModApi } from '~/composables/api/useModApi'
+import { useMessage } from '~/composables/ui/useMessage'
+import { useNotification } from 'naive-ui'
 
 const modApi = useModApi()
 const { showError, showSuccess } = useMessage()
+const notification = useNotification()
 
 try {
   const result = await modApi.installUserMod({
@@ -247,7 +402,7 @@ try {
   })
 
   if (result) {
-    showSuccess('MOD 安装成功!')
+    // installUserMod 内部已显示成功消息，这里不需要重复显示
     // 刷新 MOD 列表
     await modApi.getGameMods('C:/Games/GTA_SA')
   } else {
@@ -255,9 +410,16 @@ try {
     console.log('安装失败')
   }
 } catch (error) {
-  // 处理未预期的错误
-  console.error('未预期的错误:', error)
-  showError('发生未知错误', { detail: String(error) })
+  // 显示简短错误提示
+  showError('安装失败')
+  
+  // 显示详细错误信息（右下角）
+  notification.error({
+    title: 'MOD 安装失败',
+    content: error instanceof Error ? error.message : String(error),
+    duration: 5000,
+    placement: 'bottom-right'
+  })
 }
 ```
 
@@ -266,17 +428,17 @@ try {
 ### 完整的游戏和 MOD 管理流程
 
 ```typescript
-import { useGameApi } from '@/composables/api/useGameApi'
-import { useModApi } from '@/composables/api/useModApi'
+import { useGameList } from '~/composables/ui/useGameList'
+import { useModApi } from '~/composables/api/useModApi'
 
-const gameApi = useGameApi()
+const { games, fetchGames } = useGameList()
 const modApi = useModApi()
 
 // 1. 获取游戏列表
-await gameApi.getGames()
+await fetchGames()
 
 // 2. 选择第一个游戏
-const game = gameApi.games.value[0]
+const game = games.value[0]
 if (!game) {
   console.log('没有游戏')
   return

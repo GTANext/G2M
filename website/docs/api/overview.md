@@ -40,19 +40,29 @@ interface ApiResponse<T> {
 ### 使用前端 Composables
 
 ```typescript
-import { useGameApi } from '@/composables/api/useGameApi'
-import { useModApi } from '@/composables/api/useModApi'
-import { useAppInfo } from '@/composables/api/useApp'
+// 方式 1：使用 useGameList（推荐）
+import { useGameList } from '~/composables/ui/useGameList'
 
-// 获取游戏列表
+const { games, fetchGames } = useGameList()
+await fetchGames()
+console.log(games.value)
+
+// 方式 2：使用 useGameApi
+import { useGameApi } from '~/composables/api/useGameApi'
+
 const gameApi = useGameApi()
-const games = await gameApi.getGames()
+await gameApi.getGames()
+console.log(gameApi.games.value)
 
 // 获取 MOD 列表
+import { useModApi } from '~/composables/api/useModApi'
+
 const modApi = useModApi()
 const mods = await modApi.getGameMods(gameDir)
 
 // 获取应用信息
+import { useAppInfo } from '~/composables/api/useApp'
+
 const { getAppInfo } = useAppInfo()
 const appInfo = await getAppInfo()
 ```
@@ -60,11 +70,13 @@ const appInfo = await getAppInfo()
 ### 直接调用 Tauri 命令
 
 ```typescript
-import { tauriInvoke } from '@/utils/tauri'
+import { tauriInvoke } from '~/utils/tauri'
 
 const response = await tauriInvoke('get_games')
 if (response.success) {
   console.log(response.data)
 }
 ```
+
+**注意：** 在非 Tauri 环境中，`tauriInvoke` 会自动使用 Mock API 进行开发测试。
 

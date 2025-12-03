@@ -6,6 +6,18 @@ title: 前端 API (Composables)
 
 前端提供了多个 Vue Composables，封装了 API 调用逻辑，提供更好的类型安全和错误处理。
 
+## 导入路径
+
+所有 composables 使用 Nuxt 的自动导入，也可以手动导入：
+
+```typescript
+// 自动导入（推荐）
+const gameApi = useGameApi()
+
+// 或手动导入
+import { useGameApi } from '~/composables/api/useGameApi'
+```
+
 ## useGameApi
 
 游戏管理相关的 API。
@@ -13,7 +25,7 @@ title: 前端 API (Composables)
 ### 导入
 
 ```typescript
-import { useGameApi } from '@/composables/api/useGameApi'
+import { useGameApi } from '~/composables/api/useGameApi'
 ```
 
 ### 使用
@@ -50,15 +62,19 @@ Promise<ApiResponse<GameInfo[]>>
 
 ```typescript
 const response = await gameApi.getGameById(1)
+// 或传入字符串，会自动转换为数字
+const response = await gameApi.getGameById('1')
 ```
 
 **参数：**
-- `id: number` - 游戏 ID
+- `id: number | string` - 游戏 ID（会自动转换为 u32 类型）
 
 **返回类型：**
 ```typescript
 Promise<ApiResponse<GameInfo>>
 ```
+
+**注意：** ID 会自动转换为数字类型，如果转换失败会抛出错误。
 
 #### saveGame(gameData)
 
@@ -91,7 +107,7 @@ const response = await gameApi.saveGame({
 
 ```typescript
 const response = await gameApi.updateGame(
-  1,
+  1,  // 或 '1'，会自动转换为数字
   'GTA San Andreas',
   'C:/Games/GTA_SA',
   'gta_sa.exe',
@@ -101,13 +117,27 @@ const response = await gameApi.updateGame(
 )
 ```
 
+**参数：**
+- `id: number | string` - 游戏 ID（会自动转换为 u32 类型）
+- `name: string` - 游戏名称
+- `dir: string` - 游戏目录
+- `exe: string` - 启动程序
+- `img: string | null` - 游戏图片
+- `type: string` - 游戏类型
+- `deleted: boolean` - 是否已删除
+
 #### deleteGame(id)
 
 删除游戏。
 
 ```typescript
 const response = await gameApi.deleteGame(1)
+// 或传入字符串
+const response = await gameApi.deleteGame('1')
 ```
+
+**参数：**
+- `id: number | string` - 游戏 ID（会自动转换为 u32 类型）
 
 #### launchGame(gameDir, executable)
 
@@ -156,6 +186,194 @@ const response = await gameApi.checkDuplicateDirectory(
 )
 ```
 
+**参数：**
+- `dir: string` - 要检查的目录路径
+- `excludeGameId?: number` - 排除的游戏 ID（用于编辑游戏时检查）
+
+**返回类型：**
+```typescript
+Promise<ApiResponse<boolean>>
+```
+
+## useGameList
+
+游戏列表管理相关的 Composable，提供更便捷的游戏列表操作。
+
+### 导入
+
+```typescript
+import { useGameList } from '~/composables/ui/useGameList'
+```
+
+### 使用
+
+```typescript
+const { games, isLoading, error, fetchGames, refreshGames, launchGame, openGameFolder } = useGameList()
+```
+
+### API 方法
+
+#### fetchGames()
+
+获取游戏列表。
+
+```typescript
+await fetchGames()
+// games.value 会自动更新
+```
+
+#### refreshGames()
+
+刷新游戏列表（与 fetchGames 相同）。
+
+```typescript
+await refreshGames()
+```
+
+#### launchGame(game)
+
+启动游戏。
+
+```typescript
+await launchGame(game)
+// game 对象需要包含 dir 和 exe 属性
+```
+
+#### openGameFolder(game)
+
+打开游戏文件夹。
+
+```typescript
+await openGameFolder(game)
+// game 对象需要包含 dir 属性
+```
+
+### 状态
+
+- `games` - 游戏列表（响应式 ref）
+- `isLoading` - 加载状态（computed）
+- `error` - 错误信息（computed）
+
+## useGameForm
+
+游戏表单管理相关的 Composable，用于添加/编辑游戏表单。
+
+### 导入
+
+```typescript
+import { useGameForm } from '~/composables/ui/useGameForm'
+```
+
+### 使用
+
+```typescript
+const {
+  formData,
+  rules,
+  formRef,
+  isDetecting,
+  detectionResult,
+  isAutoDetected,
+  imagePreview,
+  uploadingImage,
+  selectFolder,
+  selectImage,
+  clearImage,
+  submitForm,
+  resetForm,
+  getGameTypeName
+} = useGameForm()
+```
+
+### 状态
+
+- `formData` - 表单数据（reactive）
+  - `name: string` - 游戏名称
+  - `dir: string` - 游戏目录
+  - `exe: string` - 启动程序
+  - `img: string` - 游戏图片
+  - `type: string | undefined` - 游戏类型
+- `rules` - 表单验证规则
+- `formRef` - 表单引用（用于表单验证）
+- `isDetecting` - 是否正在检测游戏
+- `detectionResult` - 检测结果
+- `isAutoDetected` - 是否自动检测到游戏（computed）
+- `imagePreview` - 图片预览 URL
+- `uploadingImage` - 是否正在上传图片
+
+### API 方法
+
+#### selectFolder()
+
+选择游戏文件夹，会自动检测游戏信息。
+
+```typescript
+await selectFolder()
+// 选择后会自动调用 detectGameInFolder
+// 如果检测成功，会自动填充 formData
+```
+
+#### detectGameInFolder(folderPath)
+
+检测文件夹中的游戏信息。
+
+```typescript
+await detectGameInFolder('C:/Games/GTA_SA')
+// detectionResult 会自动更新
+```
+
+#### selectImage()
+
+选择游戏图片。
+
+```typescript
+await selectImage()
+// imagePreview 和 formData.img 会自动更新
+```
+
+#### clearImage()
+
+清除选中的图片。
+
+```typescript
+clearImage()
+```
+
+#### submitForm()
+
+提交表单。
+
+```typescript
+const success = await submitForm()
+if (success) {
+  // 提交成功
+}
+```
+
+**返回类型：**
+```typescript
+Promise<boolean>
+```
+
+**注意：** 成功消息由调用方显示，避免重复消息。
+
+#### resetForm()
+
+重置表单。
+
+```typescript
+resetForm()
+```
+
+#### getGameTypeName(gameType)
+
+获取游戏类型显示名称。
+
+```typescript
+const name = getGameTypeName('gtasa')
+// 返回 'GTA San Andreas'
+```
+
 ## useModApi
 
 MOD 管理相关的 API。
@@ -163,7 +381,7 @@ MOD 管理相关的 API。
 ### 导入
 
 ```typescript
-import { useModApi } from '@/composables/api/useModApi'
+import { useModApi } from '~/composables/api/useModApi'
 ```
 
 ### 使用
@@ -300,6 +518,144 @@ Promise<boolean>
 - `modApi.loadingState.loading` - 加载状态
 - `modApi.loadingState.error` - 错误信息
 
+## useMessage
+
+消息提示相关的 Composable，使用 notyf 显示消息。
+
+### 导入
+
+```typescript
+import { useMessage } from '~/composables/ui/useMessage'
+```
+
+### 使用
+
+```typescript
+const { showError, showSuccess, showWarning, showInfo, showLoading } = useMessage()
+```
+
+### API 方法
+
+#### showError(content, options?)
+
+显示错误消息。
+
+```typescript
+showError('操作失败')
+// 带详细错误信息
+showError('操作失败', { detail: '详细错误信息' })
+```
+
+#### showSuccess(content, options?)
+
+显示成功消息。
+
+```typescript
+showSuccess('操作成功')
+```
+
+#### showWarning(content, options?)
+
+显示警告消息。
+
+```typescript
+showWarning('请注意')
+```
+
+#### showInfo(content, options?)
+
+显示信息消息。
+
+```typescript
+showInfo('提示信息')
+```
+
+#### showLoading(content, duration?, key?)
+
+显示加载消息。
+
+```typescript
+const loading = showLoading('正在处理...', 0)
+// 关闭
+loading.close()
+```
+
+### 选项
+
+```typescript
+interface MessageOptions {
+  duration?: number  // 显示时长（毫秒），默认 3000
+  onClose?: () => void  // 关闭回调
+  detail?: unknown  // 详细信息（会追加到消息内容中）
+}
+```
+
+## useNotification
+
+详细错误通知，使用 Naive UI 的 notification 在右下角显示。
+
+### 导入
+
+```typescript
+import { useNotification } from 'naive-ui'
+```
+
+### 使用
+
+```typescript
+const notification = useNotification()
+
+// 显示错误通知
+notification.error({
+  title: '操作失败',
+  content: '详细错误信息',
+  duration: 5000,
+  placement: 'bottom-right'
+})
+```
+
+**注意：** 需要在 `app.vue` 中配置 `NNotificationProvider`。
+
+### 使用示例
+
+```typescript
+import { useNotification } from 'naive-ui'
+
+const notification = useNotification()
+
+// 显示错误通知
+notification.error({
+  title: '操作失败',
+  content: '详细错误信息',
+  duration: 5000,
+  placement: 'bottom-right'
+})
+
+// 显示成功通知
+notification.success({
+  title: '操作成功',
+  content: '操作已完成',
+  duration: 3000,
+  placement: 'bottom-right'
+})
+
+// 显示警告通知
+notification.warning({
+  title: '警告',
+  content: '请注意',
+  duration: 4000,
+  placement: 'bottom-right'
+})
+
+// 显示信息通知
+notification.info({
+  title: '提示',
+  content: '这是一条信息',
+  duration: 3000,
+  placement: 'bottom-right'
+})
+```
+
 ## useAppInfo
 
 应用信息相关的 API。
@@ -307,7 +663,7 @@ Promise<boolean>
 ### 导入
 
 ```typescript
-import { useAppInfo } from '@/composables/api/useApp'
+import { useAppInfo } from '~/composables/api/useApp'
 ```
 
 ### 使用
@@ -354,7 +710,7 @@ interface AppInfo {
 ### 导入
 
 ```typescript
-import { useWindowControl } from '@/composables/api/useApp'
+import { useWindowControl } from '~/composables/api/useApp'
 ```
 
 ### 使用
@@ -410,17 +766,44 @@ await checkMaximizedState()
 
 ## 错误处理
 
-所有 composable 都集成了错误处理，会自动显示错误消息。如果需要自定义错误处理，可以捕获异常：
+### 自动错误处理
+
+所有 composable 都集成了错误处理，会自动显示错误消息（使用 `useMessage` 的 `showError`）。
+
+### 自定义错误处理
+
+如果需要自定义错误处理，可以捕获异常并使用 `useNotification` 显示详细错误：
 
 ```typescript
+import { useMessage } from '~/composables/ui/useMessage'
+import { useNotification } from 'naive-ui'
+
+const { showError } = useMessage()
+const notification = useNotification()
+
 try {
   const result = await modApi.installUserMod(request)
   if (!result) {
-    // 安装失败
+    // 安装失败（内部已显示错误消息）
   }
 } catch (error) {
-  // 处理错误
-  console.error('安装失败:', error)
+  // 显示简短错误提示
+  showError('安装失败')
+  
+  // 显示详细错误信息（右下角）
+  notification.error({
+    title: '安装失败',
+    content: error instanceof Error ? error.message : String(error),
+    duration: 5000,
+    placement: 'bottom-right'
+  })
 }
 ```
+
+### 错误处理最佳实践
+
+1. **简短错误**：使用 `useMessage` 的 `showError` 显示简短错误提示
+2. **详细错误**：使用 `useNotification` 的 `notification.error` 在右下角显示详细错误信息
+3. **成功消息**：使用 `useMessage` 的 `showSuccess` 显示成功提示
+4. **避免重复**：确保不在多个地方显示相同的消息
 
