@@ -12,7 +12,14 @@ const naiveTheme = computed(() => {
   <UApp>
     <NuxtLayout>
       <NConfigProvider :theme="naiveTheme">
-        <NuxtPage />
+        <NGlobalStyle />
+        <NMessageProvider>
+          <NDialogProvider>
+            <NNotificationProvider>
+              <NuxtPage />
+            </NNotificationProvider>
+          </NDialogProvider>
+        </NMessageProvider>
       </NConfigProvider>
     </NuxtLayout>
   </UApp>

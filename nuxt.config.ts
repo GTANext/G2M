@@ -8,7 +8,7 @@ export default defineNuxtConfig({
 
   devtools: { enabled: true },
 
-  modules: ['@nuxt/ui', 'nuxtjs-naive-ui'],
+  modules: ['@nuxt/ui', 'nuxtjs-naive-ui', '@nuxt/image'],
 
   // 构建配置
   build: {

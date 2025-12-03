@@ -20,6 +20,35 @@ export const EXTERNAL_LINKS = {
     bilibili: 'https://space.bilibili.com/435502585',
 }
 
+// 感谢名单配置
+export interface ThankYouItem {
+    img: string
+    quote: string
+    name: string
+    role: string
+}
+
+export const THANK_YOU_LIST: ThankYouItem[] = [
+    {
+        img: `/images/avatar/YuiNijika.jpg`,
+        quote: "安装、管理、构建，就这么简单。",
+        name: "鼠子",
+        role: "G2M开发者, GTAMODX首席股东",
+    },
+    {
+        img: `/images/avatar/kfc.jpg`,
+        quote: "我去不早说",
+        name: "狂风晨",
+        role: "G2M产品经理, GTAMODX站长",
+    },
+    {
+        img: `/images/avatar/Cyber.jpg`,
+        quote: "欧内该，瓦达西！",
+        name: "Cyber蝈蝈总",
+        role: "G2M金牌赞助, 老一辈GTA艺术家",
+    }
+]
+
 export function useCommon() {
     const router = useRouter()
     const route = useRoute()
@@ -54,5 +83,6 @@ export function useCommon() {
         // 通用信息
         qqGroups: QQ_GROUPS,
         externalLinks: EXTERNAL_LINKS,
+        thankYouList: THANK_YOU_LIST,
     }
 }

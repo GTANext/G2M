@@ -59,8 +59,9 @@ export function useGameForm() {
     imagePreview.value = '';
     selectedImageFile.value = '';
 
-    if (formRef.value) {
-      formRef.value.resetFields();
+    // Naive UI 的 NForm 使用 restoreValidation 来清除验证状态
+    if (formRef.value && formRef.value.restoreValidation) {
+      formRef.value.restoreValidation();
     }
   };
 
@@ -142,12 +143,12 @@ export function useGameForm() {
       };
 
       await gameApi.saveGame(payload);
-      showSuccess('游戏添加成功！');
+      // 不在这里显示成功消息，由调用方处理
       resetForm();
       return true;
     } catch (error) {
-      showError('保存游戏失败');
-      return false;
+      // 抛出错误让调用方处理，调用方可以使用 notification 显示详细错误
+      throw error;
     }
   };
 
