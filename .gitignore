@@ -7,7 +7,8 @@
 dist
 old
 .virtualme
-src-tauri/G2M/*
+src-tauri/G2M/Config
+src-tauri/G2M/Download
 
 # Node dependencies
 node_modules
