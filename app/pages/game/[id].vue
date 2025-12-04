@@ -51,7 +51,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
         <UPageBody>
             <UPageHeader 
                 :title="gameData?.name" 
-                :description="gameData?.description"
+                :description="gameData?.description" 
                 :headline="gameData?.dir" 
                 class="mt-[-48px]"
             >

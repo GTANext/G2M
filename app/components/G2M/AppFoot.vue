@@ -6,10 +6,14 @@ const { navItems, isActive, externalLinks } = useCommon()
 const { minimizeWindow, closeWindow } = useWindowControl()
 
 const items = computed(() => {
-    return navItems.value.map(item => ({
+    if (!externalLinks || !Array.isArray(externalLinks)) {
+        return []
+    }
+    return externalLinks.map(item => ({
         label: item.label,
-        to: item.route,
-        active: isActive(item.route)
+        href: item.route,
+        target: '_blank',
+        rel: 'noopener noreferrer'
     }))
 })
 </script>
@@ -29,7 +33,8 @@ const items = computed(() => {
             <UColorModeButton />
 
             <UTooltip text="Open on GitHub">
-                <UButton color="neutral" variant="ghost" :to="externalLinks.github" target="_blank"
+                <UButton color="neutral" variant="ghost"
+                    :href="externalLinks.find(link => link.key === 'github')?.route" target="_blank"
                     icon="i-simple-icons-github" aria-label="GitHub" />
             </UTooltip>
         </template>

@@ -13,7 +13,7 @@ importers:
         version: 2.0.0(db0@0.3.4)(ioredis@5.8.2)(magicast@0.5.1)
       '@nuxt/ui':
         specifier: 4.2.1
-        version: 4.2.1(@babel/parser@7.28.5)(async-validator@4.2.5)(db0@0.3.4)(embla-carousel@8.6.0)(ioredis@5.8.2)(magicast@0.5.1)(nprogress@0.2.0)(typescript@5.9.3)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(terser@5.44.1)(yaml@2.8.2))(vue-router@4.6.3(vue@3.5.25(typescript@5.9.3)))(vue@3.5.25(typescript@5.9.3))
+        version: 4.2.1(@babel/parser@7.28.5)(async-validator@4.2.5)(db0@0.3.4)(embla-carousel@8.6.0)(ioredis@5.8.2)(magicast@0.5.1)(nprogress@0.2.0)(sortablejs@1.15.6)(typescript@5.9.3)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(terser@5.44.1)(yaml@2.8.2))(vue-router@4.6.3(vue@3.5.25(typescript@5.9.3)))(vue@3.5.25(typescript@5.9.3))
       '@tailwindcss/vite':
         specifier: ^4.1.17
         version: 4.1.17(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(terser@5.44.1)(yaml@2.8.2))
@@ -29,6 +29,9 @@ importers:
       gsap:
         specifier: ^3.13.0
         version: 3.13.0
+      he-tree-vue:
+        specifier: ^3.1.2
+        version: 3.1.2(vue@3.5.25(typescript@5.9.3))
       lucide-vue-next:
         specifier: ^0.555.0
         version: 0.555.0(vue@3.5.25(typescript@5.9.3))
@@ -47,6 +50,9 @@ importers:
       nuxtjs-naive-ui:
         specifier: 1.0.2
         version: 1.0.2(magicast@0.5.1)(vue@3.5.25(typescript@5.9.3))
+      sortablejs:
+        specifier: ^1.15.6
+        version: 1.15.6
       tailwindcss:
         specifier: ^4.1.17
         version: 4.1.17
@@ -56,9 +62,18 @@ importers:
       vue:
         specifier: ^3.5.25
         version: 3.5.25(typescript@5.9.3)
+      vue-draggable-next:
+        specifier: ^2.3.0
+        version: 2.3.0(sortablejs@1.15.6)(vue@3.5.25(typescript@5.9.3))
+      vue-draggable-plus:
+        specifier: ^0.6.0
+        version: 0.6.0(@types/sortablejs@1.15.9)
       vue-router:
         specifier: ^4.6.3
         version: 4.6.3(vue@3.5.25(typescript@5.9.3))
+      vuedraggable:
+        specifier: ^2.24.3
+        version: 2.24.3
     devDependencies:
       '@tauri-apps/cli':
         specifier: ^2.9.5
@@ -210,6 +225,10 @@ packages:
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
+
+  '@babel/runtime@7.28.4':
+    resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
+    engines: {node: '>=6.9.0'}
 
   '@babel/template@7.27.2':
     resolution: {integrity: sha512-LPDZ85aEJyYSd18/DkjNh4/y1ntkE5KwUHWTiqgRxruuZL2F1yuHligVHLvcHY2vMHXttKFpJn6LwfI7cw7ODw==}
@@ -1611,6 +1630,9 @@ packages:
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
 
+  '@types/sortablejs@1.15.9':
+    resolution: {integrity: sha512-7HP+rZGE2p886PKV9c9OJzLBI6BBJu1O7lJGYnPyG3fS4/duUCcngkNCjsLwIMV+WMqANe3tt4irrXHSIe68OQ==}
+
   '@types/web-bluetooth@0.0.20':
     resolution: {integrity: sha512-g9gZnnXVq7gM7v3tJCWV/qw7w+KeOlSHAhgF9RytFyifW6AF61hdT2ucrYhPq9hLs5JIryeupHV3qGk95dH9ow==}
 
@@ -2273,6 +2295,12 @@ packages:
     resolution: {integrity: sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==}
     engines: {node: '>=12'}
 
+  drag-event-service@1.1.10:
+    resolution: {integrity: sha512-V7WhmEIRLWnuj0sLRHAy5Ce5Q5ZOX4kh4SYY+z4JbUON+WykPyUS0EhZNhF2NjAbnEieMfXUw35lFlI+b6pNZA==}
+
+  draggable-helper@5.0.6:
+    resolution: {integrity: sha512-XJDmWNZXDO6iB81qA0ZoNrMxRkKwlYMM7yba+jaGT29a4uDYfrgAkm+4xKqV1oEv5AdeKK+MnAWsrt/TaQwbEg==}
+
   duplexer@0.1.2:
     resolution: {integrity: sha512-jtD6YG370ZCIi/9GTaJKQxWTZD045+4R4hTk/x1UyoqadyJ9x9CgSi1RlVDQF8U2sxLLSnFkCaMihqljHIWgMg==}
 
@@ -2545,6 +2573,14 @@ packages:
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
+
+  he-tree-vue@3.1.2:
+    resolution: {integrity: sha512-PUKTo0l5ymu/IXAELh7/4nW6WNvJYr8OiB3WYgWHHaHJ7y5j4QRjfVVj7IWXQTWafWxV7FNeQ8d8bQE7Qyu+tg==}
+    peerDependencies:
+      vue: ^3.0.0
+
+  helper-js@2.0.7:
+    resolution: {integrity: sha512-qdagluMOcYL5P9fYLqbGedq9LCWH1W4BM2/yTH+XIy6MIYLE+qAHWU6acZ5CyWJslXMhKCKPl1yDYVJCKGgS6A==}
 
   hey-listen@1.0.8:
     resolution: {integrity: sha512-COpmrF2NOg4TBWUJ5UVyaCU2A88wEMkUPK4hNqyCkqHbxT92BbvfjoSozkAIIm6XhicGlJHhFdullInrdhwU8Q==}
@@ -3566,6 +3602,12 @@ packages:
   smob@1.5.0:
     resolution: {integrity: sha512-g6T+p7QO8npa+/hNx9ohv1E5pVCmWrVCUzUXJyLdMmftX6ER0oiWY/w9knEonLpnOp6b6FenKnMfR8gqwWdwig==}
 
+  sortablejs@1.10.2:
+    resolution: {integrity: sha512-YkPGufevysvfwn5rfdlGyrGjt7/CRHwvRPogD/lC+TnvcN29jDpCifKP+rBqf+LRldfXSTh+0CGLcSg0VIxq3A==}
+
+  sortablejs@1.15.6:
+    resolution: {integrity: sha512-aNfiuwMEpfBM/CN6LY0ibyhxPfPbyFeBTYJKCvzkJ2GkUpazIt3H+QIPAMHwqQ7tMKaHz1Qj+rJJCqljnf4p3A==}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -4070,10 +4112,31 @@ packages:
   vue-devtools-stub@0.1.0:
     resolution: {integrity: sha512-RutnB7X8c5hjq39NceArgXg28WZtZpGc3+J16ljMiYnFhKvd8hITxSWQSQ5bvldxMDU6gG5mkxl1MTQLXckVSQ==}
 
+  vue-draggable-next@2.3.0:
+    resolution: {integrity: sha512-ymbY0UIwfSdg0iDN/iyNNwUrTqZ/6KbPryzsvTNXBLuDCuOBdNijSK8yynNtmiSj6RapTPQfjLGQdJrZkzBd2w==}
+    peerDependencies:
+      sortablejs: ^1.14.0
+      vue: ^3.5.17
+
+  vue-draggable-plus@0.6.0:
+    resolution: {integrity: sha512-G5TSfHrt9tX9EjdG49InoFJbt2NYk0h3kgjgKxkFWr3ulIUays0oFObr5KZ8qzD4+QnhtALiRwIqY6qul4egqw==}
+    peerDependencies:
+      '@types/sortablejs': ^1.15.0
+      '@vue/composition-api': '*'
+    peerDependenciesMeta:
+      '@vue/composition-api':
+        optional: true
+
+  vue-functions@2.0.6:
+    resolution: {integrity: sha512-c5P62HgQHJe7tIyWQUJGKeK3ziI+cOc3tf/NnwaSGnli89msfyDN0QUFIT9Su7uMcQmf0oMj2PmSh8M4zISxzg==}
+
   vue-router@4.6.3:
     resolution: {integrity: sha512-ARBedLm9YlbvQomnmq91Os7ck6efydTSpRP3nuOKCvgJOHNrhRoJDSKtee8kcL1Vf7nz6U+PMBL+hTvR3bTVQg==}
     peerDependencies:
       vue: ^3.5.0
+
+  vue-runtime-helpers@1.1.2:
+    resolution: {integrity: sha512-pZfGp+PW/IXEOyETE09xQHR1CKkR9HfHZdnMD/FVLUNI+HxYTa82evx5WrF6Kz4s82qtqHvMZ8MZpbk2zT2E1Q==}
 
   vue@3.5.25:
     resolution: {integrity: sha512-YLVdgv2K13WJ6n+kD5owehKtEXwdwXuj2TTyJMsO7pSeKw2bfRNZGjhB7YzrpbMYj5b5QsUebHpOqR3R3ziy/g==}
@@ -4082,6 +4145,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  vuedraggable@2.24.3:
+    resolution: {integrity: sha512-6/HDXi92GzB+Hcs9fC6PAAozK1RLt1ewPTLjK0anTYguXLAeySDmcnqE8IC0xa7shvSzRjQXq3/+dsZ7ETGF3g==}
 
   vueuc@0.4.65:
     resolution: {integrity: sha512-lXuMl+8gsBmruudfxnMF9HW4be8rFziylXFu1VHVNbLVhRTXXV4njvpRuJapD/8q+oFEMSfQMH16E/85VoWRyQ==}
@@ -4326,6 +4392,8 @@ snapshots:
       '@babel/plugin-syntax-typescript': 7.27.1(@babel/core@7.28.5)
     transitivePeerDependencies:
       - supports-color
+
+  '@babel/runtime@7.28.4': {}
 
   '@babel/template@7.27.2':
     dependencies:
@@ -5042,7 +5110,7 @@ snapshots:
     transitivePeerDependencies:
       - magicast
 
-  '@nuxt/ui@4.2.1(@babel/parser@7.28.5)(async-validator@4.2.5)(db0@0.3.4)(embla-carousel@8.6.0)(ioredis@5.8.2)(magicast@0.5.1)(nprogress@0.2.0)(typescript@5.9.3)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(terser@5.44.1)(yaml@2.8.2))(vue-router@4.6.3(vue@3.5.25(typescript@5.9.3)))(vue@3.5.25(typescript@5.9.3))':
+  '@nuxt/ui@4.2.1(@babel/parser@7.28.5)(async-validator@4.2.5)(db0@0.3.4)(embla-carousel@8.6.0)(ioredis@5.8.2)(magicast@0.5.1)(nprogress@0.2.0)(sortablejs@1.15.6)(typescript@5.9.3)(vite@7.2.6(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(terser@5.44.1)(yaml@2.8.2))(vue-router@4.6.3(vue@3.5.25(typescript@5.9.3)))(vue@3.5.25(typescript@5.9.3))':
     dependencies:
       '@iconify/vue': 5.0.0(vue@3.5.25(typescript@5.9.3))
       '@internationalized/date': 3.10.0
@@ -5059,7 +5127,7 @@ snapshots:
       '@tanstack/vue-virtual': 3.13.12(vue@3.5.25(typescript@5.9.3))
       '@unhead/vue': 2.0.19(vue@3.5.25(typescript@5.9.3))
       '@vueuse/core': 13.9.0(vue@3.5.25(typescript@5.9.3))
-      '@vueuse/integrations': 13.9.0(async-validator@4.2.5)(fuse.js@7.1.0)(nprogress@0.2.0)(vue@3.5.25(typescript@5.9.3))
+      '@vueuse/integrations': 13.9.0(async-validator@4.2.5)(fuse.js@7.1.0)(nprogress@0.2.0)(sortablejs@1.15.6)(vue@3.5.25(typescript@5.9.3))
       colortranslator: 5.0.0
       consola: 3.4.2
       defu: 6.1.4
@@ -5741,6 +5809,8 @@ snapshots:
 
   '@types/resolve@1.20.2': {}
 
+  '@types/sortablejs@1.15.9': {}
+
   '@types/web-bluetooth@0.0.20': {}
 
   '@types/web-bluetooth@0.0.21': {}
@@ -5960,7 +6030,7 @@ snapshots:
       '@vueuse/shared': 14.1.0(vue@3.5.25(typescript@5.9.3))
       vue: 3.5.25(typescript@5.9.3)
 
-  '@vueuse/integrations@13.9.0(async-validator@4.2.5)(fuse.js@7.1.0)(nprogress@0.2.0)(vue@3.5.25(typescript@5.9.3))':
+  '@vueuse/integrations@13.9.0(async-validator@4.2.5)(fuse.js@7.1.0)(nprogress@0.2.0)(sortablejs@1.15.6)(vue@3.5.25(typescript@5.9.3))':
     dependencies:
       '@vueuse/core': 13.9.0(vue@3.5.25(typescript@5.9.3))
       '@vueuse/shared': 13.9.0(vue@3.5.25(typescript@5.9.3))
@@ -5969,6 +6039,7 @@ snapshots:
       async-validator: 4.2.5
       fuse.js: 7.1.0
       nprogress: 0.2.0
+      sortablejs: 1.15.6
 
   '@vueuse/metadata@10.11.1': {}
 
@@ -6429,6 +6500,17 @@ snapshots:
 
   dotenv@17.2.3: {}
 
+  drag-event-service@1.1.10:
+    dependencies:
+      '@babel/runtime': 7.28.4
+      helper-js: 2.0.7
+
+  draggable-helper@5.0.6:
+    dependencies:
+      '@babel/runtime': 7.28.4
+      drag-event-service: 1.1.10
+      helper-js: 2.0.7
+
   duplexer@0.1.2: {}
 
   eastasianwidth@0.2.0: {}
@@ -6747,6 +6829,20 @@ snapshots:
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
+
+  he-tree-vue@3.1.2(vue@3.5.25(typescript@5.9.3)):
+    dependencies:
+      '@babel/runtime': 7.28.4
+      draggable-helper: 5.0.6
+      helper-js: 2.0.7
+      vue: 3.5.25(typescript@5.9.3)
+      vue-functions: 2.0.6
+      vue-runtime-helpers: 1.1.2
+
+  helper-js@2.0.7:
+    dependencies:
+      '@babel/runtime': 7.28.4
+      tslib: 2.8.1
 
   hey-listen@1.0.8: {}
 
@@ -8058,6 +8154,10 @@ snapshots:
 
   smob@1.5.0: {}
 
+  sortablejs@1.10.2: {}
+
+  sortablejs@1.15.6: {}
+
   source-map-js@1.2.1: {}
 
   source-map-support@0.5.21:
@@ -8528,10 +8628,26 @@ snapshots:
 
   vue-devtools-stub@0.1.0: {}
 
+  vue-draggable-next@2.3.0(sortablejs@1.15.6)(vue@3.5.25(typescript@5.9.3)):
+    dependencies:
+      sortablejs: 1.15.6
+      vue: 3.5.25(typescript@5.9.3)
+
+  vue-draggable-plus@0.6.0(@types/sortablejs@1.15.9):
+    dependencies:
+      '@types/sortablejs': 1.15.9
+
+  vue-functions@2.0.6:
+    dependencies:
+      '@babel/runtime': 7.28.4
+      helper-js: 2.0.7
+
   vue-router@4.6.3(vue@3.5.25(typescript@5.9.3)):
     dependencies:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.25(typescript@5.9.3)
+
+  vue-runtime-helpers@1.1.2: {}
 
   vue@3.5.25(typescript@5.9.3):
     dependencies:
@@ -8542,6 +8658,10 @@ snapshots:
       '@vue/shared': 3.5.25
     optionalDependencies:
       typescript: 5.9.3
+
+  vuedraggable@2.24.3:
+    dependencies:
+      sortablejs: 1.10.2
 
   vueuc@0.4.65(vue@3.5.25(typescript@5.9.3)):
     dependencies:

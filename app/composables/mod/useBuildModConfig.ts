@@ -40,6 +40,9 @@ export function useBuildModConfig() {
     const selectingModDir = ref(false)
     const loadingFileTree = ref(false)
 
+    // 记录是否已存在 g2m.json 配置文件
+    const hasExistingConfig = ref(false)
+
     // 文件树数据
     const fileTree = ref<any[]>([])
 
@@ -70,12 +73,15 @@ export function useBuildModConfig() {
 
                     if (configResponse?.success && configResponse?.data) {
                         const config = configResponse.data
+                        // 标记已存在配置文件
+                        hasExistingConfig.value = true
                         // 填充表单数据
                         formData.value.name = config.name || ''
                         formData.value.author = config.author || ''
+                        // 将变量格式转换为实际路径用于前端显示
                         formData.value.modfiles = (config.modfile || []).map((file: any) => ({
                             source: file.source,
-                            target: file.target,
+                            target: convertVariableToActualPath(file.target),
                             isDirectory: file.is_directory || false
                         }))
                         // 同步 targetKeys
@@ -83,6 +89,7 @@ export function useBuildModConfig() {
                         showSuccess('已自动加载 g2m.json 配置')
                     } else {
                         // 如果没有找到配置文件，清空已添加的文件和名称
+                        hasExistingConfig.value = false
                         formData.value.name = ''
                         formData.value.author = ''
                         formData.value.modfiles = []
@@ -147,6 +154,11 @@ export function useBuildModConfig() {
                 } else {
                     // 如果路径不在 MOD 目录下，使用文件名
                     relativePath = pathNormalized.split(/[/\\]/).pop() || relativePath
+                }
+
+                // 过滤掉 g2m.json 配置文件
+                if (!isDirectory && (relativePath === 'g2m.json' || relativePath.endsWith('/g2m.json'))) {
+                    return
                 }
 
                 // 检查是否已存在
@@ -364,7 +376,7 @@ export function useBuildModConfig() {
     // 处理目标路径变化
     const handleTargetChange = (key: string, newTarget: string) => {
         const index = formData.value.modfiles.findIndex(f => f.source === key)
-        if (index > -1) {
+        if (index > -1 && formData.value.modfiles[index]) {
             formData.value.modfiles[index].target = newTarget
         }
     }
@@ -373,9 +385,105 @@ export function useBuildModConfig() {
     // 删除文件/文件夹
     const removeModFile = (index: number) => {
         const removed = formData.value.modfiles[index]
-        formData.value.modfiles.splice(index, 1)
-        // 同步更新 targetKeys
-        targetKeys.value = targetKeys.value.filter(key => key !== removed.source)
+        if (removed) {
+            formData.value.modfiles.splice(index, 1)
+            // 同步更新 targetKeys
+            targetKeys.value = targetKeys.value.filter(key => key !== removed.source)
+        }
+    }
+
+    // 将变量格式转换为实际路径（用于前端显示）
+    const convertVariableToActualPath = (target: string): string => {
+        if (!target) return target
+
+        // 如果已经是变量格式（包含 ${}），转换为实际路径
+        if (target.includes('${')) {
+            // 匹配 ${variable}/path 格式
+            const match = target.match(/^\$\{(\w+)\}\/(.+)$/)
+            if (match && match[1] && match[2]) {
+                const variable = match[1]
+                const path = match[2]
+                // 将变量名转换为实际路径
+                const variableMap: Record<string, string> = {
+                    'cleo': 'CLEO',
+                    'cleo_redux': 'plugins/CLEO',
+                    'modloader': 'modloader',
+                    'plugins': 'plugins',
+                    'scripts': 'scripts'
+                }
+                const actualPrefix = variableMap[variable] || variable
+                return `${actualPrefix}/${path}`
+            }
+            // 如果只是 ${variable}，转换为实际路径
+            const simpleMatch = target.match(/^\$\{(\w+)\}$/)
+            if (simpleMatch && simpleMatch[1]) {
+                const variable = simpleMatch[1]
+                const variableMap: Record<string, string> = {
+                    'cleo': 'CLEO',
+                    'cleo_redux': 'plugins/CLEO',
+                    'modloader': 'modloader',
+                    'plugins': 'plugins',
+                    'scripts': 'scripts'
+                }
+                return variableMap[variable] || variable
+            }
+        }
+        // 如果不是变量格式，直接返回
+        return target
+    }
+
+    // 将目标路径转换为变量格式（用于保存到配置文件）
+    const convertTargetToVariableFormat = (target: string, isDirectory: boolean = false): string => {
+        const normalized = target.replace(/\\/g, '/')
+        const lower = normalized.toLowerCase()
+        const fileName = normalized.split('/').pop() || normalized
+
+        // 检查路径特征，转换为变量格式
+        if (lower.startsWith('cleo/')) {
+            // CLEO 文件或文件夹
+            const relativePath = normalized.substring('cleo/'.length)
+            if (isDirectory || relativePath.includes('/')) {
+                // 文件夹或子路径，保留相对路径
+                return `\${cleo}/${relativePath}`
+            } else {
+                // 单个文件
+                return `\${cleo}/${fileName}`
+            }
+        } else if (lower.startsWith('plugins/cleo/')) {
+            // CLEO Redux 文件或文件夹
+            const relativePath = normalized.substring('plugins/cleo/'.length)
+            if (isDirectory || relativePath.includes('/')) {
+                return `\${cleo_redux}/${relativePath}`
+            } else {
+                return `\${cleo_redux}/${fileName}`
+            }
+        } else if (lower.startsWith('modloader/')) {
+            // ModLoader 文件或文件夹，保留相对路径
+            const relativePath = normalized.substring('modloader/'.length)
+            return `\${modloader}/${relativePath}`
+        } else if (lower.startsWith('plugins/') && !lower.startsWith('plugins/cleo')) {
+            // Plugins 文件或文件夹
+            const relativePath = normalized.substring('plugins/'.length)
+            if (isDirectory || relativePath.includes('/')) {
+                return `\${plugins}/${relativePath}`
+            } else {
+                return `\${plugins}/${fileName}`
+            }
+        } else if (lower.startsWith('scripts/')) {
+            // Scripts 文件或文件夹
+            const relativePath = normalized.substring('scripts/'.length)
+            if (isDirectory || relativePath.includes('/')) {
+                return `\${scripts}/${relativePath}`
+            } else {
+                return `\${scripts}/${fileName}`
+            }
+        } else if ((lower.endsWith('.asi') || lower.endsWith('.dll')) && !normalized.includes('/')) {
+            // 根目录的 ASI/DLL 文件，直接返回文件名
+            return fileName
+        } else {
+            // 其他情况（根目录文件），返回原路径
+            return normalized
+        }
     }
 
     // 保存配置
@@ -398,14 +506,14 @@ export function useBuildModConfig() {
 
             saving.value = true
 
-            // 构建配置对象
+            // 构建配置对象，将目标路径转换为变量格式
             const authorValue = formData.value.author.trim()
             const config = {
                 name: formData.value.name.trim(),
                 author: authorValue === '' ? null : authorValue,
                 modfile: formData.value.modfiles.map((f: any) => ({
                     source: f.source,
-                    target: f.target,
+                    target: convertTargetToVariableFormat(f.target, f.isDirectory),
                     is_directory: f.isDirectory
                 }))
             }
@@ -417,8 +525,14 @@ export function useBuildModConfig() {
             })
 
             if (response?.success) {
-                showSuccess('保存成功！g2m.json 已创建')
-                // 可以重置表单或保持当前状态
+                // 根据是否存在配置文件显示不同的提示
+                if (hasExistingConfig.value) {
+                    showSuccess('保存成功！g2m.json 已更新')
+                } else {
+                    showSuccess('保存成功！g2m.json 已创建')
+                }
+                // 标记配置文件已存在
+                hasExistingConfig.value = true
             } else {
                 showError(response?.error || '保存失败')
             }
@@ -440,7 +554,11 @@ export function useBuildModConfig() {
         targetKeys.value = []
         transferDataSource.value = []
         fileTree.value = []
-        formRef.value?.resetFields()
+        hasExistingConfig.value = false
+        // Nuxt UI 表单重置
+        if (formRef.value?.clear) {
+            formRef.value.clear()
+        }
     }
 
     return {

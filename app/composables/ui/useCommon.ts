@@ -15,10 +15,10 @@ export const QQ_GROUPS = [
 ]
 
 // 外部链接配置
-export const EXTERNAL_LINKS = {
-    github: 'https://github.com/GTANext/G2M',
-    bilibili: 'https://space.bilibili.com/435502585',
-}
+export const EXTERNAL_LINKS = [
+    { key: 'github', label: 'GitHub', route: 'https://github.com/GTANext/G2M', icon: null },
+    { key: 'bilibili', label: 'Bilibili', route: 'https://space.bilibili.com/435502585', icon: null }
+]
 
 // 感谢名单配置
 export interface ThankYouItem {
@@ -56,7 +56,7 @@ export function useCommon() {
     // 导航菜单配置
     const navItems = ref([
         { key: 'index', label: '启动', route: '/', icon: null },
-        { key: 'build', label: '构建', route: '/build', icon: null },
+        { key: 'builder', label: '构建', route: '/builder', icon: null },
         { key: 'download', label: '下载', route: '/download', icon: null },
         { key: 'about', label: '关于', route: '/about', icon: null }
     ])
