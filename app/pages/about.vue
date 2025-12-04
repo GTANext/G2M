@@ -5,7 +5,7 @@ definePageMeta({
     enableBackground: false
 })
 
-const { thankYouList } = useCommon()
+const { thankYouList, techStack } = useCommon()
 const testimonials = thankYouList
 </script>
 
@@ -26,10 +26,24 @@ const testimonials = thankYouList
     <div class="relative h-[500px] w-full overflow-hidden rounded-lg border bg-background">
         <div class="flex items-center justify-center">
             <UISparklesText text="特别感谢" :colors="{ first: '#9E7AFF', second: '#FE8BBB' }" :sparkles-count="10"
-                class="mt-8" />
+                class="mt-6" />
         </div>
         <div class="mt-[64px] flex justify-center px-12">
             <UITestimonialSlider :testimonials="testimonials" />
         </div>
+    </div>
+    <div class="py-6">
+        <div class="flex items-center justify-center">
+            <UITextReveal class="text-4xl font-semibold leading-relaxed text-center">
+                技术栈
+            </UITextReveal>
+        </div>
+        <UPageLogos marquee>
+            <a v-for="tech in techStack" :key="tech.title" :href="tech.url" target="_blank" rel="noopener noreferrer"
+                class="flex flex-col items-center gap-2">
+                <UIcon :name="tech.icon" class="size-10 shrink-0" />
+                <span class="text-xs font-medium">{{ tech.title }}</span>
+            </a>
+        </UPageLogos>
     </div>
 </template>

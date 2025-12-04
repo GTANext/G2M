@@ -67,19 +67,19 @@ const handleReset = () => {
                             <NButton :type="settings.appearance.theme === 'light' ? 'primary' : 'default'"
                                 :quaternary="settings.appearance.theme !== 'light'" @click="handleThemeChange('light')"
                                 class="flex flex-col items-center gap-2 py-4">
-                                <UIcon name="i-lucide-sun" class="w-6 h-6" />
+                                <UIcon name="i-lucide-sun" />
                                 <span>浅色</span>
                             </NButton>
                             <NButton :type="settings.appearance.theme === 'dark' ? 'primary' : 'default'"
                                 :quaternary="settings.appearance.theme !== 'dark'" @click="handleThemeChange('dark')"
                                 class="flex flex-col items-center gap-2 py-4">
-                                <UIcon name="i-lucide-moon" class="w-6 h-6" />
+                                <UIcon name="i-lucide-moon" />
                                 <span>深色</span>
                             </NButton>
                             <NButton :type="settings.appearance.theme === 'auto' ? 'primary' : 'default'"
                                 :quaternary="settings.appearance.theme !== 'auto'" @click="handleThemeChange('auto')"
                                 class="flex flex-col items-center gap-2 py-4">
-                                <UIcon name="i-lucide-monitor" class="w-6 h-6" />
+                                <UIcon name="i-lucide-monitor" />
                                 <span>跟随系统</span>
                             </NButton>
                         </div>

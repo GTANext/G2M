@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { useGameInfo } from '~/composables/game/useGameInfo'
+import { useGameActions } from '~/composables/game/useGameActions'
 
 const route = useRoute()
 const gameId = computed(() => route.params.id)
 
 const { gameData, loadGameInfo } = useGameInfo(gameId)
+const { loading: actionLoading, launchGame } = useGameActions()
+
+// 处理启动游戏
+const handleLaunch = () => {
+    if (gameData.value) {
+        launchGame(gameData.value)
+    }
+}
 
 // 加载游戏信息
 onMounted(() => {
@@ -56,7 +65,12 @@ const items = computed<NavigationMenuItem[][]>(() => [
                 class="mt-[-48px]"
             >
                 <template #links>
-                    <UButton icon="i-heroicons-play" label="启动游戏" />
+                    <UButton 
+                        icon="i-heroicons-play" 
+                        label="启动游戏"
+                        :loading="actionLoading.launch"
+                        @click="handleLaunch"
+                    />
                 </template>
             </UPageHeader>
             <slot />

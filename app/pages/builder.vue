@@ -85,19 +85,11 @@ onMounted(() => {
 
 <template>
     <UPage>
-        <UPageHeader title="G2M Builder" description="创建 g2m.json 配置文件，用于 MOD 的安装">
-            <template #links>
-                <NButton quaternary @click="resetForm">
-                    重置
-                </NButton>
-            </template>
-        </UPageHeader>
-
         <UPageBody>
             <UCard v-if="!formData.modDir">
                 <div class="flex flex-col items-center justify-center py-20">
-                    <UEmpty icon="i-lucide-folder" title="请先选择 MOD 文件夹" description="选择 MOD 根目录以开始构建配置文件">
-                        <template #actions>
+                    <UPageSection title="G2M Builder" description="选择 MOD 根目录以开始构建配置文件">
+                        <template #links>
                             <NButton type="primary" :loading="selectingModDir" @click="selectModDirectory" size="large">
                                 <template #icon>
                                     <UIcon name="i-lucide-folder-open" />
@@ -105,7 +97,7 @@ onMounted(() => {
                                 选择 MOD 文件夹
                             </NButton>
                         </template>
-                    </UEmpty>
+                    </UPageSection>
                 </div>
             </UCard>
 

@@ -1,13 +1,13 @@
 use crate::game::types::ApiResponse;
+use chrono::Utc;
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write, BufReader, BufWriter};
+use std::io::{self, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{Window, AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Window};
 use zip::ZipArchive;
-use futures_util::StreamExt;
-use chrono::Utc;
 
 // 全局取消标志
 static DOWNLOAD_CANCEL_FLAG: Mutex<bool> = Mutex::new(false);
@@ -71,13 +71,16 @@ struct ExtractLog {
 // 获取 G2M/Download 目录路径
 fn get_download_dir(_app_handle: &AppHandle) -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
-        let current_dir = std::env::current_dir()
-            .map_err(|e| format!("无法获取当前目录: {}", e))?;
-        let project_root = if current_dir.file_name()
+        let current_dir =
+            std::env::current_dir().map_err(|e| format!("无法获取当前目录: {}", e))?;
+        let project_root = if current_dir
+            .file_name()
             .and_then(|name| name.to_str())
             .map(|name| name == "src-tauri")
-            .unwrap_or(false) {
-            current_dir.parent()
+            .unwrap_or(false)
+        {
+            current_dir
+                .parent()
                 .ok_or("无法获取项目根目录")?
                 .to_path_buf()
         } else {
@@ -111,29 +114,29 @@ fn get_extract_log_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
 // 读取下载日志
 fn read_download_log(app_handle: &AppHandle) -> Result<DownloadLog, String> {
     let log_path = get_download_log_path(app_handle)?;
-    
+
     if !log_path.exists() {
-        return Ok(DownloadLog { downloads: Vec::new() });
+        return Ok(DownloadLog {
+            downloads: Vec::new(),
+        });
     }
-    
-    let file = File::open(&log_path)
-        .map_err(|e| format!("读取下载日志失败: {}", e))?;
+
+    let file = File::open(&log_path).map_err(|e| format!("读取下载日志失败: {}", e))?;
     let reader = BufReader::new(file);
-    let log: DownloadLog = serde_json::from_reader(reader)
-        .map_err(|e| format!("解析下载日志失败: {}", e))?;
+    let log: DownloadLog =
+        serde_json::from_reader(reader).map_err(|e| format!("解析下载日志失败: {}", e))?;
     Ok(log)
 }
 
 // 写入下载日志
 fn write_download_log(app_handle: &AppHandle, log: &DownloadLog) -> Result<(), String> {
     let log_path = get_download_log_path(app_handle)?;
-    
+
     // 确保目录存在
     if let Some(parent) = log_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建目录失败: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
     }
-    
+
     let file = OpenOptions::new()
         .create(true)
         .write(true)
@@ -141,37 +144,36 @@ fn write_download_log(app_handle: &AppHandle, log: &DownloadLog) -> Result<(), S
         .open(&log_path)
         .map_err(|e| format!("打开下载日志失败: {}", e))?;
     let writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, log)
-        .map_err(|e| format!("写入下载日志失败: {}", e))?;
+    serde_json::to_writer_pretty(writer, log).map_err(|e| format!("写入下载日志失败: {}", e))?;
     Ok(())
 }
 
 // 读取解压日志
 fn read_extract_log(app_handle: &AppHandle) -> Result<ExtractLog, String> {
     let log_path = get_extract_log_path(app_handle)?;
-    
+
     if !log_path.exists() {
-        return Ok(ExtractLog { extracts: Vec::new() });
+        return Ok(ExtractLog {
+            extracts: Vec::new(),
+        });
     }
-    
-    let file = File::open(&log_path)
-        .map_err(|e| format!("读取解压日志失败: {}", e))?;
+
+    let file = File::open(&log_path).map_err(|e| format!("读取解压日志失败: {}", e))?;
     let reader = BufReader::new(file);
-    let log: ExtractLog = serde_json::from_reader(reader)
-        .map_err(|e| format!("解析解压日志失败: {}", e))?;
+    let log: ExtractLog =
+        serde_json::from_reader(reader).map_err(|e| format!("解析解压日志失败: {}", e))?;
     Ok(log)
 }
 
 // 写入解压日志
 fn write_extract_log(app_handle: &AppHandle, log: &ExtractLog) -> Result<(), String> {
     let log_path = get_extract_log_path(app_handle)?;
-    
+
     // 确保目录存在
     if let Some(parent) = log_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建目录失败: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
     }
-    
+
     let file = OpenOptions::new()
         .create(true)
         .write(true)
@@ -179,8 +181,7 @@ fn write_extract_log(app_handle: &AppHandle, log: &ExtractLog) -> Result<(), Str
         .open(&log_path)
         .map_err(|e| format!("打开解压日志失败: {}", e))?;
     let writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, log)
-        .map_err(|e| format!("写入解压日志失败: {}", e))?;
+    serde_json::to_writer_pretty(writer, log).map_err(|e| format!("写入解压日志失败: {}", e))?;
     Ok(())
 }
 
@@ -216,8 +217,7 @@ pub async fn download_game(
 
     // 获取下载目录
     let download_dir = get_download_dir(&app_handle)?;
-    std::fs::create_dir_all(&download_dir)
-        .map_err(|e| format!("创建下载目录失败: {}", e))?;
+    std::fs::create_dir_all(&download_dir).map_err(|e| format!("创建下载目录失败: {}", e))?;
 
     // 构建保存路径
     let zip_filename = filename.replace("%20", " ");
@@ -241,13 +241,11 @@ pub async fn download_game(
     };
 
     // 获取文件大小
-    let file_size = std::fs::metadata(&zip_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = std::fs::metadata(&zip_path).map(|m| m.len()).unwrap_or(0);
 
     // 记录下载信息到 JSON
     let mut log = read_download_log(&app_handle)?;
-    
+
     // 检查是否已存在相同游戏类型的下载记录
     if let Some(existing) = log.downloads.iter_mut().find(|r| r.game_type == game_type) {
         // 更新现有记录
@@ -263,7 +261,7 @@ pub async fn download_game(
             file_size,
         });
     }
-    
+
     write_download_log(&app_handle, &log)?;
 
     Ok(ApiResponse::success(zip_path.to_string_lossy().to_string()))
@@ -279,7 +277,17 @@ fn get_game_folder_name(game_type: &str) -> &str {
     }
 }
 
-// 获取游戏类型对应的可执行文件名
+// 获取游戏类型对应的可执行文件名列表
+fn get_game_exe_names(game_type: &str) -> Vec<&'static str> {
+    match game_type {
+        "gta3" => vec!["gta3.exe", "gta-iii.exe"],
+        "gtavc" => vec!["gta-vc.exe", "gtavc.exe", "vice.exe"],
+        "gtasa" => vec!["gta_sa.exe", "gtasa.exe", "san.exe"],
+        _ => vec![],
+    }
+}
+
+// 获取游戏类型对应的默认可执行文件名（向后兼容）
 fn get_game_exe_name(game_type: &str) -> &str {
     match game_type {
         "gta3" => "gta3.exe",
@@ -289,18 +297,32 @@ fn get_game_exe_name(game_type: &str) -> &str {
     }
 }
 
+// 在游戏目录中查找可执行文件
+fn find_game_executable(game_dir: &Path, game_type: &str) -> Option<String> {
+    let exe_names = get_game_exe_names(game_type);
+
+    for exe_name in exe_names {
+        let exe_path = game_dir.join(exe_name);
+        if exe_path.exists() && exe_path.is_file() {
+            return Some(exe_name.to_string());
+        }
+    }
+
+    None
+}
+
 // 查找可用的游戏目录名（处理重复）
 fn find_available_game_dir(base_path: &Path, game_type: &str) -> PathBuf {
     let folder_name = get_game_folder_name(game_type);
     let mut game_dir = base_path.join(folder_name);
     let mut counter = 1;
-    
+
     while game_dir.exists() {
         let new_name = format!("{}-{}", folder_name, counter);
         game_dir = base_path.join(new_name);
         counter += 1;
     }
-    
+
     game_dir
 }
 
@@ -329,24 +351,24 @@ pub async fn extract_game(
     }
 
     // 确保基础目录存在
-    std::fs::create_dir_all(base_extract_path)
-        .map_err(|e| format!("创建基础目录失败: {}", e))?;
+    std::fs::create_dir_all(base_extract_path).map_err(|e| format!("创建基础目录失败: {}", e))?;
 
     // 查找可用的游戏目录（处理重复）
     let game_dir = find_available_game_dir(base_extract_path, &request.game_type);
     let game_dir_str = game_dir.to_string_lossy().to_string();
 
     // 创建游戏目录
-    std::fs::create_dir_all(&game_dir)
-        .map_err(|e| format!("创建游戏目录失败: {}", e))?;
+    std::fs::create_dir_all(&game_dir).map_err(|e| format!("创建游戏目录失败: {}", e))?;
 
     // 解压文件（带进度）
     match extract_zip_with_progress(&window, zip_path, &game_dir).await {
         Ok(_) => {
             // 获取游戏信息
             let game_name = get_game_folder_name(&request.game_type).to_string();
-            let game_exe = get_game_exe_name(&request.game_type).to_string();
-            
+            // 尝试在游戏目录中查找可执行文件，如果找不到则使用默认值
+            let game_exe = find_game_executable(&game_dir, &request.game_type)
+                .unwrap_or_else(|| get_game_exe_name(&request.game_type).to_string());
+
             // 记录解压信息到解压日志（支持多次解压）
             let mut extract_log = read_extract_log(&app_handle)?;
             extract_log.extracts.push(ExtractRecord {
@@ -370,9 +392,7 @@ pub async fn extract_game(
 
             Ok(ApiResponse::success(result))
         }
-        Err(e) => {
-            Ok(ApiResponse::error(format!("解压失败: {}", e)))
-        }
+        Err(e) => Ok(ApiResponse::error(format!("解压失败: {}", e))),
     }
 }
 
@@ -430,7 +450,7 @@ async fn download_file(
                 return Err("下载已取消".into());
             }
         }
-        
+
         let chunk = item?;
         file.write_all(&chunk)?;
         downloaded += chunk.len() as u64;
@@ -473,49 +493,61 @@ async fn extract_zip_with_progress(
     let zip_path = zip_path.to_path_buf();
     let extract_to = extract_to.to_path_buf();
     let window_clone = window.clone();
-    
-    let result = tokio::task::spawn_blocking(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let file = File::open(&zip_path)?;
-        let mut archive = ZipArchive::new(file)?;
-        let total = archive.len();
 
-        for i in 0..total {
-            let mut file = archive.by_index(i)?;
-            let file_name = file.name().to_string();
-            let outpath = match file.enclosed_name() {
-                Some(path) => extract_to.join(path),
-                None => continue,
-            };
+    let result = tokio::task::spawn_blocking(
+        move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            let file = File::open(&zip_path)?;
+            let mut archive = ZipArchive::new(file)?;
+            let total = archive.len();
 
-            // 发送进度事件
-            let progress = ExtractProgress {
-                current: i + 1,
-                total,
-                percentage: ((i + 1) as f64 / total as f64) * 100.0,
-                current_file: file_name.clone(),
-            };
-            let _ = window_clone.emit("extract-progress", &progress);
+            for i in 0..total {
+                let mut file = archive.by_index(i)?;
+                let file_name = file.name().to_string();
+                let outpath = match file.enclosed_name() {
+                    Some(path) => extract_to.join(path),
+                    None => continue,
+                };
 
-            // 创建目录
-            if file.name().ends_with('/') {
-                std::fs::create_dir_all(&outpath)?;
-            } else {
-                if let Some(p) = outpath.parent() {
-                    if !p.exists() {
-                        std::fs::create_dir_all(p)?;
+                // 发送进度事件
+                let progress = ExtractProgress {
+                    current: i + 1,
+                    total,
+                    percentage: ((i + 1) as f64 / total as f64) * 100.0,
+                    current_file: file_name.clone(),
+                };
+                let _ = window_clone.emit("extract-progress", &progress);
+
+                // 创建目录
+                if file.name().ends_with('/') {
+                    std::fs::create_dir_all(&outpath)?;
+                } else {
+                    if let Some(p) = outpath.parent() {
+                        if !p.exists() {
+                            std::fs::create_dir_all(p)?;
+                        }
                     }
+                    let mut outfile = File::create(&outpath)?;
+                    io::copy(&mut file, &mut outfile)?;
                 }
-                let mut outfile = File::create(&outpath)?;
-                io::copy(&mut file, &mut outfile)?;
             }
-        }
 
-        Ok(())
-    })
+            Ok(())
+        },
+    )
     .await
-    .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("任务执行失败: {}", e))) as Box<dyn std::error::Error>)?;
+    .map_err(|e| {
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("任务执行失败: {}", e),
+        )) as Box<dyn std::error::Error>
+    })?;
 
-    result.map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("解压失败: {}", e))) as Box<dyn std::error::Error>)
+    result.map_err(|e| {
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("解压失败: {}", e),
+        )) as Box<dyn std::error::Error>
+    })
 }
 
 // 选择解压目录
@@ -536,4 +568,3 @@ pub async fn select_extract_folder() -> Result<ApiResponse<String>, String> {
         None => Ok(ApiResponse::error(String::new())), // 用户取消，不返回错误信息
     }
 }
-

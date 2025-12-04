@@ -49,6 +49,61 @@ export const THANK_YOU_LIST: ThankYouItem[] = [
     }
 ]
 
+// 技术栈配置
+export interface TechStackItem {
+    title: string
+    icon: string
+    url: string
+}
+
+export const TECH_STACK: TechStackItem[] = [
+    {
+        title: 'Vue.js',
+        icon: 'devicon:vuejs',
+        url: 'https://vuejs.org/'
+    },
+    {
+        title: 'Nuxt',
+        icon: 'logos:nuxt-icon',
+        url: 'https://nuxt.com/'
+    },
+    {
+        title: 'JavaScript',
+        icon: 'skill-icons:javascript',
+        url: 'https://www.javascript.com/'
+    },
+    {
+        title: 'TypeScript',
+        icon: 'skill-icons:typescript',
+        url: 'https://www.typescriptlang.org/'
+    },
+    {
+        title: 'Tauri',
+        icon: 'devicon:tauri',
+        url: 'https://tauri.app/'
+    },
+    {
+        title: 'Rust',
+        icon: 'material-icon-theme:rust',
+        url: 'https://www.rust-lang.org/'
+    },
+    {
+        title: 'Tailwind CSS',
+        icon: 'logos:tailwindcss-icon',
+        url: 'https://tailwindcss.com/'
+    },
+    {
+        title: 'Naive UI',
+        icon: 'logos:naiveui',
+        url: 'https://www.naiveui.com/'
+    },
+    {
+        title: 'Vite',
+        icon: 'vscode-icons:file-type-vite',
+        url: 'https://vitejs.dev/'
+    }
+]
+
 export function useCommon() {
     const router = useRouter()
     const route = useRoute()
@@ -84,5 +139,6 @@ export function useCommon() {
         qqGroups: QQ_GROUPS,
         externalLinks: EXTERNAL_LINKS,
         thankYouList: THANK_YOU_LIST,
+        techStack: TECH_STACK,
     }
 }
