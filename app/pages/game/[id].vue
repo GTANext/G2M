@@ -37,6 +37,12 @@ const items = computed<NavigationMenuItem[][]>(() => [
             active: route.path === `/game/${gameId.value}`
         },
         {
+            label: '前置安装',
+            icon: 'i-heroicons-check-circle',
+            to: `/game/${gameId.value}/prerequisites`,
+            active: route.path.startsWith(`/game/${gameId.value}/prerequisites`)
+        },
+        {
             label: 'MOD 管理',
             icon: 'i-heroicons-cube',
             to: `/game/${gameId.value}/mods`,
@@ -73,7 +79,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
                     />
                 </template>
             </UPageHeader>
-            <slot />
+            <NuxtPage />
         </UPageBody>
     </UPage>
 </template>

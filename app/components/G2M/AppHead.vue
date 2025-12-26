@@ -30,6 +30,11 @@ const items = computed(() => {
             <template #right>
                 <div class="flex items-center gap-2 no-drag">
 
+                    <G2MUserMent />
+                    <UColorModeButton />
+
+                    <USeparator orientation="vertical" class="h-4" />
+
                     <UTooltip text="打开设置">
                         <UButton color="neutral" variant="ghost" @click="navigateTo('/settings')" icon="i-heroicons-cog-6-tooth"
                             aria-label="打开设置" />

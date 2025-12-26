@@ -10,16 +10,16 @@ const naiveTheme = computed(() => {
 
 <template>
   <UApp>
-    <NuxtLayout>
-      <NConfigProvider :theme="naiveTheme">
-        <NMessageProvider>
-          <NDialogProvider>
-            <NNotificationProvider>
+    <NConfigProvider :theme="naiveTheme">
+      <NMessageProvider>
+        <NDialogProvider>
+          <NNotificationProvider>
+            <NuxtLayout>
               <NuxtPage />
-            </NNotificationProvider>
-          </NDialogProvider>
-        </NMessageProvider>
-      </NConfigProvider>
-    </NuxtLayout>
+            </NuxtLayout>
+          </NNotificationProvider>
+        </NDialogProvider>
+      </NMessageProvider>
+    </NConfigProvider>
   </UApp>
 </template>

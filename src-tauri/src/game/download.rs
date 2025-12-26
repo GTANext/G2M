@@ -21,7 +21,8 @@ pub struct DownloadProgress {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DownloadGameRequest {
-    pub game_type: String, // gta3, gtavc, gtasa
+    pub game_type: String,  // gta3, gtavc, gtasa
+    pub download_url: String, // 下载 URL（由前端获取）
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -223,9 +224,8 @@ pub async fn download_game(
     let zip_filename = filename.replace("%20", " ");
     let save_path = download_dir.join(&zip_filename);
 
-    // 构建下载 URL
-    let base_url = "https://gtamodx-manager-r2.miomoe.cn/game/";
-    let download_url = format!("{}{}", base_url, filename);
+    // 使用前端传递的下载 URL
+    let download_url = request.download_url;
 
     // 下载文件
     let zip_path = match download_file(&window, &download_url, &save_path).await {

@@ -1,19 +1,41 @@
-﻿import { useGameApi } from '~/composables/api/useGameApi';
+﻿/**
+ * 游戏表单 Composable
+ * 提供游戏添加/编辑表单的状态管理和操作
+ */
+
+import { useGameApi } from '~/composables/api/useGameApi';
 import { useImageHandler } from '~/composables/useImageHandler';
 import { useMessage } from '~/composables/ui/useMessage';
+import { getResponseDataOrNull, isResponseSuccess, getResponseError } from '~/utils/response';
+import { GAME_TYPE_NAMES } from '~/constants/game';
+import type { GameType, GameDetectionResult, SaveGameRequest } from '~/types';
 
+/**
+ * 游戏表单数据接口
+ */
+export interface GameFormData {
+  name: string;
+  dir: string;
+  exe: string;
+  img: string | null;
+  type: GameType | null | undefined;
+}
+
+/**
+ * 游戏表单 Composable
+ */
 export function useGameForm() {
   const gameApi = useGameApi();
   const imageHandler = useImageHandler();
   const { showError, showSuccess, showInfo } = useMessage();
 
-  // 表单数据 
-  const formData: any = reactive({
+  // 表单数据
+  const formData = reactive<GameFormData>({
     name: '',
     dir: '',
     exe: '',
-    img: '',
-    type: undefined
+    img: null,
+    type: undefined,
   });
 
   // 表单验证规则
@@ -36,11 +58,15 @@ export function useGameForm() {
   const isDetecting = ref(false);
 
   // 检测结果
-  const detectionResult: any = ref(null);
+  const detectionResult = ref<GameDetectionResult | null>(null);
 
   // 是否自动检测到游戏
   const isAutoDetected = computed(() => {
-    return detectionResult.value?.success && detectionResult.value.type;
+    return (
+      detectionResult.value?.success === true &&
+      detectionResult.value.type !== undefined &&
+      detectionResult.value.type !== null
+    );
   });
 
   // 图片上传相关状态
@@ -48,58 +74,67 @@ export function useGameForm() {
   const uploadingImage = ref(false);
   const selectedImageFile = ref<string>('');
 
-  // 重置表单
-  const resetForm = () => {
+  /**
+   * 重置表单
+   */
+  const resetForm = (): void => {
     formData.name = '';
     formData.dir = '';
     formData.exe = '';
-    formData.img = '';
+    formData.img = null;
     formData.type = undefined;
     detectionResult.value = null;
     imagePreview.value = '';
     selectedImageFile.value = '';
 
     // Naive UI 的 NForm 使用 restoreValidation 来清除验证状态
-    if (formRef.value && formRef.value.restoreValidation) {
+    if (formRef.value && typeof formRef.value.restoreValidation === 'function') {
       formRef.value.restoreValidation();
     }
   };
 
-  // 选择游戏文件夹
-  const selectFolder = async () => {
+  /**
+   * 选择游戏文件夹
+   */
+  const selectFolder = async (): Promise<void> => {
     try {
-      const response: any = await gameApi.selectGameFolder();
-      if (response?.success && response?.data) {
-        const selectedPath = response.data;
+      const response = await gameApi.selectGameFolder();
+      const selectedPath = getResponseDataOrNull(response);
 
-        // 先检查是否有重复目录 
-        const duplicateCheck: any = await gameApi.checkDuplicateDirectory(selectedPath);
-        if (!duplicateCheck?.success) {
-          showError('该目录已被其他游戏使用', { detail: duplicateCheck?.error });
-          return;
+      if (!selectedPath) {
+        const errorMsg = getResponseError(response, '');
+        if (errorMsg.trim() !== '') {
+          showError('选择文件夹失败', { detail: errorMsg });
         }
-
-        formData.dir = selectedPath;
-        await detectGameInFolder(selectedPath);
-      } else {
-        // 只有当有错误信息时才显示错误
-        if (response?.error && response.error.trim() !== '') {
-          showError('选择文件夹失败', { detail: response.error });
-        }
+        return;
       }
+
+      // 先检查是否有重复目录
+      const duplicateCheck = await gameApi.checkDuplicateDirectory(selectedPath);
+      if (!isResponseSuccess(duplicateCheck)) {
+        const errorMsg = getResponseError(duplicateCheck, '该目录已被其他游戏使用');
+        showError('该目录已被其他游戏使用', { detail: errorMsg });
+        return;
+      }
+
+      formData.dir = selectedPath;
+      await detectGameInFolder(selectedPath);
     } catch (error) {
       showError('选择文件夹失败');
     }
   };
 
-  // 检测文件夹中的游戏
-  const detectGameInFolder = async (folderPath: string) => {
+  /**
+   * 检测文件夹中的游戏
+   */
+  const detectGameInFolder = async (folderPath: string): Promise<void> => {
     try {
       isDetecting.value = true;
-      const result: any = await gameApi.detectGame(folderPath);
+      const response = await gameApi.detectGame(folderPath);
+      const result = getResponseDataOrNull(response);
       detectionResult.value = result;
 
-      if (result?.success && result?.type && result?.game_name && result?.executable) {
+      if (result?.success && result.type && result.game_name && result.executable) {
         // 自动填充表单
         formData.name = result.game_name;
         formData.exe = result.executable;
@@ -116,19 +151,23 @@ export function useGameForm() {
     }
   };
 
-  // 验证表单
+  /**
+   * 验证表单
+   */
   const validateForm = async (): Promise<boolean> => {
     if (!formRef.value) return false;
 
     try {
       await formRef.value.validate();
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   };
 
-  // 提交表单
+  /**
+   * 提交表单
+   */
   const submitForm = async (): Promise<boolean> => {
     try {
       const isValid = await validateForm();
@@ -137,9 +176,12 @@ export function useGameForm() {
         return false;
       }
 
-      const payload = {
-        ...formData,
-        img: typeof formData.img === 'string' && formData.img.trim() !== '' ? formData.img : null
+      const payload: SaveGameRequest = {
+        name: formData.name,
+        dir: formData.dir,
+        exe: formData.exe,
+        img: formData.img && formData.img.trim() !== '' ? formData.img : null,
+        type: formData.type ?? null,
       };
 
       await gameApi.saveGame(payload);
@@ -152,19 +194,21 @@ export function useGameForm() {
     }
   };
 
-  // 选择图片文件
-  const selectImage = async () => {
+  /**
+   * 选择图片文件
+   */
+  const selectImage = async (): Promise<void> => {
     try {
       uploadingImage.value = true;
 
       // 使用 base64 图片处理
-      const imageResult: any = await imageHandler.selectImageFile();
+      const imageResult = await imageHandler.selectImageFile();
 
       if (imageResult) {
         // 直接使用完整的 data URL 作为预览和存储
         imagePreview.value = imageResult.dataUrl;
         selectedImageFile.value = imageResult.fileName;
-        formData.img = imageResult.dataUrl;  // 直接保存完整的 data URL
+        formData.img = imageResult.dataUrl; // 直接保存完整的 data URL
 
         showSuccess('图片选择成功');
       }
@@ -175,25 +219,21 @@ export function useGameForm() {
     }
   };
 
-  // 清除选中的图片
-  const clearImage = () => {
+  /**
+   * 清除选中的图片
+   */
+  const clearImage = (): void => {
     imagePreview.value = '';
     selectedImageFile.value = '';
-    formData.img = '';
+    formData.img = null;
     showSuccess('已清除图片');
   };
 
-
-
-  // 获取游戏类型显示名称
-  const getGameTypeName = (gameType: any): string => {
+  /**
+   * 获取游戏类型显示名称
+   */
+  const getGameTypeName = (gameType: GameType | null | undefined): string => {
     if (!gameType) return '未知游戏';
-    // @ts-ignore
-    const GAME_TYPE_NAMES: any = {
-      'gta3': 'GTA III',
-      'gtavc': 'GTA Vice City',
-      'gtasa': 'GTA San Andreas'
-    };
     return GAME_TYPE_NAMES[gameType] || '未知游戏';
   };
 
@@ -205,7 +245,7 @@ export function useGameForm() {
     isDetecting,
     detectionResult,
     isAutoDetected,
-    loadingState: (gameApi as any).loadingState,
+    loadingState: gameApi.loadingState,
     imagePreview,
     uploadingImage,
     selectedImageFile,
@@ -218,6 +258,6 @@ export function useGameForm() {
     submitForm,
     getGameTypeName,
     selectImage,
-    clearImage
+    clearImage,
   };
 }

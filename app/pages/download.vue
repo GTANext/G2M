@@ -1,4 +1,9 @@
 <script setup>
+// 使用认证中间件，未登录时自动跳转到登录页面
+definePageMeta({
+    middleware: 'auth'
+})
+
 import { useDownloadRecords } from '~/composables/game/useDownloadRecords'
 import { useGameDownload } from '~/composables/game/useGameDownload'
 import { useGameExtract } from '~/composables/game/useGameExtract'

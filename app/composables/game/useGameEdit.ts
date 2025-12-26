@@ -1,19 +1,39 @@
-﻿import { useGameApi } from '~/composables/api/useGameApi';
+﻿/**
+ * 游戏编辑 Composable
+ * 提供游戏编辑表单的状态管理和操作
+ */
+
+import { useGameApi } from '~/composables/api/useGameApi';
 import { useImageHandler } from '~/composables/useImageHandler';
 import { useMessage } from '~/composables/ui/useMessage';
-import type { GameInfo } from '~/types';
+import { isResponseSuccess, getResponseError, getResponseDataOrNull } from '~/utils/response';
+import { toNumericId } from '~/utils/id';
+import type { GameInfo, UpdateGameRequest } from '~/types';
 
-export function useGameEdit(gameInfo: any) {
+/**
+ * 游戏编辑表单数据接口
+ */
+export interface GameEditFormData {
+  name: string;
+  dir: string;
+  exe: string;
+  img: string | null;
+}
+
+/**
+ * 游戏编辑 Composable
+ */
+export function useGameEdit(gameInfo: Ref<GameInfo | null> | ComputedRef<GameInfo | null>) {
   const gameApi = useGameApi();
   const { selectImageFile } = useImageHandler();
   const { showError, showSuccess } = useMessage();
 
   // Form data
-  const formData = ref({
+  const formData = ref<GameEditFormData>({
     name: '',
     dir: '',
     exe: '',
-    img: ''
+    img: null,
   });
 
   // Form ref
@@ -41,14 +61,16 @@ export function useGameEdit(gameInfo: any) {
     ]
   };
 
-  // Initialize form data
-  const initFormData = () => {
+  /**
+   * 初始化表单数据
+   */
+  const initFormData = (): void => {
     if (gameInfo?.value) {
       formData.value = {
         name: gameInfo.value.name || '',
         dir: gameInfo.value.dir || '',
         exe: gameInfo.value.exe || '',
-        img: gameInfo.value.img || ''
+        img: gameInfo.value.img || null,
       };
     }
   };
@@ -60,40 +82,52 @@ export function useGameEdit(gameInfo: any) {
     }
   }, { immediate: true });
 
-  // Handle save
-  const handleSave = async () => {
+  /**
+   * 保存游戏信息
+   */
+  const handleSave = async (): Promise<{ success: boolean; error?: string }> => {
     try {
       await formRef.value.validate();
 
+      if (!gameInfo.value) {
+        throw new Error('游戏信息不存在');
+      }
+
       saving.value = true;
 
-      const result = await gameApi.updateGame(
-        gameInfo.value.id,
-        formData.value.name,
-        formData.value.dir,
-        formData.value.exe,
-        formData.value.img,
-        gameInfo.value.type,
-        gameInfo.value.deleted
-      );
+      const updateData: UpdateGameRequest = {
+        id: gameInfo.value.id,
+        name: formData.value.name,
+        dir: formData.value.dir,
+        exe: formData.value.exe,
+        img: formData.value.img,
+        type: gameInfo.value.type ?? null,
+        deleted: gameInfo.value.deleted ?? false,
+      };
 
-      if (result.success) {
+      const result = await gameApi.updateGame(updateData);
+
+      if (isResponseSuccess(result)) {
         showSuccess('游戏信息更新成功');
         return { success: true };
       } else {
-        showError('更新游戏信息失败', { detail: result.error });
-        return { success: false, error: result.error };
+        const errorMsg = getResponseError(result, '更新游戏信息失败');
+        showError('更新游戏信息失败', { detail: errorMsg });
+        return { success: false, error: errorMsg };
       }
-    } catch (error: any) {
-      showError('保存游戏信息失败', { detail: error });
-      return { success: false, error: error.message || error };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      showError('保存游戏信息失败', { detail: errorMsg });
+      return { success: false, error: errorMsg };
     } finally {
       saving.value = false;
     }
   };
 
-  // Handle image file selection
-  const selectImageFileHandler = async () => {
+  /**
+   * 选择图片文件
+   */
+  const selectImageFileHandler = async (): Promise<{ success: boolean; dataUrl?: string; error?: string }> => {
     try {
       selectingImage.value = true;
 
@@ -107,60 +141,70 @@ export function useGameEdit(gameInfo: any) {
         return { success: true, dataUrl: imageResult.dataUrl };
       }
       return { success: false };
-    } catch (error: any) {
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error('选择图片失败:', error);
-      showError('选择图片失败，请重试', { detail: error });
-      return { success: false, error: error.message || error };
+      showError('选择图片失败，请重试', { detail: errorMsg });
+      return { success: false, error: errorMsg };
     } finally {
       selectingImage.value = false;
     }
   };
 
-  // Handle folder selection
-  const selectFolderHandler = async () => {
+  /**
+   * 选择文件夹
+   */
+  const selectFolderHandler = async (): Promise<{ success: boolean; path?: string; error?: string }> => {
     try {
       selectingFolder.value = true;
 
+      if (!gameInfo.value) {
+        throw new Error('游戏信息不存在');
+      }
+
       const response = await gameApi.selectGameFolder();
-      
-      if (response?.success && response?.data) {
-        const selectedPath = response.data;
-        
-        // 如果选择的目录与当前游戏的目录相同，直接允许
-        if (selectedPath === gameInfo.value?.dir) {
-          formData.value.dir = selectedPath;
-          showSuccess('游戏目录已更新');
-          return { success: true, path: selectedPath };
+      const selectedPath = getResponseDataOrNull(response);
+
+      if (!selectedPath) {
+        const errorMsg = getResponseError(response, '');
+        if (errorMsg.trim() !== '') {
+          showError('选择文件夹失败', { detail: errorMsg });
         }
-        
-        // 检查是否有重复目录（排除当前游戏）
-        const duplicateCheck = await gameApi.checkDuplicateDirectory(selectedPath, gameInfo.value?.id);
-        if (!duplicateCheck?.success) {
-          showError('该目录已被其他游戏使用', { detail: duplicateCheck?.error });
-          return { success: false, error: duplicateCheck?.error };
-        }
-        
+        return { success: false, error: errorMsg || undefined };
+      }
+
+      // 如果选择的目录与当前游戏的目录相同，直接允许
+      if (selectedPath === gameInfo.value.dir) {
         formData.value.dir = selectedPath;
         showSuccess('游戏目录已更新');
         return { success: true, path: selectedPath };
-      } else {
-        // 只有当有错误信息时才显示错误（用户取消时 error 为空）
-        if (response?.error && response.error.trim() !== '') {
-          showError('选择文件夹失败', { detail: response.error });
-        }
-        return { success: false, error: response?.error };
       }
-    } catch (error: any) {
+
+      // 检查是否有重复目录（排除当前游戏）
+      const duplicateCheck = await gameApi.checkDuplicateDirectory(selectedPath, gameInfo.value.id);
+      if (!isResponseSuccess(duplicateCheck)) {
+        const errorMsg = getResponseError(duplicateCheck, '该目录已被其他游戏使用');
+        showError('该目录已被其他游戏使用', { detail: errorMsg });
+        return { success: false, error: errorMsg };
+      }
+
+      formData.value.dir = selectedPath;
+      showSuccess('游戏目录已更新');
+      return { success: true, path: selectedPath };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.error('选择文件夹失败:', error);
-      showError('选择文件夹失败，请重试', { detail: error });
-      return { success: false, error: error.message || error };
+      showError('选择文件夹失败，请重试', { detail: errorMsg });
+      return { success: false, error: errorMsg };
     } finally {
       selectingFolder.value = false;
     }
   };
 
-  // Reset form data to original values
-  const resetForm = () => {
+  /**
+   * 重置表单数据到原始值
+   */
+  const resetForm = (): void => {
     initFormData();
   };
 

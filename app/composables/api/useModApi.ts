@@ -1,117 +1,120 @@
-﻿import { tauriInvoke } from '~/utils/tauri';
+﻿/**
+ * MOD API Composable
+ * 提供 MOD 相关的 API 调用封装
+ */
+
+import { callApi } from '~/utils/api';
+import { getResponseData, getResponseDataOrNull, isResponseSuccess, getResponseError } from '~/utils/response';
 import { useMessage } from '~/composables/ui/useMessage';
+import type {
+  ApiResponse,
+  G2MModInfo,
+  UserModInstallRequest,
+  UserModInstallResult,
+} from '~/types';
 
-export interface G2MModInfo {
-  id: number; // MOD唯一ID
-  name: string;
-  author?: string | null;
-  type?: string | null; // 安装类型
-  install_path?: string | null;
+/**
+ * 加载状态接口
+ */
+export interface LoadingState {
+  loading: boolean;
+  error: string | null;
 }
 
-export interface UserModInstallRequest {
-  game_dir: string;
-  mod_source_path: string;
-  mod_name: string;
-  overwrite?: boolean;
-  target_directory?: string; // 目标安装目录
-}
-
-export interface UserModInstallResult {
-  installed_files: string[];
-  created_directories: string[];
-}
-
+/**
+ * MOD API Composable
+ */
 export function useModApi() {
   const { showError, showSuccess } = useMessage();
-  const loadingState = reactive({
+  const loadingState = reactive<LoadingState>({
     loading: false,
-    error: null as string | null
+    error: null,
   });
+
+  /**
+   * 执行 API 调用并更新加载状态
+   */
+  async function executeApiCall<T>(
+    apiCall: () => Promise<ApiResponse<T>>,
+    errorMessage: string,
+    detailMessage?: string
+  ): Promise<ApiResponse<T>> {
+    try {
+      loadingState.loading = true;
+      loadingState.error = null;
+      return await apiCall();
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : errorMessage;
+      loadingState.error = errorMsg;
+      showError(errorMessage, { detail: detailMessage || errorMsg });
+      throw error;
+    } finally {
+      loadingState.loading = false;
+    }
+  }
 
   /**
    * 获取游戏目录下的已安装MOD列表
    */
   const getGameMods = async (gameDir: string): Promise<G2MModInfo[]> => {
-    try {
-      loadingState.loading = true;
-      loadingState.error = null;
-
-      const response: any = await tauriInvoke('get_game_mods', { gameDir });
-
-      if (response?.success && response?.data) {
+    return executeApiCall(
+      () => callApi<G2MModInfo[]>('get_game_mods', { gameDir }),
+      '获取MOD列表失败',
+      `游戏目录: ${gameDir}`
+    ).then((response) => {
+      if (isResponseSuccess(response) && response.data) {
         return response.data;
-      } else {
-        const errorMsg = response?.error || '获取MOD列表失败';
-        const detailMsg = `游戏目录: ${gameDir}\n错误: ${errorMsg}`;
-        loadingState.error = errorMsg;
-        showError('获取MOD列表失败', { detail: detailMsg });
-        return [];
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      const detailMsg = `游戏目录: ${gameDir}\n错误: ${errorMsg}`;
-      loadingState.error = errorMsg;
-      showError('获取MOD列表失败', { detail: detailMsg });
-      return [];
-    } finally {
-      loadingState.loading = false;
-    }
+      return getResponseData(response, []);
+    });
   };
 
   /**
    * 安装用户MOD（自动识别文件进行安装）
    */
-  const installUserMod = async (request: UserModInstallRequest): Promise<UserModInstallResult | null> => {
-    try {
-      loadingState.loading = true;
-      loadingState.error = null;
-
-      const response: any = await tauriInvoke('install_user_mod', { request });
-
-      if (response?.success && response?.data) {
+  const installUserMod = async (
+    request: UserModInstallRequest
+  ): Promise<UserModInstallResult | null> => {
+    return executeApiCall(
+      () => callApi<UserModInstallResult>('install_user_mod', { request }),
+      '安装MOD失败',
+      `MOD名称: ${request.mod_name}\n游戏目录: ${request.game_dir}`
+    ).then((response) => {
+      if (isResponseSuccess(response) && response.data) {
         showSuccess(`MOD "${request.mod_name}" 安装成功！`);
         return response.data;
-      } else {
-        const errorMsg = response?.error || '安装MOD失败';
-        const detailMsg = `MOD名称: ${request.mod_name}\n游戏目录: ${request.game_dir}\n错误: ${errorMsg}`;
-        loadingState.error = errorMsg;
-        showError('安装MOD失败', { detail: detailMsg });
-        return null;
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      const detailMsg = `MOD名称: ${request.mod_name}\n游戏目录: ${request.game_dir}\n错误: ${errorMsg}`;
-      loadingState.error = errorMsg;
-      showError('安装MOD失败', { detail: detailMsg });
       return null;
-    } finally {
-      loadingState.loading = false;
-    }
+    });
   };
 
   /**
    * 选择MOD文件或文件夹
    */
-  const selectModFiles = async (isDirectory: boolean = false): Promise<string | null> => {
+  const selectModFiles = async (isDirectory = false): Promise<string | null> => {
     try {
-      const response: any = await tauriInvoke('select_mod_files', {
+      const response = await callApi<string[]>('select_mod_files', {
         defaultDir: null,
-        isDirectory
+        isDirectory,
       });
-      if (response?.success && response?.data && Array.isArray(response.data) && response.data.length > 0) {
+
+      if (isResponseSuccess(response) && response.data && response.data.length > 0) {
         // 返回第一个选中的路径
         return response.data[0];
-      } else {
-        const errorMsg = response?.error || '未选择文件或文件夹';
-        if (errorMsg !== '未选择文件或文件夹') {
-          showError('选择MOD文件失败', { detail: `类型: ${isDirectory ? '文件夹' : '文件'}\n错误: ${errorMsg}` });
-        }
-        return null;
       }
+
+      const errorMsg = getResponseError(response, '未选择文件或文件夹');
+      if (errorMsg !== '未选择文件或文件夹') {
+        showError('选择MOD文件失败', {
+          detail: `类型: ${isDirectory ? '文件夹' : '文件'}\n错误: ${errorMsg}`,
+        });
+      }
+      return null;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      showError('选择MOD文件失败', { detail: `类型: ${isDirectory ? '文件夹' : '文件'}\n错误: ${errorMsg}` });
+      showError('选择MOD文件失败', {
+        detail: `类型: ${isDirectory ? '文件夹' : '文件'}\n错误: ${errorMsg}`,
+      });
       return null;
     }
   };
@@ -121,16 +124,18 @@ export function useModApi() {
    */
   const selectGameInstallDirectory = async (gameDir: string): Promise<string | null> => {
     try {
-      const response: any = await tauriInvoke('select_game_install_directory', { gameDir });
-      if (response?.success && response?.data) {
-        return response.data;
-      } else {
-        const errorMsg = response?.error || '未选择安装目录';
-        if (errorMsg !== '未选择安装目录' && errorMsg !== '') {
-          showError('选择安装目录失败', { detail: `游戏目录: ${gameDir}\n错误: ${errorMsg}` });
-        }
-        return null;
+      const response = await callApi<string>('select_game_install_directory', { gameDir });
+      const data = getResponseDataOrNull(response);
+
+      if (data) {
+        return data;
       }
+
+      const errorMsg = getResponseError(response, '未选择安装目录');
+      if (errorMsg !== '未选择安装目录' && errorMsg.trim() !== '') {
+        showError('选择安装目录失败', { detail: `游戏目录: ${gameDir}\n错误: ${errorMsg}` });
+      }
+      return null;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       showError('选择安装目录失败', { detail: `游戏目录: ${gameDir}\n错误: ${errorMsg}` });
@@ -143,8 +148,8 @@ export function useModApi() {
    */
   const checkModConfig = async (modDir: string): Promise<boolean> => {
     try {
-      const response: any = await tauriInvoke('read_g2m_mod_config', { modDir });
-      return response?.success && response?.data !== null && response?.data !== undefined;
+      const response = await callApi<unknown>('read_g2m_mod_config', { modDir });
+      return isResponseSuccess(response) && response.data !== null && response.data !== undefined;
     } catch {
       return false;
     }

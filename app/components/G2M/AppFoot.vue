@@ -30,8 +30,6 @@ const items = computed(() => {
         <UNavigationMenu :items="items" variant="link" />
 
         <template #right>
-            <UColorModeButton />
-
             <UTooltip text="Open on GitHub">
                 <UButton color="neutral" variant="ghost"
                     :href="externalLinks.find(link => link.key === 'github')?.route" target="_blank"

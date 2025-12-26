@@ -1,15 +1,32 @@
-﻿import { GAME_IMAGES, GAME_TYPE_NAMES } from '~/constants/game';
+﻿/**
+ * 游戏信息 Composable
+ * 提供游戏详情相关的状态管理和操作
+ */
+
+import { GAME_IMAGES, GAME_TYPE_NAMES } from '~/constants/game';
 import { useGameApi } from '~/composables/api/useGameApi';
 import { isTauriEnvironment, tauriInvoke, installModPrerequisites } from '~/utils/tauri';
 import { useMessage } from '~/composables/ui/useMessage';
-import type { ModLoaderStatus, ApiResponse, ModInstallRequest, ModInstallResult } from '~/types';
+import { isResponseSuccess, getResponseError, getResponseDataOrNull } from '~/utils/response';
+import { toNumericIdSafe } from '~/utils/id';
+import type {
+  GameInfo,
+  ModLoaderStatus,
+  ApiResponse,
+  ModInstallRequest,
+  ModInstallResult,
+  GameType,
+} from '~/types';
 
-export function useGameInfo(gameId: any) {
+/**
+ * 游戏信息 Composable
+ */
+export function useGameInfo(gameId: Ref<number | string> | ComputedRef<number | string>) {
   const gameApi = useGameApi();
   const { showError } = useMessage();
 
-  // 游戏数据 
-  const gameData: any = ref({});
+  // 游戏数据
+  const gameData = ref<GameInfo | null>(null);
 
   // 加载状态
   const loading = ref(false);
@@ -22,24 +39,26 @@ export function useGameInfo(gameId: any) {
   const isInstalling = ref(false);
   const installResult = ref<ModInstallResult | null>(null);
 
-  // 设置游戏数据
-  const setGameData = (data: any) => {
+  /**
+   * 设置游戏数据
+   */
+  const setGameData = (data: GameInfo | null): void => {
     gameData.value = data;
   };
 
-  // 获取游戏类型名称 - 支持大小写兼容
+  /**
+   * 获取游戏类型名称 - 支持大小写兼容
+   */
   const getGameTypeName = computed(() => {
     const gameType = gameData.value?.type;
     if (!gameType) return '未知游戏';
 
     // 先尝试直接匹配
-    // @ts-ignore - 忽略类型检查
-    let typeName = (GAME_TYPE_NAMES as any)[gameType];
+    let typeName = GAME_TYPE_NAMES[gameType as GameType];
 
     // 如果直接匹配失败，尝试小写匹配
     if (!typeName) {
-      // @ts-ignore - 忽略类型检查
-      typeName = (GAME_TYPE_NAMES as any)[gameType.toLowerCase()];
+      typeName = GAME_TYPE_NAMES[gameType.toLowerCase() as GameType];
     }
 
     return typeName || '未知游戏';
@@ -103,10 +122,13 @@ export function useGameInfo(gameId: any) {
     return gameData.value?.id || null;
   });
 
-  // 加载游戏信息
-  const loadGameInfo = async () => {
-    if (!gameId?.value) {
-      console.warn('游戏ID为空，无法加载游戏信息');
+  /**
+   * 加载游戏信息
+   */
+  const loadGameInfo = async (): Promise<void> => {
+    const numericId = toNumericIdSafe(gameId.value);
+    if (!numericId) {
+      console.warn('游戏ID无效，无法加载游戏信息');
       return;
     }
 
@@ -118,12 +140,14 @@ export function useGameInfo(gameId: any) {
 
     try {
       loading.value = true;
-      const response = await gameApi.getGameById(gameId.value);
+      const response = await gameApi.getGameById(numericId);
+      const data = getResponseDataOrNull(response);
 
-      if (response?.success && response?.data) {
-        gameData.value = response.data;
+      if (data) {
+        gameData.value = data;
       } else {
-        showError('获取游戏信息失败');
+        const errorMsg = getResponseError(response, '获取游戏信息失败');
+        showError(errorMsg);
       }
     } catch (error) {
       showError('加载游戏信息失败');

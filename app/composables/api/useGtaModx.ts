@@ -159,6 +159,25 @@
     isAuthenticated.value = false
   }
 
+  /**
+   * 打开登录页面
+   */
+  const openLoginPage = async () => {
+    try {
+      // 在 Tauri 环境中使用 opener 插件
+      if (import.meta.client && typeof window !== 'undefined') {
+        const { open } = await import('@tauri-apps/plugin-opener')
+        await open(`${siteUrl}/login`)
+      } else {
+        // 在浏览器环境中直接打开
+        window.open(`${siteUrl}/login`, '_blank')
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      throw new Error(`打开登录页面失败: ${errorMsg}`)
+    }
+  }
+
   return {
     // 用户状态
     user,
@@ -169,6 +188,7 @@
     getUserInfo,
     checkAuthStatus,
     setAuthToken,
-    logout
+    logout,
+    openLoginPage
   }
 }

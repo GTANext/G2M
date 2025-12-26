@@ -8,9 +8,9 @@ import { GAME_TYPE_NAMES } from '~/constants/game'
 const route = useRoute()
 const gameId = computed(() => route.params.id)
 
-const { 
-    gameData, 
-    loading, 
+const {
+    gameData,
+    loading,
     loadGameInfo,
     getGameTypeName,
     getGameImage,
@@ -22,10 +22,10 @@ const {
     checkModLoaders
 } = useGameInfo(gameId)
 
-const { 
-    loading: actionLoading, 
-    launchGame, 
-    openGameFolder 
+const {
+    loading: actionLoading,
+    launchGame,
+    openGameFolder
 } = useGameActions()
 
 const gameInfoRef = computed(() => gameData.value)
@@ -34,14 +34,46 @@ const { modStatus, loadModStatus } = useModPrerequisites(gameInfoRef)
 // 格式化时间
 const formatTime = (timeString) => {
     if (!timeString) return '未知时间'
-    const date = new Date(timeString)
-    return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    })
+
+    try {
+        // 尝试解析时间戳（毫秒）
+        let timestamp
+
+        // 如果是纯数字字符串，直接转换为数字
+        if (/^\d+$/.test(timeString)) {
+            timestamp = parseInt(timeString, 10)
+            // 如果时间戳是秒级（小于 13 位），转换为毫秒
+            if (timestamp < 1000000000000) {
+                timestamp = timestamp * 1000
+            }
+        } else {
+            // 尝试作为日期字符串解析
+            timestamp = new Date(timeString).getTime()
+        }
+
+        // 检查时间戳是否有效
+        if (isNaN(timestamp) || timestamp <= 0) {
+            return '无效时间'
+        }
+
+        const date = new Date(timestamp)
+
+        // 再次检查日期是否有效
+        if (isNaN(date.getTime())) {
+            return '无效时间'
+        }
+
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+    } catch (error) {
+        console.error('格式化时间失败:', error, timeString)
+        return '无效时间'
+    }
 }
 
 // 处理启动游戏
@@ -74,40 +106,13 @@ onMounted(async () => {
     </div>
 
     <div v-else-if="gameData" class="space-y-6">
-        <!-- MOD加载器警告 -->
         <NAlert v-if="hasMissingModLoaders" type="warning" title="缺少必要的MOD加载器">
             请前往"前置安装"页面查看详情并安装必要的MOD加载器。
         </NAlert>
         <NAlert v-else-if="modLoaderLoading" type="info" title="正在检查 MOD 前置环境" />
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- 左侧：游戏封面 -->
-            <div class="lg:col-span-1">
-                <UCard>
-                    <div class="relative">
-                        <img
-                            :src="getGameImage"
-                            :alt="gameData.name"
-                            class="w-full rounded-lg object-cover"
-                            @error="$event.target.src = '/images/null.svg'"
-                        />
-                        <div class="absolute top-3 right-3">
-                            <NTag :type="modStatus.dinput8 && modStatus.cleo ? 'success' : 'warning'">
-                                {{ getGameTypeName }}
-                            </NTag>
-                        </div>
-                    </div>
-                </UCard>
-            </div>
-
-            <!-- 右侧：游戏详情和操作 -->
+        <div class="grid grid-cols-1 gap-6">
             <div class="lg:col-span-2 space-y-6">
-                <!-- 游戏名称 -->
-                <div>
-                    <h2 class="text-2xl font-bold mb-2">{{ gameData.name }}</h2>
-                </div>
-
-                <!-- 游戏信息 -->
                 <UCard>
                     <div class="space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -147,8 +152,7 @@ onMounted(async () => {
                         </div>
                     </div>
                 </UCard>
-
-                <!-- 操作按钮 -->
+                <!-- 
                 <UCard>
                     <div class="flex flex-wrap gap-3">
                         <NButton 
@@ -174,7 +178,7 @@ onMounted(async () => {
                             打开文件夹
                         </NButton>
                     </div>
-                </UCard>
+                </UCard> -->
             </div>
         </div>
     </div>
