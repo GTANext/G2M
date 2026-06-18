@@ -3,6 +3,7 @@ import { AlertTriangle, Boxes, CheckCircle2, ChevronRight, FolderOpen, HardDrive
 import { useEffect, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
+import { useI18n } from "@/components/app/i18nProvider"
 import { G2MPanel, G2MPill, G2MSubtlePanel } from "@/components/g2m/surface"
 import { G2MWorkspaceBreadcrumb, G2MWorkspaceHero } from "@/components/g2m/workspaceHeader"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -24,6 +25,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
   const navigate = useNavigate()
   const { gameId = "" } = useParams()
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false)
+  const { copy } = useI18n()
 
   useEffect(() => {
     if (!gameId) {
@@ -47,7 +49,8 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
   }
 
   const activeGame = workspace.activeGame
-  const hasConflicts = workspace.selectedMod.conflictFiles.length > 0
+  const hasMods = workspace.mods.length > 0
+  const hasConflicts = (workspace.selectedMod?.conflictFiles.length ?? 0) > 0
 
   return (
     <div className="mx-auto max-w-[1700px] space-y-4">
@@ -73,18 +76,22 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
             <div className="p-5 lg:p-6">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <p className="text-sm font-medium text-violet-600 dark:text-violet-300">Mods Workspace</p>
+                  <p className="text-sm font-medium text-violet-600 dark:text-violet-300">{copy.workspacePage.mods}</p>
                   <h2 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    工作区主面板
+                    {copy.workspacePage.currentLoadedMods}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    左侧固定导航，右侧专注 Mod 列表；需要看详细信息时直接从底部拉出抽屉，不打断当前浏览节奏。
+                    {copy.workspacePage.selectedModDescription}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <Button className="cursor-pointer rounded-xl px-4">
+                  <Button
+                    className="cursor-pointer rounded-xl px-4"
+                    onClick={workspace.openImportModDialog}
+                    disabled={workspace.isImportingMod || workspace.isPreviewingMod}
+                  >
                     <HardDriveDownload className="size-4" />
-                    导入 Mod
+                    {copy.workspacePage.importMod}
                   </Button>
                   <Button
                     variant="outline"
@@ -92,41 +99,42 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                     onClick={() => void workspace.refreshWorkspace()}
                   >
                     <RefreshCw className="size-4" />
-                    刷新
+                    {copy.workspacePage.refresh}
                   </Button>
                   <Button
                     variant="outline"
                     className={softOutlineButtonClass}
                     onClick={() => setIsDetailSheetOpen(true)}
+                    disabled={!workspace.selectedMod}
                   >
                     <Layers3 className="size-4" />
-                    当前焦点
+                    {copy.workspacePage.currentFocus}
                   </Button>
                 </div>
               </div>
 
               <div className="mt-5 grid gap-3 lg:grid-cols-4">
                 <WorkbenchStatCard
-                  label="Mod 总数"
+                  label={copy.workspacePage.totalMods}
                   value={String(workspace.stats.total)}
-                  caption={`${workspace.stats.disabled} 个已禁用`}
+                  caption={copy.workspacePage.disabledCount(workspace.stats.disabled)}
                 />
                 <WorkbenchStatCard
-                  label="已启用"
+                  label={copy.workspacePage.enabled}
                   value={String(workspace.stats.enabled)}
-                  caption="当前已启用的 Mod"
+                  caption={copy.workspacePage.enabledMods}
                   tone="success"
                 />
                 <WorkbenchStatCard
-                  label="冲突文件"
+                  label={copy.workspacePage.conflictFiles}
                   value={String(workspace.stats.conflicts)}
-                  caption={hasConflicts ? "建议尽快处理" : "当前稳定"}
+                  caption={hasConflicts ? copy.workspacePage.conflictWarning : copy.workspacePage.conflictFree}
                   tone={hasConflicts ? "warning" : "success"}
                 />
                 <WorkbenchStatCard
-                  label="文件规模"
+                  label={copy.workspacePage.fileScale}
                   value={String(workspace.stats.files)}
-                  caption="已识别部署文件"
+                  caption={copy.workspacePage.filesDetected}
                 />
               </div>
 
@@ -134,40 +142,44 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                 <div className="relative">
                   <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                   <Input
+                    value={workspace.modSearchQuery}
+                    onChange={(event) => workspace.setModSearchQuery(event.currentTarget.value)}
                     className="h-12 rounded-2xl border-border/70 bg-background/75 pl-10 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
-                    placeholder="搜索 Mod 名称、作者、目标目录"
+                    placeholder={copy.workspacePage.searchPlaceholder}
                   />
                 </div>
                 <G2MSubtlePanel>
                   <div className="flex h-full items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
                     <G2MPill className="bg-muted px-3 py-1 dark:bg-white/10">
-                      {workspace.bootstrapping ? "读取中" : "全部类型"}
+                      {workspace.bootstrapping ? copy.common.current : copy.workspacePage.allTypes}
                     </G2MPill>
                     <G2MPill className="bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                      {workspace.usingDemoMods ? "演示列表" : "数据库列表"}
+                      {copy.workspacePage.usingDatabase}
                     </G2MPill>
                   </div>
                 </G2MSubtlePanel>
                 <G2MSubtlePanel>
                   <div className="flex h-full items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
                     <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
-                    软链接模式
+                    {copy.workspacePage.softLinkMode}
                   </div>
                 </G2MSubtlePanel>
               </div>
             </div>
           </G2MPanel>
 
-          {hasConflicts && (
+          {hasConflicts && workspace.selectedMod && (
             <Alert className="border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="flex gap-3">
                   <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-300" />
                   <div>
-                    <AlertTitle>检测到冲突文件</AlertTitle>
+                    <AlertTitle>{copy.workspacePage.conflictTitle}</AlertTitle>
                     <AlertDescription>
-                      当前选中的 {workspace.selectedMod.name} 检测到 {workspace.selectedMod.conflictFiles.length} 个文件级冲突。
-                      建议先查看冲突列表，再决定是覆盖还是跳过。
+                      {copy.workspacePage.conflictWarningDescription(
+                        workspace.selectedMod.name,
+                        workspace.selectedMod.conflictFiles.length,
+                      )}
                     </AlertDescription>
                   </div>
                 </div>
@@ -176,7 +188,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                   className="cursor-pointer rounded-xl border-amber-300 bg-white/90 text-amber-900 backdrop-blur hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/15"
                   onClick={workspace.openConflictDialog}
                 >
-                  解决冲突
+                  {copy.workspacePage.resolveConflict}
                 </Button>
               </div>
             </Alert>
@@ -186,31 +198,39 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
             <div className="p-5 lg:p-6">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Mod 列表</p>
-                  <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">当前游戏已加载的 Mod</h3>
+                  <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{copy.workspacePage.modList}</p>
+                  <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">{copy.workspacePage.currentLoadedMods}</h3>
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    点击 `查看详情` 按钮，从底部抽屉查看完整信息、冲突和文件预览。
+                    {copy.workspacePage.detailHint}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <G2MPill className="bg-muted px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                    {workspace.stats.disabled} 个已禁用
+                    {copy.workspacePage.disabledCount(workspace.stats.disabled)}
                   </G2MPill>
-                  <G2MPill className="bg-background/80 px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                    当前焦点：{workspace.selectedMod.name}
-                  </G2MPill>
+                  {workspace.selectedMod && (
+                    <G2MPill className="bg-background/80 px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+                      {copy.workspacePage.currentFocusLabel(workspace.selectedMod.name)}
+                    </G2MPill>
+                  )}
                 </div>
               </div>
 
               <div className="mt-5 space-y-3">
-                {workspace.mods.map((mod) => (
-                  <ModListCard
-                    key={mod.id}
-                    mod={mod}
-                    workspace={workspace}
-                    onOpenDetails={() => setIsDetailSheetOpen(true)}
-                  />
-                ))}
+                {hasMods ? (
+                  workspace.mods.map((mod) => (
+                    <ModListCard
+                      key={mod.id}
+                      mod={mod}
+                      workspace={workspace}
+                      onOpenDetails={() => setIsDetailSheetOpen(true)}
+                    />
+                  ))
+                ) : workspace.allModsCount > 0 && workspace.modSearchQuery.trim() ? (
+                  <SearchEmptyState />
+                ) : (
+                  <EmptyModsState workspace={workspace} />
+                )}
               </div>
             </div>
           </G2MPanel>
@@ -228,6 +248,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
 
 function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
   const activeGame = workspace.activeGame
+  const { copy } = useI18n()
   if (!activeGame) {
     return null
   }
@@ -237,26 +258,26 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
       <G2MPanel>
         <div className="p-5">
           <SectionHeading
-            eyebrow="工作区导航"
-            title="当前游戏信息"
-            description="固定展示当前上下文和目录信息，不让主区来回跳。"
+            eyebrow={copy.workspace.breadcrumbWorkspace}
+            title={copy.workspacePage.gameInfo}
+            description={copy.workspacePage.sidebarDescription}
           />
 
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <DetailCardLight label="游戏类型" value={activeGame.shortName} />
-            <DetailCardLight label="可执行文件" value={activeGame.exeName} />
-            <DetailCardLight label="添加时间" value={formatGameTimestamp(activeGame.createdAt)} />
-            <DetailCardLight label="修改时间" value={formatGameTimestamp(activeGame.updatedAt)} />
+            <DetailCardLight label={copy.workspace.currentGame} value={activeGame.shortName} />
+            <DetailCardLight label="EXE" value={activeGame.exeName} />
+            <DetailCardLight label={copy.workspacePage.addedAt} value={formatGameTimestamp(activeGame.createdAt)} />
+            <DetailCardLight label={copy.workspacePage.updatedAt} value={formatGameTimestamp(activeGame.updatedAt)} />
           </div>
 
           <div className="mt-5 space-y-3">
             <InfoStrip
-              label="安装目录"
+              label={copy.workspacePage.directory}
               value={activeGame.gamePath}
               icon={<MapPinned className="size-4 text-violet-600" />}
             />
             <InfoStrip
-              label="Mod 仓库"
+              label={copy.workspacePage.modWarehouse}
               value={`${activeGame.gamePath}\\G2M\\mods`}
               icon={<Boxes className="size-4 text-violet-600" />}
             />
@@ -267,9 +288,9 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
       <G2MPanel>
         <div className="p-5">
           <SectionHeading
-            eyebrow="快捷操作"
-            title="常用入口"
-            description="把目录、刷新和危险操作集中固定。"
+            eyebrow={copy.workspacePage.actions}
+            title={copy.workspacePage.actions}
+            description={copy.workspacePage.quickActionsDescription}
           />
           <div className="mt-5 grid gap-2">
             <Button
@@ -278,7 +299,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
               onClick={() => void workspace.openGameDirectory()}
             >
               <FolderOpen className="size-4" />
-              打开游戏目录
+              {copy.workspacePage.openGameDirectory}
             </Button>
             <Button
               variant="outline"
@@ -286,7 +307,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
               onClick={() => workspace.openEditGameDialog(activeGame.id)}
             >
               <Pencil className="size-4" />
-              编辑游戏资料
+              {copy.workspacePage.editGameProfile}
             </Button>
             <Button
               variant="outline"
@@ -294,7 +315,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
               onClick={() => void workspace.refreshWorkspace()}
             >
               <RefreshCw className="size-4" />
-              刷新工作区
+              {copy.workspacePage.refreshWorkspace}
             </Button>
             <Button
               variant="outline"
@@ -302,7 +323,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
               onClick={() => workspace.openDeleteGameDialog(activeGame.id)}
             >
               <Trash2 className="size-4" />
-              删除当前游戏
+              {copy.workspacePage.deleteCurrentGame}
             </Button>
           </div>
         </div>
@@ -312,11 +333,11 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
         <div className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">游戏切换</p>
-              <h3 className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-50">已添加的游戏</h3>
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{copy.workspacePage.gameSwitch}</p>
+              <h3 className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.home.configuredTitle}</h3>
             </div>
             <G2MPill className="bg-background/80 px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-              {workspace.games.length} 个
+              {copy.home.configuredCount(workspace.games.length)}
             </G2MPill>
           </div>
           <div className="space-y-2">
@@ -330,7 +351,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
             onClick={workspace.startAddGame}
           >
             <Plus className="size-4" />
-            添加更多游戏
+            {copy.home.addGame}
           </Button>
         </div>
       </G2MPanel>
@@ -348,6 +369,11 @@ function SelectedModSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const selectedMod = workspace.selectedMod
+  const { copy } = useI18n()
+
+  if (!selectedMod) {
+    return null
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -359,13 +385,13 @@ function SelectedModSheet({
           <div className="flex items-start justify-between gap-4 pr-10">
             <div>
               <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                当前焦点
+                {copy.workspacePage.focusBadge}
               </Badge>
               <SheetTitle className="mt-3 text-2xl font-semibold text-slate-950 dark:text-slate-50">
                 {selectedMod.name}
               </SheetTitle>
               <SheetDescription className="mt-2 leading-6 text-slate-600 dark:text-slate-300">
-                底部抽屉专门承载当前选中 Mod 的完整信息，不打断列表浏览和选择节奏。
+                {copy.workspacePage.previewDrawerDescription}
               </SheetDescription>
             </div>
             <Button
@@ -373,7 +399,7 @@ function SelectedModSheet({
               className="cursor-pointer rounded-xl"
               onClick={() => onOpenChange(false)}
             >
-              关闭
+              {copy.workspacePage.close}
             </Button>
           </div>
         </SheetHeader>
@@ -395,7 +421,7 @@ function SelectedModSheet({
                         : "bg-muted text-slate-600 dark:bg-white/10 dark:text-slate-300",
                     )}
                   >
-                    {selectedMod.enabled ? "已启用" : "已禁用"}
+                    {selectedMod.enabled ? copy.workspacePage.enabledState : copy.workspacePage.disabled}
                   </Badge>
                   <Badge
                     variant="secondary"
@@ -406,7 +432,9 @@ function SelectedModSheet({
                         : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200",
                     )}
                   >
-                    {selectedMod.conflicts > 0 ? `${selectedMod.conflicts} 个冲突` : "状态稳定"}
+                    {selectedMod.conflicts > 0
+                      ? copy.workspace.conflictCaption(selectedMod.conflicts)
+                      : copy.workspacePage.statusStable}
                   </Badge>
                 </div>
                 <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">{selectedMod.description}</p>
@@ -418,9 +446,10 @@ function SelectedModSheet({
                 variant="outline"
                 className="cursor-pointer rounded-xl"
                 onClick={() => workspace.toggleMod(selectedMod.id)}
+            disabled={workspace.togglingModId === selectedMod.id}
               >
                 <CheckCircle2 className="size-4" />
-                {selectedMod.enabled ? "禁用当前 Mod" : "启用当前 Mod"}
+                {selectedMod.enabled ? copy.workspacePage.disabled : copy.workspacePage.enabled}
               </Button>
               {selectedMod.conflictFiles.length > 0 && (
                 <Button
@@ -429,21 +458,21 @@ function SelectedModSheet({
                   onClick={workspace.openConflictDialog}
                 >
                   <AlertTriangle className="size-4" />
-                  查看冲突
+                  {copy.workspacePage.conflictView}
                 </Button>
               )}
             </div>
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <DetailCardLight label="作者" value={selectedMod.author} />
-            <DetailCardLight label="大小" value={selectedMod.size} />
-            <DetailCardLight label="文件数量" value={String(selectedMod.fileCount)} />
-            <DetailCardLight label="导入时间" value={selectedMod.installedAt} />
+            <DetailCardLight label={copy.workspacePage.author} value={selectedMod.author} />
+            <DetailCardLight label={copy.workspacePage.size} value={selectedMod.size} />
+            <DetailCardLight label={copy.workspacePage.fileCount} value={String(selectedMod.fileCount)} />
+            <DetailCardLight label={copy.workspacePage.importedAt} value={selectedMod.installedAt} />
           </div>
 
           <div className="mt-6">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">目标目录</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{copy.workspacePage.targetFolders}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {selectedMod.targetFolders.map((folder) => (
                 <Badge key={`${selectedMod.id}-${folder}`} variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
@@ -454,7 +483,7 @@ function SelectedModSheet({
           </div>
 
           <div className="mt-6">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">文件预览</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{copy.workspacePage.filePreview}</p>
             <div className="mt-3 space-y-2">
               {selectedMod.previewFiles.map((file) => (
                 <div
@@ -469,7 +498,7 @@ function SelectedModSheet({
 
           {selectedMod.conflictFiles.length > 0 && (
             <div className="mt-6">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">冲突摘要</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{copy.workspacePage.conflictSummary}</p>
               <div className="mt-3 space-y-2">
                 {selectedMod.conflictFiles.slice(0, 4).map((conflict) => (
                   <div
@@ -491,6 +520,55 @@ function SelectedModSheet({
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+function EmptyModsState({ workspace }: { workspace: WorkspaceState }) {
+  const { copy } = useI18n()
+
+  return (
+    <Card className="rounded-[28px] border-dashed bg-background/70 dark:bg-white/[0.03]">
+      <CardContent className="flex flex-col items-center px-6 py-10 text-center">
+        <div className="flex size-16 items-center justify-center rounded-3xl bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
+          <Boxes className="size-8" />
+        </div>
+        <h4 className="mt-5 text-xl font-semibold text-slate-950 dark:text-slate-50">
+          {copy.workspacePage.noModsTitle}
+        </h4>
+        <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
+          {copy.workspacePage.noModsDescription}
+        </p>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          {copy.workspacePage.noModsHint}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Button
+            className="cursor-pointer rounded-xl px-4"
+            onClick={workspace.openImportModDialog}
+            disabled={workspace.isImportingMod || workspace.isPreviewingMod}
+          >
+            <HardDriveDownload className="size-4" />
+            {copy.workspacePage.importMod}
+          </Button>
+          <Button
+            variant="outline"
+            className={softOutlineButtonClass}
+            onClick={() => void workspace.openGameDirectory()}
+          >
+            <FolderOpen className="size-4" />
+            {copy.workspacePage.openGameDirectory}
+          </Button>
+          <Button
+            variant="outline"
+            className={softOutlineButtonClass}
+            onClick={() => void workspace.refreshWorkspace()}
+          >
+            <RefreshCw className="size-4" />
+            {copy.workspacePage.refreshWorkspace}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -568,6 +646,7 @@ function GameSwitchRow({
 }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { copy } = useI18n()
   const isCurrent = location.pathname === `/game/${game.id}`
 
   return (
@@ -598,7 +677,7 @@ function GameSwitchRow({
         variant={isCurrent ? "secondary" : "outline"}
         className={isCurrent ? "rounded-full bg-white/10 px-3 py-1 text-white dark:bg-white/10" : "rounded-full bg-background/80 px-3 py-1"}
       >
-        {game.status === "ready" ? "已设置" : "待设置"}
+        {game.status === "ready" ? copy.workspacePage.gameStatusReady : copy.workspacePage.gameStatusPending}
       </Badge>
     </button>
   )
@@ -613,6 +692,8 @@ function ModListCard({
   workspace: WorkspaceState
   onOpenDetails: () => void
 }) {
+  const { copy } = useI18n()
+
   return (
     <Card className="w-full rounded-[24px] bg-background/90 text-left shadow-[0_16px_40px_rgba(15,23,42,0.05)] ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:ring-black/10 hover:shadow-[0_24px_50px_rgba(15,23,42,0.08)] dark:bg-white/5 dark:shadow-[0_18px_40px_rgba(0,0,0,0.22)] dark:ring-white/10 dark:hover:ring-white/20 dark:hover:shadow-[0_22px_44px_rgba(0,0,0,0.28)]">
       <CardContent className="p-4">
@@ -622,7 +703,7 @@ function ModListCard({
               type="button"
               onClick={(event) => {
                 event.stopPropagation()
-                workspace.toggleMod(mod.id)
+                void workspace.toggleMod(mod.id)
               }}
               className={cn(
                 "mt-0.5 flex size-11 items-center justify-center rounded-2xl border transition-colors",
@@ -630,6 +711,7 @@ function ModListCard({
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                   : "border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400",
               )}
+              disabled={workspace.togglingModId === mod.id}
             >
               <CheckCircle2 className="size-5" />
             </button>
@@ -642,7 +724,7 @@ function ModListCard({
                 </Badge>
                 {mod.conflicts > 0 && (
                   <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
-                    {mod.conflicts} 个冲突
+                    {copy.workspace.conflictCaption(mod.conflicts)}
                   </Badge>
                 )}
               </div>
@@ -652,10 +734,10 @@ function ModListCard({
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <span>作者 {mod.author}</span>
-                <span>文件 {mod.fileCount}</span>
-                <span>大小 {mod.size}</span>
-                <span>导入于 {mod.installedAt}</span>
+                <span>{copy.workspacePage.author} {mod.author}</span>
+                <span>{copy.workspacePage.fileCount} {mod.fileCount}</span>
+                <span>{copy.workspacePage.size} {mod.size}</span>
+                <span>{copy.workspacePage.importedAt} {mod.installedAt}</span>
               </div>
             </div>
           </div>
@@ -675,10 +757,11 @@ function ModListCard({
               className="cursor-pointer rounded-xl px-4"
               onClick={(event) => {
                 event.stopPropagation()
-                workspace.toggleMod(mod.id)
+                void workspace.toggleMod(mod.id)
               }}
+              disabled={workspace.togglingModId === mod.id}
             >
-              {mod.enabled ? "禁用" : "启用"}
+              {mod.enabled ? copy.workspacePage.disabled : copy.workspacePage.enabled}
             </Button>
             <Button
               variant="outline"
@@ -689,10 +772,30 @@ function ModListCard({
                 onOpenDetails()
               }}
             >
-              查看详情
+              {copy.workspacePage.viewDetails}
             </Button>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SearchEmptyState() {
+  const { copy } = useI18n()
+
+  return (
+    <Card className="rounded-[28px] border-dashed bg-background/70 dark:bg-white/[0.03]">
+      <CardContent className="flex flex-col items-center px-6 py-10 text-center">
+        <div className="flex size-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+          <Search className="size-8" />
+        </div>
+        <h4 className="mt-5 text-xl font-semibold text-slate-950 dark:text-slate-50">
+          {copy.workspacePage.noSearchResultsTitle}
+        </h4>
+        <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
+          {copy.workspacePage.noSearchResultsDescription}
+        </p>
       </CardContent>
     </Card>
   )

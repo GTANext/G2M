@@ -1,11 +1,20 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+
+mod mod_import;
+
+use mod_import::{
+    build_mod_import_preview, build_mod_source_preview, copy_directory_recursive,
+    import_mod_into_database, prepare_import_source, resolve_import_source, unique_directory_path,
+    ImportFileOverride, ImportedModFile,
+};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,8 +54,65 @@ struct DetectedGamePayload {
 #[serde(rename_all = "camelCase")]
 struct StoredMod {
     id: String,
+    game_id: String,
     name: String,
+    mod_type: String,
+    author: String,
     enabled: bool,
+    file_count: i64,
+    conflicts: i64,
+    size_bytes: i64,
+    installed_at: i64,
+    description: String,
+    source_dir: String,
+    target_folders: Vec<String>,
+    preview_files: Vec<String>,
+    conflict_files: Vec<StoredConflictFile>,
+    conflict_with: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredConflictFile {
+    id: String,
+    file_name: String,
+    target_path: String,
+    source_path: String,
+    target_folder: String,
+    other_mod_name: String,
+    other_source_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ModImportFileEntryPayload {
+    relative_path: String,
+    target_path: String,
+    target_folder: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModImportFileEntryInput {
+    relative_path: String,
+    target_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ModImportPreviewPayload {
+    name: String,
+    mod_type: String,
+    file_count: i64,
+    size_bytes: i64,
+    source_dir: String,
+    has_g2m_manifest: bool,
+    g2m_manifest_path: Option<String>,
+    target_folders: Vec<String>,
+    preview_files: Vec<String>,
+    files: Vec<ModImportFileEntryPayload>,
+    conflict_files: Vec<StoredConflictFile>,
+    conflict_with: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -242,6 +308,7 @@ fn update_game_entry(
 fn delete_game_entry(app: AppHandle, gameId: String) -> Result<BootstrapPayload, String> {
     let paths = ensure_storage(&app)?;
     let existing_game = load_stored_game_by_id(&paths.database_path, &gameId)?;
+    delete_mods_for_game(&paths.database_path, &gameId)?;
     let deleted_rows = delete_game_entry_from_database(&paths.database_path, &gameId)?;
 
     if deleted_rows == 0 {
@@ -250,6 +317,117 @@ fn delete_game_entry(app: AppHandle, gameId: String) -> Result<BootstrapPayload,
 
     if let Some(game) = existing_game {
         cleanup_custom_game_cover(&paths.custom_assets_dir, &game.image_path)?;
+    }
+
+    bootstrap_app(app)
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
+fn update_mod_enabled(
+    app: AppHandle,
+    modId: String,
+    enabled: bool,
+) -> Result<BootstrapPayload, String> {
+    let paths = ensure_storage(&app)?;
+    let updated_rows = update_mod_enabled_in_database(&paths.database_path, &modId, enabled)?;
+
+    if updated_rows == 0 {
+        return Err("未找到要更新的 Mod".to_string());
+    }
+
+    bootstrap_app(app)
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
+fn preview_mod_directory(
+    app: AppHandle,
+    gameId: String,
+    modPath: String,
+    modName: Option<String>,
+) -> Result<ModImportPreviewPayload, String> {
+    let paths = ensure_storage(&app)?;
+    let (_, source) = resolve_import_source(&paths.database_path, &gameId, &modPath)?;
+    let mod_name_override = modName
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(source.display_name.as_str());
+
+    build_mod_import_preview(
+        &paths.database_path,
+        &gameId,
+        &source.source_dir,
+        Some(mod_name_override),
+    )
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
+fn inspect_mod_source(
+    modPath: String,
+    modName: Option<String>,
+) -> Result<ModImportPreviewPayload, String> {
+    let source = prepare_import_source(&modPath)?;
+    let mod_name_override = modName
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(source.display_name.as_str());
+
+    build_mod_source_preview(&source.source_dir, Some(mod_name_override))
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
+fn import_mod_directory(
+    app: AppHandle,
+    gameId: String,
+    modPath: String,
+    modName: Option<String>,
+    files: Option<Vec<ModImportFileEntryInput>>,
+) -> Result<BootstrapPayload, String> {
+    let paths = ensure_storage(&app)?;
+    let (game, source) = resolve_import_source(&paths.database_path, &gameId, &modPath)?;
+
+    let workspace_mods_dir = Path::new(&game.path).join("G2M").join("mods");
+    fs::create_dir_all(&workspace_mods_dir)
+        .map_err(|error| format!("failed to create workspace mods directory: {error}"))?;
+
+    let source_name = modName
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(source.display_name.as_str());
+    if source_name.is_empty() {
+        return Err("无法识别 Mod 文件夹名称".to_string());
+    }
+    let target_dir = unique_directory_path(&workspace_mods_dir, source_name);
+
+    copy_directory_recursive(&source.source_dir, &target_dir)?;
+
+    let file_overrides = files.as_ref().map(|entries| {
+        entries
+            .iter()
+            .map(|file| ImportFileOverride {
+                relative_path: file.relative_path.trim().replace('\\', "/"),
+                target_path: file.target_path.trim().to_string(),
+            })
+            .collect::<Vec<_>>()
+    });
+
+    let import_result = import_mod_into_database(
+        &paths.database_path,
+        &gameId,
+        &target_dir,
+        Some(source_name),
+        file_overrides.as_deref(),
+    );
+
+    if let Err(error) = import_result {
+        let _ = fs::remove_dir_all(&target_dir);
+        return Err(error);
     }
 
     bootstrap_app(app)
@@ -321,7 +499,14 @@ fn initialize_database(database_path: &Path) -> Result<(), String> {
             "
             CREATE TABLE IF NOT EXISTS mods (
                 id TEXT PRIMARY KEY,
+                game_id TEXT NOT NULL DEFAULT '',
                 name TEXT NOT NULL,
+                mod_type TEXT NOT NULL DEFAULT 'Mixed',
+                author TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                source_dir TEXT NOT NULL DEFAULT '',
+                installed_at INTEGER NOT NULL DEFAULT 0,
+                size_bytes INTEGER NOT NULL DEFAULT 0,
                 enabled INTEGER NOT NULL DEFAULT 0
             );
 
@@ -342,15 +527,49 @@ fn initialize_database(database_path: &Path) -> Result<(), String> {
                 mod_id TEXT NOT NULL,
                 source_path TEXT NOT NULL,
                 target_path TEXT NOT NULL,
+                target_folder TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (mod_id) REFERENCES mods(id) ON DELETE CASCADE
             );
             ",
         )
         .map_err(|error| format!("failed to initialize database schema: {error}"))?;
 
-    ensure_games_table_column(&connection, "image_path", "TEXT NOT NULL DEFAULT ''")?;
-    ensure_games_table_column(&connection, "created_at", "INTEGER NOT NULL DEFAULT 0")?;
-    ensure_games_table_column(&connection, "updated_at", "INTEGER NOT NULL DEFAULT 0")?;
+    ensure_table_column(&connection, "games", "image_path", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_table_column(&connection, "games", "created_at", "INTEGER NOT NULL DEFAULT 0")?;
+    ensure_table_column(&connection, "games", "updated_at", "INTEGER NOT NULL DEFAULT 0")?;
+    ensure_table_column(&connection, "mods", "game_id", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_table_column(
+        &connection,
+        "mods",
+        "mod_type",
+        "TEXT NOT NULL DEFAULT 'Mixed'",
+    )?;
+    ensure_table_column(&connection, "mods", "author", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_table_column(
+        &connection,
+        "mods",
+        "description",
+        "TEXT NOT NULL DEFAULT ''",
+    )?;
+    ensure_table_column(
+        &connection,
+        "mods",
+        "source_dir",
+        "TEXT NOT NULL DEFAULT ''",
+    )?;
+    ensure_table_column(
+        &connection,
+        "mods",
+        "installed_at",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    ensure_table_column(&connection, "mods", "size_bytes", "INTEGER NOT NULL DEFAULT 0")?;
+    ensure_table_column(
+        &connection,
+        "files",
+        "target_folder",
+        "TEXT NOT NULL DEFAULT ''",
+    )?;
     connection
         .execute(
             "
@@ -389,21 +608,61 @@ fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> {
     let connection = Connection::open(database_path)
         .map_err(|error| format!("failed to open database: {error}"))?;
     let mut statement = connection
-        .prepare("SELECT id, name, enabled FROM mods ORDER BY name COLLATE NOCASE ASC")
+        .prepare(
+            "
+            SELECT id, game_id, name, mod_type, author, enabled, description, source_dir, installed_at, size_bytes
+            FROM mods
+            ORDER BY game_id COLLATE NOCASE ASC, name COLLATE NOCASE ASC
+            ",
+        )
         .map_err(|error| format!("failed to prepare mod query: {error}"))?;
 
     let rows = statement
         .query_map([], |row| {
             Ok(StoredMod {
                 id: row.get(0)?,
-                name: row.get(1)?,
-                enabled: row.get::<_, i64>(2)? != 0,
+                game_id: row.get(1)?,
+                name: row.get(2)?,
+                mod_type: row.get(3)?,
+                author: row.get(4)?,
+                enabled: row.get::<_, i64>(5)? != 0,
+                file_count: 0,
+                conflicts: 0,
+                size_bytes: row.get(9)?,
+                installed_at: row.get(8)?,
+                description: row.get(6)?,
+                source_dir: row.get(7)?,
+                target_folders: Vec::new(),
+                preview_files: Vec::new(),
+                conflict_files: Vec::new(),
+                conflict_with: Vec::new(),
             })
         })
         .map_err(|error| format!("failed to query mods: {error}"))?;
 
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("failed to read mods: {error}"))
+    let mut mods = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to read mods: {error}"))?;
+
+    for mod_entry in &mut mods {
+        mod_entry.target_folders =
+            load_mod_target_folders(&connection, &mod_entry.id)?;
+        mod_entry.preview_files =
+            load_mod_preview_files(&connection, &mod_entry.id)?;
+        mod_entry.file_count = load_mod_file_count(&connection, &mod_entry.id)?;
+        mod_entry.conflict_files =
+            load_mod_conflict_files(&connection, &mod_entry.id, &mod_entry.game_id)?;
+        mod_entry.conflicts = mod_entry.conflict_files.len() as i64;
+        mod_entry.conflict_with = mod_entry
+            .conflict_files
+            .iter()
+            .map(|conflict| conflict.other_mod_name.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+    }
+
+    Ok(mods)
 }
 
 fn load_game_directories(database_path: &Path) -> Result<Vec<GameDirectory>, String> {
@@ -612,6 +871,26 @@ fn delete_game_entry_from_database(database_path: &Path, game_id: &str) -> Resul
         .map_err(|error| format!("failed to delete game entry: {error}"))
 }
 
+fn update_mod_enabled_in_database(
+    database_path: &Path,
+    mod_id: &str,
+    enabled: bool,
+) -> Result<usize, String> {
+    let connection = Connection::open(database_path)
+        .map_err(|error| format!("failed to open database: {error}"))?;
+
+    connection
+        .execute(
+            "
+            UPDATE mods
+            SET enabled = ?1
+            WHERE id = ?2
+            ",
+            params![if enabled { 1_i64 } else { 0_i64 }, mod_id],
+        )
+        .map_err(|error| format!("failed to update mod enabled state: {error}"))
+}
+
 fn detect_game_installation(game_path: &Path, games: &[StoredGameEntry]) -> Result<StoredGameEntry, String> {
     if !game_path.exists() {
         return Err("游戏目录不存在".to_string());
@@ -705,6 +984,15 @@ fn build_game_id(game_type: &str) -> String {
     format!("{game_type}-{timestamp}")
 }
 
+fn build_mod_id() -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+
+    format!("mod-{timestamp}-{}", random_suffix())
+}
+
 fn load_stored_game_by_id(database_path: &Path, game_id: &str) -> Result<Option<StoredGameEntry>, String> {
     let connection = Connection::open(database_path)
         .map_err(|error| format!("failed to open database: {error}"))?;
@@ -736,19 +1024,20 @@ fn load_stored_game_by_id(database_path: &Path, game_id: &str) -> Result<Option<
         .map_err(|error| format!("failed to load game entry: {error}"))
 }
 
-fn ensure_games_table_column(
+fn ensure_table_column(
     connection: &Connection,
+    table_name: &str,
     column_name: &str,
     column_definition: &str,
 ) -> Result<(), String> {
     let mut statement = connection
-        .prepare("PRAGMA table_info(games)")
-        .map_err(|error| format!("failed to inspect games table: {error}"))?;
+        .prepare(&format!("PRAGMA table_info({table_name})"))
+        .map_err(|error| format!("failed to inspect {table_name} table: {error}"))?;
     let column_names = statement
         .query_map([], |row| row.get::<_, String>(1))
-        .map_err(|error| format!("failed to query games table info: {error}"))?
+        .map_err(|error| format!("failed to query {table_name} table info: {error}"))?
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("failed to read games table info: {error}"))?;
+        .map_err(|error| format!("failed to read {table_name} table info: {error}"))?;
 
     if column_names.iter().any(|name| name == column_name) {
         return Ok(());
@@ -756,12 +1045,199 @@ fn ensure_games_table_column(
 
     connection
         .execute(
-            &format!("ALTER TABLE games ADD COLUMN {column_name} {column_definition}"),
+            &format!(
+                "ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
+            ),
             [],
         )
-        .map_err(|error| format!("failed to add column {column_name} to games table: {error}"))?;
+        .map_err(|error| {
+            format!("failed to add column {column_name} to {table_name} table: {error}")
+        })?;
 
     Ok(())
+}
+
+fn delete_mods_for_game(database_path: &Path, game_id: &str) -> Result<(), String> {
+    let connection = Connection::open(database_path)
+        .map_err(|error| format!("failed to open database: {error}"))?;
+    let mut statement = connection
+        .prepare("SELECT id FROM mods WHERE game_id = ?1")
+        .map_err(|error| format!("failed to prepare game mod query: {error}"))?;
+    let mod_ids = statement
+        .query_map(params![game_id], |row| row.get::<_, String>(0))
+        .map_err(|error| format!("failed to query game mods: {error}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to read game mods: {error}"))?;
+
+    for mod_id in mod_ids {
+        connection
+            .execute("DELETE FROM files WHERE mod_id = ?1", params![mod_id])
+            .map_err(|error| format!("failed to delete mod files: {error}"))?;
+    }
+
+    connection
+        .execute("DELETE FROM mods WHERE game_id = ?1", params![game_id])
+        .map_err(|error| format!("failed to delete game mods: {error}"))?;
+    Ok(())
+}
+
+fn load_mod_target_folders(connection: &Connection, mod_id: &str) -> Result<Vec<String>, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT DISTINCT target_folder
+            FROM files
+            WHERE mod_id = ?1 AND target_folder != ''
+            ORDER BY target_folder COLLATE NOCASE ASC
+            ",
+        )
+        .map_err(|error| format!("failed to prepare target folder query: {error}"))?;
+
+    let rows = statement
+        .query_map(params![mod_id], |row| row.get::<_, String>(0))
+        .map_err(|error| format!("failed to query target folders: {error}"))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to read target folders: {error}"))
+}
+
+fn load_mod_preview_files(connection: &Connection, mod_id: &str) -> Result<Vec<String>, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT target_path
+            FROM files
+            WHERE mod_id = ?1
+            ORDER BY target_path COLLATE NOCASE ASC
+            LIMIT 5
+            ",
+        )
+        .map_err(|error| format!("failed to prepare preview file query: {error}"))?;
+
+    let rows = statement
+        .query_map(params![mod_id], |row| row.get::<_, String>(0))
+        .map_err(|error| format!("failed to query preview files: {error}"))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to read preview files: {error}"))
+}
+
+fn load_mod_file_count(connection: &Connection, mod_id: &str) -> Result<i64, String> {
+    connection
+        .query_row(
+            "SELECT COUNT(*) FROM files WHERE mod_id = ?1",
+            params![mod_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| format!("failed to count mod files: {error}"))
+}
+
+fn load_mod_conflict_files(
+    connection: &Connection,
+    mod_id: &str,
+    game_id: &str,
+) -> Result<Vec<StoredConflictFile>, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT current_files.rowid,
+                   current_files.source_path,
+                   current_files.target_path,
+                   current_files.target_folder,
+                   other_mods.name,
+                   other_files.source_path
+            FROM files AS current_files
+            INNER JOIN mods AS current_mods ON current_mods.id = current_files.mod_id
+            INNER JOIN files AS other_files
+                ON other_files.target_path = current_files.target_path
+               AND other_files.mod_id != current_files.mod_id
+            INNER JOIN mods AS other_mods
+                ON other_mods.id = other_files.mod_id
+               AND other_mods.game_id = ?2
+            WHERE current_mods.id = ?1
+            ORDER BY current_files.target_path COLLATE NOCASE ASC, other_mods.name COLLATE NOCASE ASC
+            ",
+        )
+        .map_err(|error| format!("failed to prepare conflict query: {error}"))?;
+
+    let rows = statement
+        .query_map(params![mod_id, game_id], |row| {
+            let target_path = row.get::<_, String>(2)?;
+            let file_name = Path::new(&target_path)
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            Ok(StoredConflictFile {
+                id: format!("{}-{}", row.get::<_, i64>(0)?, random_suffix()),
+                file_name,
+                target_path,
+                source_path: row.get(1)?,
+                target_folder: row.get(3)?,
+                other_mod_name: row.get(4)?,
+                other_source_path: row.get(5)?,
+            })
+        })
+        .map_err(|error| format!("failed to query conflict files: {error}"))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to read conflict files: {error}"))
+}
+
+fn load_preview_conflict_files(
+    connection: &Connection,
+    game_id: &str,
+    imported_files: &[ImportedModFile],
+) -> Result<Vec<StoredConflictFile>, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT other_files.rowid,
+                   other_files.target_path,
+                   other_files.source_path,
+                   other_files.target_folder,
+                   other_mods.name
+            FROM files AS other_files
+            INNER JOIN mods AS other_mods
+                ON other_mods.id = other_files.mod_id
+               AND other_mods.game_id = ?2
+            WHERE other_files.target_path = ?1
+            ORDER BY other_mods.name COLLATE NOCASE ASC
+            ",
+        )
+        .map_err(|error| format!("failed to prepare preview conflict query: {error}"))?;
+    let mut conflict_files = Vec::new();
+
+    for imported_file in imported_files {
+        let rows = statement
+            .query_map(params![imported_file.target_path, game_id], |row| {
+                let target_path = row.get::<_, String>(1)?;
+                let file_name = Path::new(&target_path)
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+
+                Ok(StoredConflictFile {
+                    id: format!("preview-{}-{}", row.get::<_, i64>(0)?, random_suffix()),
+                    file_name,
+                    target_path,
+                    source_path: imported_file.source_path.clone(),
+                    target_folder: row.get(3)?,
+                    other_mod_name: row.get(4)?,
+                    other_source_path: row.get(2)?,
+                })
+            })
+            .map_err(|error| format!("failed to query preview conflicts: {error}"))?;
+
+        let mut resolved_rows = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("failed to read preview conflicts: {error}"))?;
+        conflict_files.append(&mut resolved_rows);
+    }
+
+    Ok(conflict_files)
 }
 
 fn store_game_cover_image(
@@ -845,7 +1321,11 @@ pub fn run() {
             detect_game_directory,
             save_game_path,
             update_game_entry,
-            delete_game_entry
+            delete_game_entry,
+            update_mod_enabled,
+            inspect_mod_source,
+            preview_mod_directory,
+            import_mod_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

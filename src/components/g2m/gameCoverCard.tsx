@@ -1,5 +1,6 @@
 import { ArrowRight, CalendarDays, FolderOpen } from "lucide-react"
 
+import { useI18n } from "@/components/app/i18nProvider"
 import { formatGameTimestamp, resolveGameImageSrc, type Game } from "@/lib/g2m"
 
 import { G2MPill } from "@/components/g2m/surface"
@@ -7,9 +8,12 @@ import { G2MPill } from "@/components/g2m/surface"
 type G2MGameCoverCardProps = {
   game: Game
   onClick: () => void
+  showMoreInfo?: boolean
 }
 
-function G2MGameCoverCard({ game, onClick }: G2MGameCoverCardProps) {
+function G2MGameCoverCard({ game, onClick, showMoreInfo = false }: G2MGameCoverCardProps) {
+  const { copy } = useI18n()
+
   return (
     <button
       type="button"
@@ -30,7 +34,7 @@ function G2MGameCoverCard({ game, onClick }: G2MGameCoverCardProps) {
               {game.shortName}
             </G2MPill>
             <G2MPill className="border-0 bg-white/18 text-white backdrop-blur-md">
-              {game.modCount} 个 Mod
+              {copy.gameCard.modCount(game.modCount)}
             </G2MPill>
           </div>
 
@@ -38,7 +42,7 @@ function G2MGameCoverCard({ game, onClick }: G2MGameCoverCardProps) {
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-2xl font-semibold tracking-tight">{game.name}</p>
-                <p className="mt-1 text-sm text-white/75">{game.version || "未填写版本"}</p>
+                <p className="mt-1 text-sm text-white/75">{game.version || copy.gameCard.versionFallback}</p>
               </div>
               <ArrowRight className="size-5 shrink-0 text-white/80 transition-transform duration-300 group-hover:translate-x-1" />
             </div>
@@ -46,32 +50,36 @@ function G2MGameCoverCard({ game, onClick }: G2MGameCoverCardProps) {
         </div>
 
         <div className="space-y-4 p-5">
-          <div className="grid grid-cols-2 gap-3">
-            <InfoTile
-              label="添加时间"
-              value={formatGameTimestamp(game.createdAt)}
-            />
-            <InfoTile
-              label="最近修改"
-              value={formatGameTimestamp(game.updatedAt)}
-            />
-          </div>
+          {showMoreInfo && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <InfoTile
+                  label={copy.gameCard.createdAt}
+                  value={formatGameTimestamp(game.createdAt)}
+                />
+                <InfoTile
+                  label={copy.gameCard.updatedAt}
+                  value={formatGameTimestamp(game.updatedAt)}
+                />
+              </div>
 
-          <div className="rounded-[22px] border border-black/5 bg-[linear-gradient(135deg,rgba(248,250,252,0.95),rgba(241,245,249,0.88))] px-4 py-4 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(30,41,59,0.6),rgba(15,23,42,0.78))]">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-              <FolderOpen className="size-3.5" />
-              安装路径
-            </div>
-            <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              {game.gamePath}
-            </p>
-          </div>
+              <div className="rounded-[22px] border border-black/5 bg-[linear-gradient(135deg,rgba(248,250,252,0.95),rgba(241,245,249,0.88))] px-4 py-4 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(30,41,59,0.6),rgba(15,23,42,0.78))]">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                  <FolderOpen className="size-3.5" />
+                  {copy.gameCard.installPath}
+                </div>
+                <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  {game.gamePath}
+                </p>
+              </div>
+            </>
+          )}
 
           <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 px-4 py-3 text-sm dark:border-white/10">
             <div>
-              <p className="font-medium text-slate-900 dark:text-slate-100">进入工作区</p>
+              <p className="font-medium text-slate-900 dark:text-slate-100">{copy.gameCard.openWorkspace}</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                管理 Mod、查看冲突、调整目录
+                {copy.gameCard.openWorkspaceDescription}
               </p>
             </div>
             <div className="flex size-10 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">

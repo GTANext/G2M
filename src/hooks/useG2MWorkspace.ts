@@ -4,15 +4,17 @@ import { openPath, openUrl } from "@tauri-apps/plugin-opener"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { useI18n } from "@/components/app/i18nProvider"
 import {
   buildGamesFromBackend,
   buildDisplayMods,
   buildWorkspaceStats,
-  demoMods,
   type BootstrapPayload,
   type DetectedGame,
   type Game,
   type ManagedMod,
+  type ModImportFileEntry,
+  type ModImportPreview,
 } from "@/lib/g2m"
 
 type AddGameForm = {
@@ -28,6 +30,12 @@ type AddGameForm = {
 
 type EditGameForm = AddGameForm & {
   id: string
+}
+
+type ImportModForm = {
+  dir: string
+  name: string
+  sourceType: "directory" | "zip"
 }
 
 type ConflictDecision = "overwrite" | "skip"
@@ -47,6 +55,7 @@ export type UseG2mWorkspaceResult = {
   currentView: "home" | "game"
   deleteTargetGameId: string | null
   editGameForm: EditGameForm
+  allModsCount: number
   games: Game[]
   getConflictDecision: (modId: string, conflictId: string) => ConflictDecision | null
   goHome: () => void
@@ -55,11 +64,21 @@ export type UseG2mWorkspaceResult = {
   isConflictDialogOpen: boolean
   isDetectingGame: boolean
   isEditGameDialogOpen: boolean
+  isImportModDialogOpen: boolean
+  isImportingMod: boolean
+  isPreviewingMod: boolean
+  importModForm: ImportModForm
+  importModMappings: ModImportFileEntry[]
+  importModPreview: ModImportPreview | null
   mods: ManagedMod[]
+  closeImportModDialog: () => void
   openConflictDialog: () => void
   openDeleteGameDialog: (gameId: string) => void
   openEditGameDialog: (gameId: string) => void
+  openImportModDialog: () => void
   openGameDirectory: (gameId?: string) => Promise<void>
+  confirmImportMod: () => Promise<void>
+  pickImportModSource: (sourceType?: ImportModForm["sourceType"]) => Promise<void>
   pickAddGameImage: () => Promise<void>
   pickEditGameImage: () => Promise<void>
   pickGameDirectory: () => Promise<void>
@@ -67,30 +86,40 @@ export type UseG2mWorkspaceResult = {
   resetEditGameImage: () => void
   openGamesDownloadPage: () => Promise<void>
   openGame: (gameId: string) => void
+  modSearchQuery: string
   savingGameId: string | null
-  selectedMod: ManagedMod
+  selectedMod: ManagedMod | null
   selectedModId: string
+  setModSearchQuery: (value: string) => void
   confirmAddGame: () => Promise<void>
   setAddGameForm: (patch: Partial<AddGameForm>) => void
   setDeleteTargetGameId: (gameId: string | null) => void
   setEditGameForm: (patch: Partial<EditGameForm>) => void
+  setImportModName: (value: string) => void
+  setImportModMappings: (files: ModImportFileEntry[]) => void
+  setImportModSourceType: (value: ImportModForm["sourceType"]) => void
+  updateImportModMappingTarget: (relativePath: string, targetPath: string) => void
   setActiveGameId: (gameId: string) => void
   setSelectedModId: (modId: string) => void
   stats: ReturnType<typeof buildWorkspaceStats>
-  toggleMod: (modId: string) => void
+  toggleMod: (modId: string) => Promise<void>
+  togglingModId: string | null
   refreshWorkspace: () => Promise<void>
   resolveConflict: (modId: string, conflictId: string, decision: ConflictDecision) => void
   startAddGame: () => void
-  usingDemoMods: boolean
 }
 
 export function useG2mWorkspace(): UseG2mWorkspaceResult {
+  const { copy } = useI18n()
   const [activeGameId, setActiveGameId] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<"home" | "game">("home")
   const [isAddGameDialogOpen, setIsAddGameDialogOpen] = useState(false)
   const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false)
   const [isDetectingGame, setIsDetectingGame] = useState(false)
   const [isEditGameDialogOpen, setIsEditGameDialogOpen] = useState(false)
+  const [isImportModDialogOpen, setIsImportModDialogOpen] = useState(false)
+  const [isImportingMod, setIsImportingMod] = useState(false)
+  const [isPreviewingMod, setIsPreviewingMod] = useState(false)
   const [deleteTargetGameId, setDeleteTargetGameId] = useState<string | null>(null)
   const [addGameForm, setAddGameFormState] = useState<AddGameForm>({
     dir: "",
@@ -113,19 +142,28 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     customImageSourcePath: "",
     useDefaultImage: true,
   })
-  const [mods, setMods] = useState<ManagedMod[]>(demoMods)
+  const [importModForm, setImportModForm] = useState<ImportModForm>({
+    dir: "",
+    name: "",
+    sourceType: "directory",
+  })
+  const [importModMappings, setImportModMappingsState] = useState<ModImportFileEntry[]>([])
+  const [importModPreview, setImportModPreview] = useState<ModImportPreview | null>(null)
+  const [allMods, setAllMods] = useState<ManagedMod[]>([])
   const [conflictDecisions, setConflictDecisions] = useState<Record<string, ConflictDecision>>({})
-  const [selectedModId, setSelectedModId] = useState(demoMods[0].id)
+  const [modSearchQuery, setModSearchQuery] = useState("")
+  const [selectedModId, setSelectedModId] = useState("")
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null)
   const [bootstrapping, setBootstrapping] = useState(true)
   const [savingGameId, setSavingGameId] = useState<string | null>(null)
+  const [togglingModId, setTogglingModId] = useState<string | null>(null)
 
   const applyBootstrap = useCallback(
     (payload: BootstrapPayload) => {
       setBootstrap(payload)
 
-      const nextMods = payload.mods.length > 0 ? buildDisplayMods(payload.mods) : demoMods
-      setMods(nextMods)
+      const nextMods = buildDisplayMods(payload.mods)
+      setAllMods(nextMods)
       setConflictDecisions((current) => {
         const validKeys = new Set(
           nextMods.flatMap((mod) =>
@@ -163,13 +201,13 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       const payload = await invoke<BootstrapPayload>("bootstrap_app")
       applyBootstrap(payload)
     } catch (error) {
-      toast.error("初始化失败", {
+      toast.error(copy.workspaceActions.initFailed, {
         description: formatErrorMessage(error),
       })
     } finally {
       setBootstrapping(false)
     }
-  }, [applyBootstrap])
+  }, [applyBootstrap, copy.workspaceActions.initFailed])
 
   useEffect(() => {
     void refreshWorkspace()
@@ -180,8 +218,22 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       return []
     }
 
-    return buildGamesFromBackend(bootstrap.games, bootstrap.mods.length)
+    return buildGamesFromBackend(bootstrap.games, bootstrap.mods)
   }, [bootstrap])
+
+  const activeGameMods = useMemo(
+    () => allMods.filter((mod) => !activeGameId || mod.gameId === activeGameId),
+    [activeGameId, allMods],
+  )
+
+  const mods = useMemo(() => {
+    const keyword = modSearchQuery.trim().toLowerCase()
+    if (!keyword) {
+      return activeGameMods
+    }
+
+    return activeGameMods.filter((mod) => matchesModSearch(mod, keyword))
+  }, [activeGameMods, modSearchQuery])
 
   const activeGame = useMemo(
     () => games.find((game) => game.id === activeGameId) ?? games[0] ?? null,
@@ -189,7 +241,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   )
 
   const selectedMod = useMemo(
-    () => mods.find((mod) => mod.id === selectedModId) ?? mods[0],
+    () => mods.find((mod) => mod.id === selectedModId) ?? mods[0] ?? null,
     [mods, selectedModId],
   )
 
@@ -198,8 +250,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     [games],
   )
   const hasConfiguredGames = configuredGames.length > 0
-  const stats = useMemo(() => buildWorkspaceStats(mods), [mods])
-  const usingDemoMods = bootstrap?.mods.length === 0
+  const stats = useMemo(() => buildWorkspaceStats(activeGameMods), [activeGameMods])
 
   useEffect(() => {
     if (currentView === "game" && !activeGame) {
@@ -207,27 +258,48 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     }
   }, [activeGame, currentView])
 
-  const toggleMod = useCallback((modId: string) => {
-    let nextEnabledState = false
-
-    setMods((currentMods) =>
-      currentMods.map((mod) => {
-        if (mod.id !== modId) {
-          return mod
-        }
-
-        nextEnabledState = !mod.enabled
-        return { ...mod, enabled: nextEnabledState }
-      }),
-    )
-
-    const targetMod = mods.find((mod) => mod.id === modId)
-    if (targetMod) {
-      toast.success(nextEnabledState ? "Mod 已启用" : "Mod 已禁用", {
-        description: targetMod.name,
-      })
+  const toggleMod = useCallback(async (modId: string) => {
+    const targetMod = allMods.find((mod) => mod.id === modId)
+    if (!targetMod) {
+      return
     }
-  }, [mods])
+
+    const nextEnabledState = !targetMod.enabled
+    let toastId: string | number | undefined
+
+    try {
+      setTogglingModId(modId)
+      toastId = toast.loading(copy.workspaceActions.updatingModState)
+
+      const payload = await invoke<BootstrapPayload>("update_mod_enabled", {
+        modId,
+        enabled: nextEnabledState,
+      })
+
+      applyBootstrap(payload)
+      toast.success(
+        nextEnabledState ? copy.workspaceActions.modEnabled : copy.workspaceActions.modDisabled,
+        {
+          id: toastId,
+          description: targetMod.name,
+        },
+      )
+    } catch (error) {
+      toast.error(copy.workspaceActions.updateModFailed, {
+        id: toastId,
+        description: formatErrorMessage(error),
+      })
+    } finally {
+      setTogglingModId(null)
+    }
+  }, [
+    allMods,
+    applyBootstrap,
+    copy.workspaceActions.modDisabled,
+    copy.workspaceActions.modEnabled,
+    copy.workspaceActions.updateModFailed,
+    copy.workspaceActions.updatingModState,
+  ])
 
   const resolveConflict = useCallback(
     (modId: string, conflictId: string, decision: ConflictDecision) => {
@@ -239,11 +311,11 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       const mod = mods.find((item) => item.id === modId)
       const conflict = mod?.conflictFiles.find((item) => item.id === conflictId)
 
-      toast.success(decision === "overwrite" ? "已设置为覆盖" : "已设置为跳过", {
-        description: conflict?.fileName ?? "冲突处理策略已更新",
+      toast.success(decision === "overwrite" ? copy.workspaceActions.conflictSetOverwrite : copy.workspaceActions.conflictSetSkip, {
+        description: conflict?.fileName ?? copy.workspaceActions.conflictUpdated,
       })
     },
-    [mods],
+    [copy.workspaceActions.conflictSetOverwrite, copy.workspaceActions.conflictSetSkip, copy.workspaceActions.conflictUpdated, mods],
   )
 
   const getConflictDecision = useCallback(
@@ -304,6 +376,18 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     })
   }, [])
 
+  const closeImportModDialog = useCallback(() => {
+    setIsImportModDialogOpen(false)
+    setImportModForm({
+      dir: "",
+      name: "",
+      sourceType: "directory",
+    })
+    setImportModMappingsState([])
+    setImportModPreview(null)
+    setIsPreviewingMod(false)
+  }, [])
+
   const pickGameDirectory = useCallback(async () => {
     let toastId: string | number | undefined
 
@@ -311,7 +395,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: "选择 GTA 游戏目录",
+        title: copy.workspaceActions.chooseGameDirectoryTitle,
       })
 
       if (!selected || Array.isArray(selected)) {
@@ -319,7 +403,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       }
 
       setIsDetectingGame(true)
-      toastId = toast.loading("正在检查目录并识别游戏类型...")
+      toastId = toast.loading(copy.workspaceActions.checkingDirectory)
 
       const detectedGame = await invoke<DetectedGame>("detect_game_directory", {
         gamePath: selected,
@@ -335,24 +419,29 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         customImageSourcePath: "",
         useDefaultImage: true,
       })
-      toast.success("已识别游戏类型", {
+      toast.success(copy.workspaceActions.gameDetected, {
         id: toastId,
         description: `${detectedGame.name} · ${detectedGame.exeName}`,
       })
     } catch (error) {
-      toast.error("目录检查失败", {
+      toast.error(copy.workspaceActions.directoryCheckFailed, {
         id: toastId,
         description: formatErrorMessage(error),
       })
     } finally {
       setIsDetectingGame(false)
     }
-  }, [])
+  }, [
+    copy.workspaceActions.checkingDirectory,
+    copy.workspaceActions.chooseGameDirectoryTitle,
+    copy.workspaceActions.directoryCheckFailed,
+    copy.workspaceActions.gameDetected,
+  ])
 
   const pickAddGameImage = useCallback(async () => {
     const selected = await open({
       multiple: false,
-      title: "选择游戏封面",
+      title: copy.workspaceActions.chooseGameCoverTitle,
       filters: [
         {
           name: "Image",
@@ -371,8 +460,8 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       customImageSourcePath: selected,
       useDefaultImage: false,
     }))
-    toast.success("已选择游戏封面")
-  }, [])
+    toast.success(copy.workspaceActions.coverSelected)
+  }, [copy.workspaceActions.chooseGameCoverTitle, copy.workspaceActions.coverSelected])
 
   const resetAddGameImage = useCallback(() => {
     setAddGameFormState((current) => ({
@@ -381,16 +470,16 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       customImageSourcePath: "",
       useDefaultImage: true,
     }))
-    toast.info("已恢复默认封面")
-  }, [])
+    toast.info(copy.workspaceActions.coverReset)
+  }, [copy.workspaceActions.coverReset])
 
   const confirmAddGame = useCallback(async () => {
     if (!addGameForm.dir.trim()) {
-      toast.warning("请先选择游戏目录")
+      toast.warning(copy.workspaceActions.selectGameDirectoryFirst)
       return
     }
     if (!addGameForm.type) {
-      toast.warning("请先确认游戏类型")
+      toast.warning(copy.workspaceActions.confirmGameTypeFirst)
       return
     }
 
@@ -398,7 +487,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
     try {
       setSavingGameId("add-game")
-      toastId = toast.loading("正在保存游戏配置...")
+      toastId = toast.loading(copy.workspaceActions.savingGameConfig)
 
       const payload = await invoke<BootstrapPayload>("save_game_path", {
         gamePath: addGameForm.dir.trim(),
@@ -410,9 +499,9 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
       const addedGame = payload.games[payload.games.length - 1]
       applyBootstrap(payload)
-      toast.success("游戏已添加", {
+      toast.success(copy.workspaceActions.gameAdded, {
         id: toastId,
-        description: addGameForm.name || addedGame?.name || "游戏配置已保存",
+        description: addGameForm.name || addedGame?.name || copy.workspaceActions.gameConfigSaved,
       })
       closeAddGameDialog()
       setCurrentView("home")
@@ -421,14 +510,24 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         setActiveGameId(addedGame.id)
       }
     } catch (error) {
-      toast.error("添加失败", {
+      toast.error(copy.workspaceActions.addFailed, {
         id: toastId,
         description: formatErrorMessage(error),
       })
     } finally {
       setSavingGameId(null)
     }
-  }, [addGameForm, applyBootstrap, closeAddGameDialog])
+  }, [
+    addGameForm,
+    applyBootstrap,
+    closeAddGameDialog,
+    copy.workspaceActions.addFailed,
+    copy.workspaceActions.confirmGameTypeFirst,
+    copy.workspaceActions.gameAdded,
+    copy.workspaceActions.gameConfigSaved,
+    copy.workspaceActions.savingGameConfig,
+    copy.workspaceActions.selectGameDirectoryFirst,
+  ])
 
   const openEditGameDialog = useCallback((gameId: string) => {
     const game = games.find((item) => item.id === gameId)
@@ -453,7 +552,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const pickEditGameImage = useCallback(async () => {
     const selected = await open({
       multiple: false,
-      title: "选择游戏封面",
+      title: copy.workspaceActions.chooseGameCoverTitle,
       filters: [
         {
           name: "Image",
@@ -472,8 +571,8 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       customImageSourcePath: selected,
       useDefaultImage: false,
     }))
-    toast.success("已更新封面选择")
-  }, [])
+    toast.success(copy.workspaceActions.coverSelectionUpdated)
+  }, [copy.workspaceActions.chooseGameCoverTitle, copy.workspaceActions.coverSelectionUpdated])
 
   const resetEditGameImage = useCallback(() => {
     setEditGameFormState((current) => ({
@@ -482,8 +581,8 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       customImageSourcePath: "",
       useDefaultImage: true,
     }))
-    toast.info("已恢复默认封面")
-  }, [])
+    toast.info(copy.workspaceActions.coverReset)
+  }, [copy.workspaceActions.coverReset])
 
   const confirmEditGame = useCallback(async () => {
     if (!editGameForm.id) {
@@ -494,7 +593,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
     try {
       setSavingGameId(editGameForm.id)
-      toastId = toast.loading(`正在保存 ${editGameForm.name} 的信息...`)
+      toastId = toast.loading(copy.workspaceActions.savingGameInfo(editGameForm.name))
 
       const payload = await invoke<BootstrapPayload>("update_game_entry", {
         gameId: editGameForm.id,
@@ -507,19 +606,26 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
       applyBootstrap(payload)
       closeEditGameDialog()
-      toast.success("游戏信息已更新", {
+      toast.success(copy.workspaceActions.gameUpdated, {
         id: toastId,
         description: editGameForm.name,
       })
     } catch (error) {
-      toast.error("编辑失败", {
+      toast.error(copy.workspaceActions.editFailed, {
         id: toastId,
         description: formatErrorMessage(error),
       })
     } finally {
       setSavingGameId(null)
     }
-  }, [applyBootstrap, closeEditGameDialog, editGameForm])
+  }, [
+    applyBootstrap,
+    closeEditGameDialog,
+    copy.workspaceActions.editFailed,
+    copy.workspaceActions.gameUpdated,
+    copy.workspaceActions.savingGameInfo,
+    editGameForm,
+  ])
 
   const openDeleteGameDialog = useCallback((gameId: string) => {
     setDeleteTargetGameId(gameId)
@@ -530,8 +636,8 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
     try {
       setSavingGameId(gameId)
-      const gameName = games.find((game) => game.id === gameId)?.name ?? "当前游戏"
-      toastId = toast.loading("正在删除游戏配置...")
+      const gameName = games.find((game) => game.id === gameId)?.name ?? copy.workspaceActions.currentGame
+      toastId = toast.loading(copy.workspaceActions.deletingGameConfig)
 
       const payload = await invoke<BootstrapPayload>("delete_game_entry", {
         gameId,
@@ -539,7 +645,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
       applyBootstrap(payload)
       setDeleteTargetGameId(null)
-      toast.success("游戏已删除", {
+      toast.success(copy.workspaceActions.gameDeleted, {
         id: toastId,
         description: gameName,
       })
@@ -548,14 +654,21 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         setCurrentView("home")
       }
     } catch (error) {
-      toast.error("删除失败", {
+      toast.error(copy.workspaceActions.deleteFailed, {
         id: toastId,
         description: formatErrorMessage(error),
       })
     } finally {
       setSavingGameId(null)
     }
-  }, [applyBootstrap, games])
+  }, [
+    applyBootstrap,
+    copy.workspaceActions.currentGame,
+    copy.workspaceActions.deleteFailed,
+    copy.workspaceActions.deletingGameConfig,
+    copy.workspaceActions.gameDeleted,
+    games,
+  ])
 
   const goHome = useCallback(() => {
     setCurrentView("home")
@@ -580,41 +693,288 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     })
   }, [])
 
+  const openImportModDialog = useCallback(() => {
+    setIsImportModDialogOpen(true)
+    setImportModForm({
+      dir: "",
+      name: "",
+      sourceType: "directory",
+    })
+    setImportModMappingsState([])
+    setImportModPreview(null)
+    setIsPreviewingMod(false)
+  }, [])
+
   const openGamesDownloadPage = useCallback(async () => {
     try {
       await openUrl("https://gtamodx.com/games")
-      toast.success("已打开游戏下载页面")
+      toast.success(copy.workspaceActions.downloadPageOpened)
     } catch (error) {
-      toast.error("打开下载页面失败", {
+      toast.error(copy.workspaceActions.openDownloadPageFailed, {
         description: formatErrorMessage(error),
       })
     }
-  }, [])
+  }, [copy.workspaceActions.downloadPageOpened, copy.workspaceActions.openDownloadPageFailed])
 
   const openGameDirectory = useCallback(async (gameId?: string) => {
     const targetGame =
       (gameId ? games.find((game) => game.id === gameId) : activeGame) ?? activeGame
 
     if (!targetGame?.gamePath) {
-      toast.warning("当前游戏没有可打开的目录")
+      toast.warning(copy.workspaceActions.noOpenDirectory)
       return
     }
 
     try {
       await openPath(targetGame.gamePath)
-      toast.success("已打开游戏目录", {
+      toast.success(copy.workspaceActions.gameDirectoryOpened, {
         description: targetGame.gamePath,
       })
     } catch (error) {
-      toast.error("打开游戏目录失败", {
+      toast.error(copy.workspaceActions.openGameDirectoryFailed, {
         description: formatErrorMessage(error),
       })
     }
-  }, [activeGame, games])
+  }, [
+    activeGame,
+    copy.workspaceActions.gameDirectoryOpened,
+    copy.workspaceActions.noOpenDirectory,
+    copy.workspaceActions.openGameDirectoryFailed,
+    games,
+  ])
+
+  const previewImportModSource = useCallback(async (selectedPath: string) => {
+    if (!activeGame?.id) {
+      toast.warning(copy.workspaceActions.currentGame)
+      return
+    }
+
+    let toastId: string | number | undefined
+
+    try {
+      const modName = selectedPath.split(/[\\/]/).pop() || ""
+      const sourceType = inferImportSourceType(selectedPath)
+      setImportModForm({
+        dir: selectedPath,
+        name: modName,
+        sourceType,
+      })
+      setImportModMappingsState([])
+      setImportModPreview(null)
+      setIsPreviewingMod(true)
+      toastId = toast.loading(copy.workspaceActions.previewingMod)
+
+      const preview = await invoke<ModImportPreview>("preview_mod_directory", {
+        gameId: activeGame.id,
+        modPath: selectedPath,
+        modName: modName || undefined,
+      })
+
+      setImportModForm({
+        dir: selectedPath,
+        name: preview.name || modName,
+        sourceType,
+      })
+      setImportModMappingsState(preview.files)
+      setImportModPreview(preview)
+      toast.success(copy.workspaceActions.modPreviewReady, {
+        id: toastId,
+        description: preview.name || modName || copy.workspacePage.importMod,
+      })
+    } catch (error) {
+      setImportModMappingsState([])
+      setImportModPreview(null)
+      toast.error(copy.workspaceActions.importPreviewFailed, {
+        id: toastId,
+        description: formatErrorMessage(error),
+      })
+    } finally {
+      setIsPreviewingMod(false)
+    }
+  }, [
+    activeGame?.id,
+    copy.workspaceActions.currentGame,
+    copy.workspaceActions.importPreviewFailed,
+    copy.workspaceActions.modPreviewReady,
+    copy.workspaceActions.previewingMod,
+    copy.workspacePage.importMod,
+  ])
+
+  const pickImportModDirectory = useCallback(async () => {
+    if (!activeGame?.id) {
+      toast.warning(copy.workspaceActions.currentGame)
+      return
+    }
+
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: copy.workspaceActions.chooseModDirectoryTitle,
+      })
+
+      if (!selected || Array.isArray(selected)) {
+        return
+      }
+
+      await previewImportModSource(String(selected))
+    } catch (error) {
+      toast.error(copy.workspaceActions.importPreviewFailed, {
+        description: formatErrorMessage(error),
+      })
+    }
+  }, [
+    activeGame?.id,
+    copy.workspaceActions.chooseModDirectoryTitle,
+    copy.workspaceActions.currentGame,
+    copy.workspaceActions.importPreviewFailed,
+    previewImportModSource,
+  ])
+
+  const pickImportModArchive = useCallback(async () => {
+    if (!activeGame?.id) {
+      toast.warning(copy.workspaceActions.currentGame)
+      return
+    }
+
+    try {
+      const selected = await open({
+        multiple: false,
+        title: copy.workspaceActions.chooseModArchiveTitle,
+        filters: [
+          {
+            name: "ZIP",
+            extensions: ["zip"],
+          },
+        ],
+      })
+
+      if (!selected || Array.isArray(selected)) {
+        return
+      }
+
+      await previewImportModSource(String(selected))
+    } catch (error) {
+      toast.error(copy.workspaceActions.importPreviewFailed, {
+        description: formatErrorMessage(error),
+      })
+    }
+  }, [
+    activeGame?.id,
+    copy.workspaceActions.chooseModArchiveTitle,
+    copy.workspaceActions.currentGame,
+    copy.workspaceActions.importPreviewFailed,
+    previewImportModSource,
+  ])
+
+  const pickImportModSource = useCallback(async (sourceType?: ImportModForm["sourceType"]) => {
+    const nextSourceType = sourceType ?? importModForm.sourceType
+
+    if (sourceType) {
+      setImportModForm((current) => ({
+        ...current,
+        sourceType,
+      }))
+    }
+
+    if (nextSourceType === "zip") {
+      await pickImportModArchive()
+      return
+    }
+
+    await pickImportModDirectory()
+  }, [importModForm.sourceType, pickImportModArchive, pickImportModDirectory])
+
+  const setImportModSourceType = useCallback((value: ImportModForm["sourceType"]) => {
+    setImportModForm({
+      dir: "",
+      name: "",
+      sourceType: value,
+    })
+    setImportModMappingsState([])
+    setImportModPreview(null)
+  }, [])
+
+  const setImportModMappings = useCallback((files: ModImportFileEntry[]) => {
+    setImportModMappingsState(files)
+  }, [])
+
+  const updateImportModMappingTarget = useCallback((relativePath: string, targetPath: string) => {
+    setImportModMappingsState((current) =>
+      current.map((file) =>
+        file.relativePath === relativePath
+          ? {
+              ...file,
+              targetPath,
+              targetFolder: inferTargetFolder(targetPath),
+            }
+          : file,
+      ),
+    )
+  }, [])
+
+  const confirmImportMod = useCallback(async () => {
+    if (!activeGame?.id) {
+      toast.warning(copy.workspaceActions.currentGame)
+      return
+    }
+    if (!importModForm.dir.trim()) {
+      toast.warning(copy.workspaceActions.selectModDirectoryFirst)
+      return
+    }
+    if (!importModPreview) {
+      toast.warning(copy.workspaceActions.scanModFirst)
+      return
+    }
+
+    let toastId: string | number | undefined
+
+    try {
+      setIsImportingMod(true)
+      toastId = toast.loading(copy.workspaceActions.importingMod)
+
+      const payload = await invoke<BootstrapPayload>("import_mod_directory", {
+        gameId: activeGame.id,
+        modPath: importModForm.dir.trim(),
+        modName: importModForm.name.trim() || undefined,
+        files: importModMappings,
+      })
+
+      applyBootstrap(payload)
+      toast.success(copy.workspaceActions.modImported, {
+        id: toastId,
+        description: importModPreview.name || importModForm.name || copy.workspacePage.importMod,
+      })
+      closeImportModDialog()
+    } catch (error) {
+      toast.error(copy.workspaceActions.importModFailed, {
+        id: toastId,
+        description: formatErrorMessage(error),
+      })
+    } finally {
+      setIsImportingMod(false)
+    }
+  }, [
+    activeGame,
+    applyBootstrap,
+    closeImportModDialog,
+    copy.workspaceActions.currentGame,
+    copy.workspaceActions.importModFailed,
+    copy.workspaceActions.importingMod,
+    copy.workspaceActions.modImported,
+    copy.workspaceActions.scanModFirst,
+    copy.workspaceActions.selectModDirectoryFirst,
+    copy.workspacePage.importMod,
+    importModForm.dir,
+    importModForm.name,
+    importModMappings,
+    importModPreview,
+  ])
 
   return {
     activeGame,
     activeGameId,
+    allModsCount: activeGameMods.length,
     addGameForm,
     closeAddGameDialog,
     closeConflictDialog,
@@ -624,7 +984,9 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     confirmAddGame,
     confirmDeleteGame,
     confirmEditGame,
+    confirmImportMod,
     configuredGames,
+    closeImportModDialog,
     currentView,
     deleteTargetGameId,
     editGameForm,
@@ -636,11 +998,20 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     isConflictDialogOpen,
     isDetectingGame,
     isEditGameDialogOpen,
+    isImportModDialogOpen,
+    isImportingMod,
+    isPreviewingMod,
+    importModForm,
+    importModMappings,
+    importModPreview,
+    modSearchQuery,
     mods,
+    openImportModDialog,
     openConflictDialog,
     openDeleteGameDialog,
     openEditGameDialog,
     openGameDirectory,
+    pickImportModSource,
     pickAddGameImage,
     pickEditGameImage,
     pickGameDirectory,
@@ -654,14 +1025,23 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     setAddGameForm,
     setDeleteTargetGameId,
     setEditGameForm,
+    setImportModName: (value) =>
+      setImportModForm((current) => ({
+        ...current,
+        name: value,
+      })),
+    setImportModMappings,
+    setImportModSourceType,
+    updateImportModMappingTarget,
+    setModSearchQuery,
     setActiveGameId,
     setSelectedModId,
     stats,
     toggleMod,
+    togglingModId,
     refreshWorkspace,
     resolveConflict,
     startAddGame,
-    usingDemoMods,
   }
 }
 
@@ -675,4 +1055,28 @@ function formatErrorMessage(error: unknown): string {
   }
 
   return String(error)
+}
+
+function inferImportSourceType(selectedPath: string): ImportModForm["sourceType"] {
+  return selectedPath.toLowerCase().endsWith(".zip") ? "zip" : "directory"
+}
+
+function inferTargetFolder(targetPath: string): string {
+  const normalized = targetPath.replace(/\\/g, "/").replace(/^\/+/, "")
+  return normalized.split("/").filter(Boolean)[0] ?? ""
+}
+
+function matchesModSearch(mod: ManagedMod, keyword: string): boolean {
+  return [
+    mod.name,
+    mod.author,
+    mod.type,
+    mod.description,
+    ...mod.targetFolders,
+    ...mod.previewFiles,
+    ...mod.conflictWith,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(keyword)
 }
