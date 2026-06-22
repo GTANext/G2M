@@ -1,11 +1,16 @@
-import { lazy, Suspense, type ReactNode } from "react"
+import { lazy, Suspense, type ReactNode, useEffect, useState } from "react"
 import { DndProvider } from "react-dnd"
 import { HTML5Backend } from "react-dnd-html5-backend"
+import { openUrl } from "@tauri-apps/plugin-opener"
+import { ShieldAlert, X } from "lucide-react"
 import { useI18n } from "@/components/app/i18nProvider"
 import { Navbar } from "@/components/app/navbar"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster } from "@/components/ui/sonner"
 import { useG2mWorkspace } from "@/hooks/useG2MWorkspace"
+import { invokeApi } from "@/lib/api"
+import type { AppInfoPayload } from "@/lib/g2m"
 import { Navigate, Route, Routes } from "react-router-dom"
 import "./App.css"
 
@@ -28,19 +33,81 @@ const WorkspaceDialogs = lazy(() =>
 )
 
 function AppShell({
+  appInfo,
   children,
   subtitle,
+  showAdminAlert = false,
 }: {
+  appInfo?: AppInfoPayload | null
   children: ReactNode
   subtitle: string
+  showAdminAlert?: boolean
 }) {
   const { copy } = useI18n()
+  const [isAdminAlertDismissed, setIsAdminAlertDismissed] = useState(false)
+
+  useEffect(() => {
+    if (!showAdminAlert) {
+      setIsAdminAlertDismissed(false)
+    }
+  }, [showAdminAlert])
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(127,86,217,0.18),transparent_28%),linear-gradient(180deg,#f6f7fb_0%,#eef1f8_100%)] text-foreground transition-colors dark:bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.12),transparent_28%),linear-gradient(180deg,#06070a_0%,#0f1117_100%)]">
+      {showAdminAlert && !isAdminAlertDismissed ? (
+        <div className="border-b border-amber-200/70 bg-amber-50/95 dark:border-amber-500/20 dark:bg-amber-500/10">
+          <div className="mx-auto flex max-w-[1700px] items-center gap-2 px-4 py-1.5 text-xs text-amber-900 sm:px-6 lg:px-6 dark:text-amber-100">
+            <ShieldAlert className="size-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
+            <p className="min-w-0 flex-1 truncate">
+              <span className="font-medium">{copy.workspaceActions.adminRequired}</span>
+              <span className="ml-1 text-amber-800/90 dark:text-amber-100/80">
+                {copy.workspaceActions.adminRequiredDescription}
+              </span>
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-6 cursor-pointer rounded-full text-amber-700 hover:bg-amber-100 hover:text-amber-950 dark:text-amber-200 dark:hover:bg-amber-400/10 dark:hover:text-white"
+              onClick={() => setIsAdminAlertDismissed(true)}
+              aria-label={copy.common.close}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <Navbar title={copy.common.appName} subtitle={subtitle} />
 
-      <main className="px-4 pb-4 pt-4 lg:px-6">{children}</main>
+      <main className="px-4 pb-24 pt-4 lg:px-6">{children}</main>
+
+      <footer className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 lg:px-6">
+        <div className="pointer-events-auto">
+          <div className="flex min-h-12 items-center gap-3 rounded-full border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(241,245,249,0.7))] px-4 py-2 text-xs shadow-[0_18px_50px_rgba(15,23,42,0.16)] ring-1 ring-black/[0.04] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.62))] dark:shadow-[0_18px_50px_rgba(0,0,0,0.36)] dark:ring-white/[0.04]">
+            <button
+              type="button"
+              className="cursor-pointer rounded-full px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-700 transition-colors hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
+              onClick={() => void openUrl("https://www.gtamodx.com/")}
+            >
+              GTAMODX
+            </button>
+
+            <button
+              type="button"
+              className="cursor-pointer rounded-full px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-700 transition-colors hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
+              onClick={() => void openUrl("https://github.com/GTANext/G2M")}
+            >
+              G2M
+            </button>
+
+            {appInfo?.version ? (
+              <span className="shrink-0 text-[11px] font-medium tracking-[0.04em] text-slate-500 dark:text-slate-300">
+                {appInfo.version}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
@@ -109,12 +176,22 @@ function RouteLoader() {
   )
 }
 
-function HomeRoute({ workspace }: { workspace: ReturnType<typeof useG2mWorkspace> }) {
+function HomeRoute({
+  workspace,
+  appInfo,
+}: {
+  workspace: ReturnType<typeof useG2mWorkspace>
+  appInfo?: AppInfoPayload | null
+}) {
   const { copy } = useI18n()
   const navbarSubtitle = copy.routes.homeSubtitle
 
   return (
-    <AppShell subtitle={navbarSubtitle}>
+    <AppShell
+      appInfo={appInfo}
+      subtitle={navbarSubtitle}
+      showAdminAlert={workspace.bootstrap?.isElevated === false}
+    >
       <Suspense fallback={<RouteLoader />}>
         <HomePage workspace={workspace} />
       </Suspense>
@@ -122,12 +199,22 @@ function HomeRoute({ workspace }: { workspace: ReturnType<typeof useG2mWorkspace
   )
 }
 
-function SettingsRoute() {
+function SettingsRoute({
+  workspace,
+  appInfo,
+}: {
+  workspace: ReturnType<typeof useG2mWorkspace>
+  appInfo?: AppInfoPayload | null
+}) {
   const { copy } = useI18n()
   const navbarSubtitle = copy.routes.settingsSubtitle
 
   return (
-    <AppShell subtitle={navbarSubtitle}>
+    <AppShell
+      appInfo={appInfo}
+      subtitle={navbarSubtitle}
+      showAdminAlert={workspace.bootstrap?.isElevated === false}
+    >
       <Suspense fallback={<RouteLoader />}>
         <SettingsPage />
       </Suspense>
@@ -135,12 +222,22 @@ function SettingsRoute() {
   )
 }
 
-function BuilderRoute() {
+function BuilderRoute({
+  workspace,
+  appInfo,
+}: {
+  workspace: ReturnType<typeof useG2mWorkspace>
+  appInfo?: AppInfoPayload | null
+}) {
   const { copy } = useI18n()
   const navbarSubtitle = copy.routes.builderSubtitle
 
   return (
-    <AppShell subtitle={navbarSubtitle}>
+    <AppShell
+      appInfo={appInfo}
+      subtitle={navbarSubtitle}
+      showAdminAlert={workspace.bootstrap?.isElevated === false}
+    >
       <Suspense fallback={<RouteLoader />}>
         <ModBuilderPage />
       </Suspense>
@@ -148,12 +245,22 @@ function BuilderRoute() {
   )
 }
 
-function GameWorkspaceRoute({ workspace }: { workspace: ReturnType<typeof useG2mWorkspace> }) {
+function GameWorkspaceRoute({
+  workspace,
+  appInfo,
+}: {
+  workspace: ReturnType<typeof useG2mWorkspace>
+  appInfo?: AppInfoPayload | null
+}) {
   const { copy } = useI18n()
   const navbarSubtitle = copy.routes.workspaceSubtitle(workspace.activeGame?.name)
 
   return (
-    <AppShell subtitle={navbarSubtitle}>
+    <AppShell
+      appInfo={appInfo}
+      subtitle={navbarSubtitle}
+      showAdminAlert={workspace.bootstrap?.isElevated === false}
+    >
       <Suspense fallback={<RouteLoader />}>
         <GameWorkspacePage workspace={workspace} />
       </Suspense>
@@ -163,15 +270,36 @@ function GameWorkspaceRoute({ workspace }: { workspace: ReturnType<typeof useG2m
 
 function App() {
   const workspace = useG2mWorkspace()
+  const [appInfo, setAppInfo] = useState<AppInfoPayload | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    void invokeApi<AppInfoPayload>("get_app_info")
+      .then((payload) => {
+        if (!cancelled) {
+          setAppInfo(payload)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAppInfo(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <DndProvider backend={HTML5Backend}>
       <>
         <Routes>
-          <Route path="/" element={<HomeRoute workspace={workspace} />} />
-          <Route path="/builder" element={<BuilderRoute />} />
-          <Route path="/settings" element={<SettingsRoute />} />
-          <Route path="/game/:gameId" element={<GameWorkspaceRoute workspace={workspace} />} />
+          <Route path="/" element={<HomeRoute workspace={workspace} appInfo={appInfo} />} />
+          <Route path="/builder" element={<BuilderRoute workspace={workspace} appInfo={appInfo} />} />
+          <Route path="/settings" element={<SettingsRoute workspace={workspace} appInfo={appInfo} />} />
+          <Route path="/game/:gameId" element={<GameWorkspaceRoute workspace={workspace} appInfo={appInfo} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 

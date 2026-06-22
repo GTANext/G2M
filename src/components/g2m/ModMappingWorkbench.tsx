@@ -6,6 +6,8 @@ import type { AppCopy } from "@/components/app/i18nProvider"
 import {
   type DragPayload,
   normalizePath,
+  ROOT_INSTALL_TARGET,
+  SKIP_INSTALL_TARGET,
   TARGET_FOLDER_PRESETS,
   TargetPresetDropZone,
 } from "@/components/g2m/draggableTree"
@@ -320,10 +322,13 @@ function MappingTableRow({
   onMoveToFolder: (targetFolder: string, payload: DragPayload) => void
   targetState?: SummaryTargetState
 }) {
+  const targetSelectValue = !summary.targetPath
+    ? SKIP_INSTALL_TARGET
+    : summary.targetFolder || ROOT_INSTALL_TARGET
   const payload: DragPayload = {
     kind: summary.kind,
-    mode: "target",
-    path: summary.targetPath,
+    mode: summary.targetPath ? "target" : "source",
+    path: summary.targetPath || summary.sourcePath,
   }
 
   return (
@@ -340,11 +345,17 @@ function MappingTableRow({
       </TableCell>
       <TableCell className="align-top">
         <select
-          value={summary.targetFolder}
+          value={targetSelectValue}
           onChange={(event) => onMoveToFolder(event.currentTarget.value, payload)}
           className="h-9 w-full min-w-0 rounded-lg border border-black/10 bg-background/80 px-3 text-sm text-slate-800 outline-none transition-colors [color-scheme:light] focus:border-violet-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:[color-scheme:dark] dark:focus:border-violet-300"
           aria-label={copy.workspaceDialogs.targetPath}
         >
+          <option
+            value={ROOT_INSTALL_TARGET}
+            className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+          >
+            {copy.workspaceDialogs.installToRoot}
+          </option>
           {targetFolders.map((folder) => (
             <option
               key={`${summary.id}-${folder}`}
@@ -354,11 +365,17 @@ function MappingTableRow({
               {folder}
             </option>
           ))}
+          <option
+            value={SKIP_INSTALL_TARGET}
+            className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+          >
+            {copy.workspaceDialogs.doNotInstall}
+          </option>
         </select>
       </TableCell>
       <TableCell className="whitespace-normal align-top">
         <p className="break-all font-medium text-slate-800 dark:text-slate-200">
-          {summary.targetPath}
+          {summary.targetPath || copy.workspaceDialogs.doNotInstall}
         </p>
       </TableCell>
       <TableCell className="align-top">

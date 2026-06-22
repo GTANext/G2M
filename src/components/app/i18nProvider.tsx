@@ -79,15 +79,30 @@ type AppCopy = {
     chooseZip: string
     generatedJsonTitle: string
     gameTargets: string
+    githubUrl: string
+    githubUrlPlaceholder: string
+    gtamodxUrl: string
+    gtamodxUrlPlaceholder: string
     heroDescription: string
     heroTitle: string
     hideDetailedMappings: string
     hideMappingDetails: string
+    extraLinks: string
+    extraLinksDescription: string
+    addLink: string
     inspectFailed: string
     inspectSource: string
     inspectSuccess: string
+    linkLabelPlaceholder: string
+    linkUrlPlaceholder: string
     manifestPreviewTitle: string
     mappingTitle: string
+    md5Mode: string
+    md5ModeArchive: string
+    md5ModeDirectory: string
+    md5ModePlaceholder: string
+    md5Value: string
+    md5ValuePlaceholder: string
     metadataTitle: string
     modAuthor: string
     modAuthorPlaceholder: string
@@ -112,6 +127,9 @@ type AppCopy = {
     summaryFolder: string
     summaryFile: string
     targetTreeTitle: string
+    linksTitle: string
+    updateFingerprintDescription: string
+    updateFingerprintTitle: string
     zipFiles: string
   }
   settings: {
@@ -192,6 +210,7 @@ type AppCopy = {
     allTypes: string
     author: string
     close: string
+    deleteCurrentMod: string
     conflictFiles: string
     conflictFree: string
     conflictSummary: string
@@ -223,7 +242,11 @@ type AppCopy = {
     gameSwitch: string
     importMod: string
     importedAt: string
+    installSelectedPrerequisites: string
     loadedFromDb: string
+    missingPrerequisiteDrawerDescription: string
+    missingPrerequisitesAlertDescription: (items: string) => string
+    missingPrerequisitesAlertTitle: string
     modList: string
     modWarehouse: string
     mods: string
@@ -235,6 +258,16 @@ type AppCopy = {
     noSearchResultsDescription: string
     noSearchResultsTitle: string
     openGameDirectory: string
+    openMissingPrerequisitesDrawer: string
+    installPrerequisite: string
+    prerequisiteBuiltinMissing: string
+    prerequisiteDetected: string
+    prerequisiteMissing: string
+    prerequisiteRequiredBy: (mods: string) => string
+    prerequisiteRoot: string
+    prerequisiteScriptsPlugins: string
+    prerequisitesDescription: string
+    prerequisitesTitle: string
     previewDrawerDescription: string
     quickActionsDescription: string
     refresh: string
@@ -277,6 +310,9 @@ type AppCopy = {
     defaultCover: string
     deleteBadge: string
     deleteDescription: string
+    deleteModBadge: string
+    deleteModDescription: string
+    deleteModTitle: (modName: string) => string
     deleteTitle: (gameName: string) => string
     deleting: string
     detectedExe: string
@@ -293,6 +329,7 @@ type AppCopy = {
     editTipTitle: string
     editTitle: string
     finish: string
+    folderMappingHint: string
     gameCover: string
     gameDirectory: string
     gameDirectoryPlaceholder: string
@@ -300,6 +337,8 @@ type AppCopy = {
     importBadge: string
     importDescription: string
     importDetected: string
+    importConflictBackupNotice: string
+    importConflictHelp: string
     importDirectoryPlaceholder: string
     importSource: string
     importSourceBrowse: string
@@ -310,8 +349,12 @@ type AppCopy = {
     importStep3: string
     importTitle: string
     importTipTitle: string
+    prerequisiteWarningsDescription: (modType: string, items: string) => string
+    prerequisiteWarningsTitle: string
     importWaitingSelection: string
     installPath: string
+    installToRoot: string
+    doNotInstall: string
     addTargetFolder: string
     modMetadata: string
     manifestDetected: string
@@ -360,6 +403,9 @@ type AppCopy = {
   }
   workspaceActions: {
     addFailed: string
+    adminRequired: string
+    adminRequiredDescription: string
+    emptyTargetPathsHandled: (count: number) => string
     checkingDirectory: string
     chooseGameCoverTitle: string
     chooseGameDirectoryTitle: string
@@ -374,6 +420,10 @@ type AppCopy = {
     coverSelectionUpdated: string
     currentGame: string
     deleteFailed: string
+    deleteModFailed: string
+    deletingMod: string
+    installPrerequisiteFailed: string
+    installingPrerequisite: string
     deletingGameConfig: string
     directoryCheckFailed: string
     downloadPageOpened: string
@@ -389,8 +439,11 @@ type AppCopy = {
     importingMod: string
     modPreviewReady: string
     modDisabled: string
+    modDeleted: string
     modEnabled: string
     modImported: string
+    prerequisiteInstalled: string
+    resolveImportConflictsFirst: (count: number) => string
     updateModFailed: string
     updatingModState: string
     noOpenDirectory: string
@@ -528,15 +581,30 @@ function useI18n() {
         chooseZip: t("builderPage.chooseZip"),
         generatedJsonTitle: t("builderPage.generatedJsonTitle"),
         gameTargets: t("builderPage.gameTargets"),
+        githubUrl: t("builderPage.githubUrl"),
+        githubUrlPlaceholder: t("builderPage.githubUrlPlaceholder"),
+        gtamodxUrl: t("builderPage.gtamodxUrl"),
+        gtamodxUrlPlaceholder: t("builderPage.gtamodxUrlPlaceholder"),
         heroDescription: t("builderPage.heroDescription"),
         heroTitle: t("builderPage.heroTitle"),
         hideDetailedMappings: t("builderPage.hideDetailedMappings"),
         hideMappingDetails: t("builderPage.hideMappingDetails"),
+        extraLinks: t("builderPage.extraLinks"),
+        extraLinksDescription: t("builderPage.extraLinksDescription"),
+        addLink: t("builderPage.addLink"),
         inspectFailed: t("builderPage.inspectFailed"),
         inspectSource: t("builderPage.inspectSource"),
         inspectSuccess: t("builderPage.inspectSuccess"),
+        linkLabelPlaceholder: t("builderPage.linkLabelPlaceholder"),
+        linkUrlPlaceholder: t("builderPage.linkUrlPlaceholder"),
         manifestPreviewTitle: t("builderPage.manifestPreviewTitle"),
         mappingTitle: t("builderPage.mappingTitle"),
+        md5Mode: t("builderPage.md5Mode"),
+        md5ModeArchive: t("builderPage.md5ModeArchive"),
+        md5ModeDirectory: t("builderPage.md5ModeDirectory"),
+        md5ModePlaceholder: t("builderPage.md5ModePlaceholder"),
+        md5Value: t("builderPage.md5Value"),
+        md5ValuePlaceholder: t("builderPage.md5ValuePlaceholder"),
         metadataTitle: t("builderPage.metadataTitle"),
         modAuthor: t("builderPage.modAuthor"),
         modAuthorPlaceholder: t("builderPage.modAuthorPlaceholder"),
@@ -561,6 +629,9 @@ function useI18n() {
         summaryFolder: t("builderPage.summaryFolder"),
         summaryFile: t("builderPage.summaryFile"),
         targetTreeTitle: t("builderPage.targetTreeTitle"),
+        linksTitle: t("builderPage.linksTitle"),
+        updateFingerprintDescription: t("builderPage.updateFingerprintDescription"),
+        updateFingerprintTitle: t("builderPage.updateFingerprintTitle"),
         zipFiles: t("builderPage.zipFiles"),
       },
       settings: {
@@ -647,6 +718,7 @@ function useI18n() {
         allTypes: t("workspacePage.allTypes"),
         author: t("workspacePage.author"),
         close: t("workspacePage.close"),
+        deleteCurrentMod: t("workspacePage.deleteCurrentMod"),
         conflictFiles: t("workspacePage.conflictFiles"),
         conflictFree: t("workspacePage.conflictFree"),
         conflictSummary: t("workspacePage.conflictSummary"),
@@ -679,7 +751,12 @@ function useI18n() {
         gameSwitch: t("workspacePage.gameSwitch"),
         importMod: t("workspacePage.importMod"),
         importedAt: t("workspacePage.importedAt"),
+        installSelectedPrerequisites: t("workspacePage.installSelectedPrerequisites"),
         loadedFromDb: t("workspacePage.loadedFromDb"),
+        missingPrerequisiteDrawerDescription: t("workspacePage.missingPrerequisiteDrawerDescription"),
+        missingPrerequisitesAlertDescription: (items) =>
+          t("workspacePage.missingPrerequisitesAlertDescription", { items }),
+        missingPrerequisitesAlertTitle: t("workspacePage.missingPrerequisitesAlertTitle"),
         modList: t("workspacePage.modList"),
         modWarehouse: t("workspacePage.modWarehouse"),
         mods: t("workspacePage.mods"),
@@ -690,7 +767,18 @@ function useI18n() {
         noModsTitle: t("workspacePage.noModsTitle"),
         noSearchResultsDescription: t("workspacePage.noSearchResultsDescription"),
         noSearchResultsTitle: t("workspacePage.noSearchResultsTitle"),
+        installPrerequisite: t("workspacePage.installPrerequisite"),
         openGameDirectory: t("workspacePage.openGameDirectory"),
+        openMissingPrerequisitesDrawer: t("workspacePage.openMissingPrerequisitesDrawer"),
+        prerequisiteBuiltinMissing: t("workspacePage.prerequisiteBuiltinMissing"),
+        prerequisiteDetected: t("workspacePage.prerequisiteDetected"),
+        prerequisiteMissing: t("workspacePage.prerequisiteMissing"),
+        prerequisiteRequiredBy: (mods) =>
+          t("workspacePage.prerequisiteRequiredBy", { mods }),
+        prerequisiteRoot: t("workspacePage.prerequisiteRoot"),
+        prerequisiteScriptsPlugins: t("workspacePage.prerequisiteScriptsPlugins"),
+        prerequisitesDescription: t("workspacePage.prerequisitesDescription"),
+        prerequisitesTitle: t("workspacePage.prerequisitesTitle"),
         previewDrawerDescription: t("workspacePage.previewDrawerDescription"),
         quickActionsDescription: t("workspacePage.quickActionsDescription"),
         refresh: t("workspacePage.refresh"),
@@ -733,6 +821,9 @@ function useI18n() {
         defaultCover: t("workspaceDialogs.defaultCover"),
         deleteBadge: t("workspaceDialogs.deleteBadge"),
         deleteDescription: t("workspaceDialogs.deleteDescription"),
+        deleteModBadge: t("workspaceDialogs.deleteModBadge"),
+        deleteModDescription: t("workspaceDialogs.deleteModDescription"),
+        deleteModTitle: (modName) => t("workspaceDialogs.deleteModTitle", { modName }),
         deleteTitle: (gameName) => t("workspaceDialogs.deleteTitle", { gameName }),
         deleting: t("workspaceDialogs.deleting"),
         detectedExe: t("workspaceDialogs.detectedExe"),
@@ -750,6 +841,7 @@ function useI18n() {
         editTipTitle: t("workspaceDialogs.editTipTitle"),
         editTitle: t("workspaceDialogs.editTitle"),
         finish: t("workspaceDialogs.finish"),
+        folderMappingHint: t("workspaceDialogs.folderMappingHint"),
         gameCover: t("workspaceDialogs.gameCover"),
         gameDirectory: t("workspaceDialogs.gameDirectory"),
         gameDirectoryPlaceholder: t("workspaceDialogs.gameDirectoryPlaceholder"),
@@ -757,6 +849,8 @@ function useI18n() {
         importBadge: t("workspaceDialogs.importBadge"),
         importDescription: t("workspaceDialogs.importDescription"),
         importDetected: t("workspaceDialogs.importDetected"),
+        importConflictBackupNotice: t("workspaceDialogs.importConflictBackupNotice"),
+        importConflictHelp: t("workspaceDialogs.importConflictHelp"),
         importDirectoryPlaceholder: t("workspaceDialogs.importDirectoryPlaceholder"),
         importSource: t("workspaceDialogs.importSource"),
         importSourceBrowse: t("workspaceDialogs.importSourceBrowse"),
@@ -767,8 +861,13 @@ function useI18n() {
         importStep3: t("workspaceDialogs.importStep3"),
         importTitle: t("workspaceDialogs.importTitle"),
         importTipTitle: t("workspaceDialogs.importTipTitle"),
+        prerequisiteWarningsDescription: (modType, items) =>
+          t("workspaceDialogs.prerequisiteWarningsDescription", { items, modType }),
+        prerequisiteWarningsTitle: t("workspaceDialogs.prerequisiteWarningsTitle"),
         importWaitingSelection: t("workspaceDialogs.importWaitingSelection"),
         installPath: t("workspaceDialogs.installPath"),
+        installToRoot: t("workspaceDialogs.installToRoot"),
+        doNotInstall: t("workspaceDialogs.doNotInstall"),
         addTargetFolder: t("workspaceDialogs.addTargetFolder"),
         modMetadata: t("workspaceDialogs.modMetadata"),
         manifestDetected: t("workspaceDialogs.manifestDetected"),
@@ -817,6 +916,10 @@ function useI18n() {
       },
       workspaceActions: {
         addFailed: t("workspaceActions.addFailed"),
+        adminRequired: t("workspaceActions.adminRequired"),
+        adminRequiredDescription: t("workspaceActions.adminRequiredDescription"),
+        emptyTargetPathsHandled: (count) =>
+          t("workspaceActions.emptyTargetPathsHandled", { count }),
         checkingDirectory: t("workspaceActions.checkingDirectory"),
         chooseGameCoverTitle: t("workspaceActions.chooseGameCoverTitle"),
         chooseGameDirectoryTitle: t("workspaceActions.chooseGameDirectoryTitle"),
@@ -831,6 +934,10 @@ function useI18n() {
         coverSelectionUpdated: t("workspaceActions.coverSelectionUpdated"),
         currentGame: t("workspaceActions.currentGame"),
         deleteFailed: t("workspaceActions.deleteFailed"),
+        deleteModFailed: t("workspaceActions.deleteModFailed"),
+        deletingMod: t("workspaceActions.deletingMod"),
+        installPrerequisiteFailed: t("workspaceActions.installPrerequisiteFailed"),
+        installingPrerequisite: t("workspaceActions.installingPrerequisite"),
         deletingGameConfig: t("workspaceActions.deletingGameConfig"),
         directoryCheckFailed: t("workspaceActions.directoryCheckFailed"),
         downloadPageOpened: t("workspaceActions.downloadPageOpened"),
@@ -846,8 +953,12 @@ function useI18n() {
         importingMod: t("workspaceActions.importingMod"),
         modPreviewReady: t("workspaceActions.modPreviewReady"),
         modDisabled: t("workspaceActions.modDisabled"),
+        modDeleted: t("workspaceActions.modDeleted"),
         modEnabled: t("workspaceActions.modEnabled"),
         modImported: t("workspaceActions.modImported"),
+        prerequisiteInstalled: t("workspaceActions.prerequisiteInstalled"),
+        resolveImportConflictsFirst: (count) =>
+          t("workspaceActions.resolveImportConflictsFirst", { count }),
         updateModFailed: t("workspaceActions.updateModFailed"),
         updatingModState: t("workspaceActions.updatingModState"),
         noOpenDirectory: t("workspaceActions.noOpenDirectory"),

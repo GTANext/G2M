@@ -1,5 +1,5 @@
-import type { ReactNode } from "react"
-import { AlertTriangle, CheckCircle2, CircleHelp, Files, HardDriveDownload, ImagePlus, MapPinned, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, CircleHelp, Files, FolderOpen, HardDriveDownload, ImagePlus, MapPinned, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
 import { useI18n } from "@/components/app/i18nProvider"
 import { ModMappingWorkbench } from "@/components/g2m/ModMappingWorkbench"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -11,6 +11,9 @@ import type { UseG2mWorkspaceResult } from "@/hooks/useG2MWorkspace"
 import {
   formatFileSize,
   resolveGameImageSrc,
+  type GamePrerequisite,
+  type ModConflictItem,
+  type ModType,
 } from "@/lib/g2m"
 import {
   DragPayload,
@@ -18,6 +21,10 @@ import {
 } from "@/components/g2m/draggableTree"
 
 type WorkspaceState = UseG2mWorkspaceResult
+type MissingPrerequisiteWarning = {
+  key: string
+  label: string
+}
 
 const modalCardClass =
   "rounded-[28px] bg-background/95 shadow-[0_30px_120px_rgba(15,23,42,0.2)] ring-1 ring-black/5 backdrop-blur-2xl dark:bg-[#10131a]/95 dark:shadow-[0_30px_120px_rgba(0,0,0,0.5)] dark:ring-white/10"
@@ -28,6 +35,27 @@ const modalSubtleCardClass =
 const softOutlineButtonClass =
   "cursor-pointer rounded-xl border-border/70 bg-background/70 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
 
+const drawerOverlayClass =
+  "fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-3 pt-10 backdrop-blur-sm sm:px-4"
+
+const drawerViewportClass = "mx-auto w-full max-w-full lg:w-[1040px]"
+
+const drawerPanelClass =
+  `${modalCardClass} max-h-[calc(100vh-20px)] overflow-hidden rounded-b-none border-b-0`
+
+const drawerCardContentClass = "flex max-h-[calc(100vh-20px)] flex-col p-0"
+
+const drawerHandleClass = "px-6 pt-3 lg:px-7"
+
+const drawerHandleBarClass = "mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-200 dark:bg-white/15"
+
+const drawerHeaderClass = "px-6 pb-6 lg:px-7"
+
+const drawerBodyClass = "flex-1 overflow-y-auto px-6 pb-4 lg:px-7"
+
+const drawerFooterClass =
+  "border-t border-border/60 bg-background/90 px-6 py-4 backdrop-blur dark:border-white/10 dark:bg-[#10131a]/90 lg:px-7"
+
 
 
 function WorkspaceDialogs({ workspace }: { workspace: WorkspaceState }) {
@@ -35,6 +63,7 @@ function WorkspaceDialogs({ workspace }: { workspace: WorkspaceState }) {
     <>
       <AddGameDialog workspace={workspace} />
       <ConflictDialog workspace={workspace} />
+      <DeleteModDialog workspace={workspace} />
       <EditGameDialog workspace={workspace} />
       <ImportModDialog workspace={workspace} />
       <DeleteGameDialog workspace={workspace} />
@@ -54,119 +83,136 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-3xl">
-        <Card className={modalCardClass}>
-          <CardContent className="p-6 lg:p-7">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">{copy.workspaceDialogs.conflictBadge}</Badge>
-                <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                  {copy.workspaceDialogs.conflictTitle(selectedMod.name)}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  {copy.workspaceDialogs.conflictDescription}
-                </p>
-              </div>
-
-              <Button
-                variant="outline"
-                className={softOutlineButtonClass}
-                onClick={workspace.closeConflictDialog}
-              >
-                {copy.common.close}
-              </Button>
+    <div className={drawerOverlayClass}>
+      <div className={drawerViewportClass}>
+        <Card className={drawerPanelClass}>
+          <CardContent className={drawerCardContentClass}>
+            <div className={drawerHandleClass}>
+              <div className={drawerHandleBarClass} />
             </div>
 
-            {selectedMod.conflictFiles.length > 0 ? (
-              <div className="mt-6 space-y-3">
-                {selectedMod.conflictFiles.map((conflict) => (
-                  <Card
-                    key={`${selectedMod.id}-${conflict.id}-dialog`}
-                    className={modalSubtleCardClass}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{conflict.fileName}</p>
-                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                              {copy.workspaceDialogs.sameTargetFile(conflict.otherModName)}
-                            </p>
-                          </div>
-
-                          <div className="grid gap-2 text-xs text-slate-500 dark:text-slate-400">
-                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                              <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.targetPath}</span>
-                              <p className="mt-1 break-all">{conflict.targetPath}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                              <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.currentModSource}</span>
-                              <p className="mt-1 break-all">{conflict.sourcePath}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                              <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.otherModSource}</span>
-                              <p className="mt-1 break-all">{conflict.otherSourcePath}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant={
-                              workspace.getConflictDecision(selectedMod.id, conflict.id) === "overwrite"
-                                ? "default"
-                                : "outline"
-                            }
-                            className={softOutlineButtonClass}
-                            onClick={() =>
-                              workspace.resolveConflict(selectedMod.id, conflict.id, "overwrite")
-                            }
-                          >
-                            {copy.workspaceDialogs.overwrite}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={
-                              workspace.getConflictDecision(selectedMod.id, conflict.id) === "skip"
-                                ? "secondary"
-                                : "outline"
-                            }
-                            className={softOutlineButtonClass}
-                            onClick={() =>
-                              workspace.resolveConflict(selectedMod.id, conflict.id, "skip")
-                            }
-                          >
-                            {copy.workspaceDialogs.skip}
-                          </Button>
-                          <ConflictDecisionBadge
-                            decision={workspace.getConflictDecision(selectedMod.id, conflict.id)}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Alert className="mt-6 border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
-                <div className="flex gap-3">
-                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
-                  <div>
-                    <AlertTitle>{copy.workspaceDialogs.noPendingConflictsTitle}</AlertTitle>
-                    <AlertDescription>
-                      {copy.workspaceDialogs.noPendingConflictsDescription}
-                    </AlertDescription>
-                  </div>
+            <div className={drawerHeaderClass}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">{copy.workspaceDialogs.conflictBadge}</Badge>
+                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+                    {copy.workspaceDialogs.conflictTitle(selectedMod.name)}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    {copy.workspaceDialogs.conflictDescription}
+                  </p>
                 </div>
-              </Alert>
-            )}
 
-            <div className="mt-6 flex justify-end">
-              <Button className="cursor-pointer rounded-xl px-4 shadow-sm" onClick={workspace.closeConflictDialog}>
-                {copy.workspaceDialogs.finish}
-              </Button>
+                <Button
+                  variant="outline"
+                  className={softOutlineButtonClass}
+                  onClick={workspace.closeConflictDialog}
+                >
+                  {copy.workspaceDialogs.cancel}
+                </Button>
+              </div>
+            </div>
+
+            <div className={drawerBodyClass}>
+              {selectedMod.conflictFiles.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedMod.conflictFiles.map((conflict) => (
+                    <Card
+                      key={`${selectedMod.id}-${conflict.id}-dialog`}
+                      className={modalSubtleCardClass}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{conflict.fileName}</p>
+                              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                                {copy.workspaceDialogs.sameTargetFile(conflict.otherModName)}
+                              </p>
+                            </div>
+
+                            <div className="grid gap-2 text-xs text-slate-500 dark:text-slate-400">
+                              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                                <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.targetPath}</span>
+                                <p className="mt-1 break-all">{conflict.targetPath}</p>
+                              </div>
+                              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                                <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.currentModSource}</span>
+                                <p className="mt-1 break-all">{conflict.sourcePath}</p>
+                              </div>
+                              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                                <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.otherModSource}</span>
+                                <p className="mt-1 break-all">{conflict.otherSourcePath}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant={
+                                workspace.getConflictDecision(selectedMod.id, conflict.id) === "overwrite"
+                                  ? "default"
+                                  : "outline"
+                              }
+                              className={softOutlineButtonClass}
+                              onClick={() =>
+                                workspace.resolveConflict(selectedMod.id, conflict.id, "overwrite")
+                              }
+                            >
+                              {copy.workspaceDialogs.overwrite}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={
+                                workspace.getConflictDecision(selectedMod.id, conflict.id) === "skip"
+                                  ? "secondary"
+                                  : "outline"
+                              }
+                              className={softOutlineButtonClass}
+                              onClick={() =>
+                                workspace.resolveConflict(selectedMod.id, conflict.id, "skip")
+                              }
+                            >
+                              {copy.workspaceDialogs.skip}
+                            </Button>
+                            <ConflictDecisionBadge
+                              decision={workspace.getConflictDecision(selectedMod.id, conflict.id)}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Alert className="border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+                  <div className="flex gap-3">
+                    <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+                    <div>
+                      <AlertTitle>{copy.workspaceDialogs.noPendingConflictsTitle}</AlertTitle>
+                      <AlertDescription>
+                        {copy.workspaceDialogs.noPendingConflictsDescription}
+                      </AlertDescription>
+                    </div>
+                  </div>
+                </Alert>
+              )}
+            </div>
+
+            <div className={drawerFooterClass}>
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  variant="outline"
+                  className={`px-4 ${softOutlineButtonClass}`}
+                  onClick={workspace.closeConflictDialog}
+                >
+                  {copy.workspaceDialogs.later}
+                </Button>
+                <Button className="cursor-pointer rounded-xl px-4 shadow-sm" onClick={workspace.closeConflictDialog}>
+                  {copy.workspaceDialogs.finish}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -186,15 +232,15 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
   const usingCustomCover = !workspace.addGameForm.useDefaultImage && Boolean(workspace.addGameForm.imagePath)
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-3 pt-10 backdrop-blur-sm sm:px-4">
-      <div className="w-full max-w-4xl">
-        <Card className={`${modalCardClass} max-h-[calc(100vh-20px)] overflow-hidden rounded-b-none border-b-0`}>
-          <CardContent className="flex max-h-[calc(100vh-20px)] flex-col p-0">
-            <div className="px-6 pt-3 lg:px-7">
-              <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-200 dark:bg-white/15" />
+    <div className={drawerOverlayClass}>
+      <div className={drawerViewportClass}>
+        <Card className={drawerPanelClass}>
+          <CardContent className={drawerCardContentClass}>
+            <div className={drawerHandleClass}>
+              <div className={drawerHandleBarClass} />
             </div>
 
-            <div className="px-6 pb-6 lg:px-7">
+            <div className={drawerHeaderClass}>
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
@@ -218,7 +264,7 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 pb-4 lg:px-7">
+            <div className={drawerBodyClass}>
               <div className="mt-0">
                 <FieldBlock label={copy.workspaceDialogs.gameDirectory}>
                   <div className="flex gap-3">
@@ -363,7 +409,7 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
               </DialogTipsSection>
             </div>
 
-            <div className="border-t border-border/60 bg-background/90 px-6 py-4 backdrop-blur dark:border-white/10 dark:bg-[#10131a]/90 lg:px-7">
+            <div className={drawerFooterClass}>
               <div className="flex flex-wrap justify-end gap-3">
                 <Button
                   variant="outline"
@@ -396,137 +442,147 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-3xl">
-        <Card className={modalCardClass}>
-          <CardContent className="p-6 lg:p-7">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                  {copy.workspaceDialogs.editBadge}
-                </Badge>
-                <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                  {copy.workspaceDialogs.editTitle}
-                </h2>
+    <div className={drawerOverlayClass}>
+      <div className={drawerViewportClass}>
+        <Card className={drawerPanelClass}>
+          <CardContent className={drawerCardContentClass}>
+            <div className={drawerHandleClass}>
+              <div className={drawerHandleBarClass} />
+            </div>
+
+            <div className={drawerHeaderClass}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
+                    {copy.workspaceDialogs.editBadge}
+                  </Badge>
+                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+                    {copy.workspaceDialogs.editTitle}
+                  </h2>
+                </div>
+
+                <Button
+                  variant="outline"
+                  className={softOutlineButtonClass}
+                  onClick={workspace.closeEditGameDialog}
+                >
+                  {copy.workspaceDialogs.cancel}
+                </Button>
+              </div>
+            </div>
+
+            <div className={drawerBodyClass}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FieldBlock label={copy.workspaceDialogs.gameName}>
+                  <Input
+                    value={workspace.editGameForm.name}
+                    onChange={(event) => workspace.setEditGameForm({ name: event.currentTarget.value })}
+                    className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+                  />
+                </FieldBlock>
+
+                <FieldBlock label={copy.workspaceDialogs.gameType}>
+                  <select
+                    value={workspace.editGameForm.type}
+                    onChange={(event) => workspace.setEditGameForm({ type: event.currentTarget.value as "sa" | "vc" | "iii" })}
+                    className="flex h-11 w-full rounded-2xl border border-border/70 bg-background/70 px-3 text-sm text-slate-900 outline-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100"
+                  >
+                    <option value="iii">{copy.workspaceDialogs.gameTypeIii}</option>
+                    <option value="vc">{copy.workspaceDialogs.gameTypeVc}</option>
+                    <option value="sa">{copy.workspaceDialogs.gameTypeSa}</option>
+                  </select>
+                </FieldBlock>
+
+                <FieldBlock label={copy.workspaceDialogs.gameDirectory} className="md:col-span-2">
+                  <Input
+                    value={workspace.editGameForm.dir}
+                    readOnly
+                    className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+                  />
+                </FieldBlock>
+
+                <FieldBlock label={copy.workspaceDialogs.version} optionalLabel={copy.workspaceDialogs.optional} optional>
+                  <Input
+                    value={workspace.editGameForm.version}
+                    onChange={(event) => workspace.setEditGameForm({ version: event.currentTarget.value })}
+                    className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+                  />
+                </FieldBlock>
+
+                <FieldBlock label={copy.workspaceDialogs.detectedExe}>
+                  <Input
+                    value={workspace.editGameForm.exeName}
+                    readOnly
+                    className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+                  />
+                </FieldBlock>
+
+                <FieldBlock label={copy.workspaceDialogs.gameCover} className="md:col-span-2">
+                  <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                    <GameCoverPreview
+                      title={workspace.editGameForm.name || copy.workspaceDialogs.currentCover}
+                      imageSrc={resolveGameImageSrc(workspace.editGameForm.imagePath, workspace.editGameForm.type)}
+                    />
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={softOutlineButtonClass}
+                          onClick={() => void workspace.pickEditGameImage()}
+                        >
+                          <ImagePlus className="size-4" />
+                          {copy.workspaceDialogs.reselectImage}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={softOutlineButtonClass}
+                          onClick={workspace.resetEditGameImage}
+                        >
+                          <RotateCcw className="size-4" />
+                          {copy.workspaceDialogs.restoreDefaultCover}
+                        </Button>
+                      </div>
+                      <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
+                        {copy.workspaceDialogs.coverDescription}
+                      </p>
+                      <p className="break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-xs text-slate-500 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+                        {workspace.editGameForm.imagePath || copy.workspaceDialogs.usingDefaultCover}
+                      </p>
+                    </div>
+                  </div>
+                </FieldBlock>
               </div>
 
-              <Button
-                variant="outline"
-                className={softOutlineButtonClass}
-                onClick={workspace.closeEditGameDialog}
-              >
-                {copy.workspaceDialogs.cancel}
-              </Button>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <FieldBlock label={copy.workspaceDialogs.gameName}>
-                <Input
-                  value={workspace.editGameForm.name}
-                  onChange={(event) => workspace.setEditGameForm({ name: event.currentTarget.value })}
-                  className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
-                />
-              </FieldBlock>
-
-              <FieldBlock label={copy.workspaceDialogs.gameType}>
-                <select
-                  value={workspace.editGameForm.type}
-                  onChange={(event) => workspace.setEditGameForm({ type: event.currentTarget.value as "sa" | "vc" | "iii" })}
-                  className="flex h-11 w-full rounded-2xl border border-border/70 bg-background/70 px-3 text-sm text-slate-900 outline-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100"
-                >
-                  <option value="iii">{copy.workspaceDialogs.gameTypeIii}</option>
-                  <option value="vc">{copy.workspaceDialogs.gameTypeVc}</option>
-                  <option value="sa">{copy.workspaceDialogs.gameTypeSa}</option>
-                </select>
-              </FieldBlock>
-
-              <FieldBlock label={copy.workspaceDialogs.gameDirectory} className="md:col-span-2">
-                <Input
-                  value={workspace.editGameForm.dir}
-                  readOnly
-                  className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
-                />
-              </FieldBlock>
-
-              <FieldBlock label={copy.workspaceDialogs.version} optionalLabel={copy.workspaceDialogs.optional} optional>
-                <Input
-                  value={workspace.editGameForm.version}
-                  onChange={(event) => workspace.setEditGameForm({ version: event.currentTarget.value })}
-                  className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
-                />
-              </FieldBlock>
-
-              <FieldBlock label={copy.workspaceDialogs.detectedExe}>
-                <Input
-                  value={workspace.editGameForm.exeName}
-                  readOnly
-                  className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
-                />
-              </FieldBlock>
-
-              <FieldBlock label={copy.workspaceDialogs.gameCover} className="md:col-span-2">
-                <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-                  <GameCoverPreview
-                    title={workspace.editGameForm.name || copy.workspaceDialogs.currentCover}
-                    imageSrc={resolveGameImageSrc(workspace.editGameForm.imagePath, workspace.editGameForm.type)}
-                  />
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={softOutlineButtonClass}
-                        onClick={() => void workspace.pickEditGameImage()}
-                      >
-                        <ImagePlus className="size-4" />
-                        {copy.workspaceDialogs.reselectImage}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={softOutlineButtonClass}
-                        onClick={workspace.resetEditGameImage}
-                      >
-                        <RotateCcw className="size-4" />
-                        {copy.workspaceDialogs.restoreDefaultCover}
-                      </Button>
-                    </div>
-                    <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
-                      {copy.workspaceDialogs.coverDescription}
-                    </p>
-                    <p className="break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-xs text-slate-500 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
-                      {workspace.editGameForm.imagePath || copy.workspaceDialogs.usingDefaultCover}
-                    </p>
+              <DialogTipsSection className="mt-6 pb-2">
+                <DialogTipCard title={copy.workspaceDialogs.editTipTitle}>
+                  <div className="space-y-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    <p>{copy.workspaceDialogs.editTip1}</p>
+                    <p>{copy.workspaceDialogs.editTip2}</p>
                   </div>
-                </div>
-              </FieldBlock>
+                </DialogTipCard>
+              </DialogTipsSection>
             </div>
 
-            <DialogTipsSection className="mt-6">
-              <DialogTipCard title={copy.workspaceDialogs.editTipTitle}>
-                <div className="space-y-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  <p>{copy.workspaceDialogs.editTip1}</p>
-                  <p>{copy.workspaceDialogs.editTip2}</p>
-                </div>
-              </DialogTipCard>
-            </DialogTipsSection>
-
-            <div className="mt-6 flex gap-3">
-              <Button
-                className="cursor-pointer rounded-xl px-4 shadow-sm"
-                onClick={() => void workspace.confirmEditGame()}
-                disabled={workspace.savingGameId === workspace.editGameForm.id}
-              >
-                <Pencil className="size-4" />
-                {workspace.savingGameId === workspace.editGameForm.id ? copy.workspaceDialogs.saving : copy.workspaceDialogs.saveChanges}
-              </Button>
-              <Button
-                variant="outline"
-                className={`px-4 ${softOutlineButtonClass}`}
-                onClick={workspace.closeEditGameDialog}
-              >
-                {copy.workspaceDialogs.later}
-              </Button>
+            <div className={drawerFooterClass}>
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  variant="outline"
+                  className={`px-4 ${softOutlineButtonClass}`}
+                  onClick={workspace.closeEditGameDialog}
+                >
+                  {copy.workspaceDialogs.later}
+                </Button>
+                <Button
+                  className="cursor-pointer rounded-xl px-4 shadow-sm"
+                  onClick={() => void workspace.confirmEditGame()}
+                  disabled={workspace.savingGameId === workspace.editGameForm.id}
+                >
+                  <Pencil className="size-4" />
+                  {workspace.savingGameId === workspace.editGameForm.id ? copy.workspaceDialogs.saving : copy.workspaceDialogs.saveChanges}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -538,6 +594,7 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
 function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
   const { copy } = useI18n()
   const importFiles = workspace.importModMappings
+  const [expandedConflictGroups, setExpandedConflictGroups] = useState<Record<string, boolean>>({})
 
   if (!workspace.isImportModDialogOpen) {
     return null
@@ -547,7 +604,12 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
   const preview = workspace.importModPreview
   const hasPreview = Boolean(preview)
   const hasConflicts = (preview?.conflictFiles.length ?? 0) > 0
+  const conflictTree = buildImportConflictTree(preview?.conflictFiles ?? [])
   const activeGameName = workspace.activeGame?.name || copy.workspaceActions.currentGame
+  const missingPrerequisites =
+    preview && workspace.activeGame
+      ? getMissingPrerequisiteWarnings(preview.modType, workspace.activeGame.prerequisites)
+      : []
 
   function handleResetMappings() {
     workspace.setImportModMappings(preview?.files ?? [])
@@ -559,15 +621,15 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-3 pt-10 backdrop-blur-sm sm:px-4">
-      <div className="w-full max-w-5xl">
-        <Card className={`${modalCardClass} max-h-[calc(100vh-20px)] overflow-hidden rounded-b-none border-b-0`}>
-          <CardContent className="flex max-h-[calc(100vh-20px)] flex-col p-0">
-            <div className="px-6 pt-3 lg:px-7">
-              <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-200 dark:bg-white/15" />
+    <div className={drawerOverlayClass}>
+      <div className={drawerViewportClass}>
+        <Card className={drawerPanelClass}>
+          <CardContent className={drawerCardContentClass}>
+            <div className={drawerHandleClass}>
+              <div className={drawerHandleBarClass} />
             </div>
 
-            <div className="px-6 pb-6 lg:px-7">
+            <div className={drawerHeaderClass}>
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
@@ -591,7 +653,7 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 pb-4 lg:px-7">
+            <div className={drawerBodyClass}>
               <div className="grid gap-4 md:grid-cols-2">
                 <FieldBlock label={copy.workspaceDialogs.importSource} className="md:col-span-2">
                   <div className="space-y-3">
@@ -700,6 +762,21 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                 </Alert>
               )}
 
+              {missingPrerequisites.length > 0 ? (
+                <Alert className="mt-4 rounded-2xl border-amber-200 bg-amber-50/80 dark:border-amber-500/20 dark:bg-amber-500/10">
+                  <AlertTriangle className="size-4 text-amber-600 dark:text-amber-300" />
+                  <AlertTitle className="text-amber-900 dark:text-amber-100">
+                    {copy.workspaceDialogs.prerequisiteWarningsTitle}
+                  </AlertTitle>
+                  <AlertDescription className="text-amber-800/90 dark:text-amber-200/90">
+                    {copy.workspaceDialogs.prerequisiteWarningsDescription(
+                      preview?.modType ?? copy.workspaceDialogs.notDetected,
+                      missingPrerequisites.map((item) => item.label).join(" / "),
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               {hasPreview && preview ? (
                 <>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -737,7 +814,7 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                       copy={copy}
                       files={importFiles}
                       headerTitle={copy.workspacePage.filePreview}
-                      headerDescription={copy.workspacePage.detailHint}
+                      headerDescription={copy.workspaceDialogs.folderMappingHint}
                       headerBadges={
                         <>
                           <Badge className="rounded-full bg-slate-950 px-3 py-1 text-white dark:bg-white dark:text-slate-950">
@@ -760,8 +837,8 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                         </>
                       }
                       initialTargetFolders={preview.targetFolders}
-                      targetDescription={copy.workspaceDialogs.installPath}
-                      summaryDescription={copy.workspacePage.detailHint}
+                      targetDescription={copy.workspaceDialogs.folderMappingHint}
+                      summaryDescription={copy.workspaceDialogs.folderMappingHint}
                       onDropToFolder={handleDropToFolder}
                       onResetMappings={handleResetMappings}
                       emptyTargetLabel={copy.demo.targetPending}
@@ -770,14 +847,21 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
 
                   {hasConflicts ? (
                     <DialogTipCard title={copy.workspacePage.conflictSummary} icon={<AlertTriangle className="size-4 text-amber-500" />} className="mt-4">
-                      <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                        {preview.conflictWith.map((modName) => (
-                          <p
-                            key={`import-conflict-${modName}`}
-                            className="rounded-2xl bg-background px-3 py-2 ring-1 ring-black/5 dark:bg-white/[0.04] dark:ring-white/10"
-                          >
-                            {modName}
-                          </p>
+                      <div className="space-y-3">
+                        <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                          {copy.workspaceDialogs.importConflictHelp}
+                        </p>
+                        <p className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                          {copy.workspaceDialogs.importConflictBackupNotice}
+                        </p>
+                        {conflictTree.map((node) => (
+                          <ImportConflictTreeNode
+                            key={`import-conflict-${node.id}`}
+                            node={node}
+                            workspace={workspace}
+                            expandedNodes={expandedConflictGroups}
+                            setExpandedNodes={setExpandedConflictGroups}
+                          />
                         ))}
                       </div>
                     </DialogTipCard>
@@ -832,7 +916,7 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
               </DialogTipsSection>
             </div>
 
-            <div className="border-t border-border/60 bg-background/90 px-6 py-4 backdrop-blur dark:border-white/10 dark:bg-[#10131a]/90 lg:px-7">
+            <div className={drawerFooterClass}>
               <div className="flex flex-wrap justify-end gap-3">
                 <Button
                   variant="outline"
@@ -857,6 +941,301 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
     </div>
   )
 }
+
+type ImportConflictFileNode = {
+  conflicts: ModConflictItem[]
+  id: string
+  kind: "file"
+  name: string
+  targetPath: string
+}
+
+type ImportConflictFolderNode = {
+  children: ImportConflictNode[]
+  id: string
+  kind: "folder"
+  name: string
+  path: string
+  targetPaths: string[]
+}
+
+type ImportConflictNode = ImportConflictFileNode | ImportConflictFolderNode
+
+type ImportConflictTreeBuilder = {
+  files: Map<string, ModConflictItem[]>
+  folders: Map<string, ImportConflictTreeBuilder>
+  id: string
+  name: string
+  path: string
+}
+
+function normalizeImportConflictTargetPath(targetPath: string): string {
+  return targetPath.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
+}
+
+function buildImportConflictTree(conflicts: ModConflictItem[]): ImportConflictNode[] {
+  const root = createImportConflictTreeBuilder("", "")
+
+  for (const conflict of conflicts) {
+    const normalizedTargetPath = normalizeImportConflictTargetPath(conflict.targetPath)
+    const segments = normalizedTargetPath.split("/").filter(Boolean)
+
+    if (segments.length === 0) {
+      const rootFilePath = normalizedTargetPath || conflict.fileName
+      const relatedConflicts = root.files.get(rootFilePath) ?? []
+      relatedConflicts.push(conflict)
+      root.files.set(rootFilePath, relatedConflicts)
+      continue
+    }
+
+    let current = root
+    let currentPath = ""
+
+    for (const segment of segments.slice(0, -1)) {
+      currentPath = currentPath ? `${currentPath}/${segment}` : segment
+      const nextFolder =
+        current.folders.get(segment) ?? createImportConflictTreeBuilder(segment, currentPath)
+      current.folders.set(segment, nextFolder)
+      current = nextFolder
+    }
+
+    const filePath = normalizedTargetPath
+    const relatedConflicts = current.files.get(filePath) ?? []
+    relatedConflicts.push(conflict)
+    current.files.set(filePath, relatedConflicts)
+  }
+
+  return buildImportConflictTreeNodes(root)
+}
+
+function createImportConflictTreeBuilder(
+  name: string,
+  path: string,
+): ImportConflictTreeBuilder {
+  return {
+    id: path || "__root__",
+    name,
+    path,
+    folders: new Map<string, ImportConflictTreeBuilder>(),
+    files: new Map<string, ModConflictItem[]>(),
+  }
+}
+
+function buildImportConflictTreeNodes(
+  builder: ImportConflictTreeBuilder,
+): ImportConflictNode[] {
+  const folderNodes = Array.from(builder.folders.values())
+    .map((folder) => {
+      const children = buildImportConflictTreeNodes(folder)
+      return {
+        id: `folder:${folder.id}`,
+        kind: "folder",
+        name: folder.name,
+        path: folder.path,
+        targetPaths: collectImportConflictTargetPaths(children),
+        children,
+      } satisfies ImportConflictFolderNode
+    })
+    .sort((left, right) => left.path.localeCompare(right.path))
+
+  const fileNodes = Array.from(builder.files.entries())
+    .map(([targetPath, groupConflicts]) => ({
+      id: `file:${targetPath}`,
+      kind: "file",
+      name: groupConflicts[0]?.fileName || targetPath.split("/").pop() || targetPath,
+      targetPath,
+      conflicts: groupConflicts,
+    }) satisfies ImportConflictFileNode)
+    .sort((left, right) => left.targetPath.localeCompare(right.targetPath))
+
+  return [...folderNodes, ...fileNodes]
+}
+
+function collectImportConflictTargetPaths(nodes: ImportConflictNode[]): string[] {
+  return nodes.flatMap((node) =>
+    node.kind === "folder" ? node.targetPaths : [node.targetPath],
+  )
+}
+
+function getImportConflictNodeDecision(
+  node: ImportConflictNode,
+  workspace: WorkspaceState,
+): ReturnType<WorkspaceState["getImportConflictDecision"]> {
+  const decisions = Array.from(
+    new Set(
+      collectImportConflictTargetPaths([node]).map((targetPath) =>
+        workspace.getImportConflictDecision(targetPath),
+      ),
+    ),
+  ).filter(Boolean)
+
+  return decisions.length === 1 ? decisions[0] ?? null : null
+}
+
+function resolveImportConflictNodeDecision(
+  node: ImportConflictNode,
+  workspace: WorkspaceState,
+  decision: "overwrite" | "skip",
+) {
+  const targetPaths = collectImportConflictTargetPaths([node])
+  if (targetPaths.length > 1) {
+    workspace.resolveImportConflicts(targetPaths, decision)
+    return
+  }
+
+  const targetPath = targetPaths[0]
+  if (!targetPath) {
+    return
+  }
+
+  workspace.resolveImportConflict(targetPath, decision)
+}
+
+function ImportConflictTreeNode({
+  node,
+  workspace,
+  expandedNodes,
+  setExpandedNodes,
+  depth = 0,
+}: {
+  node: ImportConflictNode
+  workspace: WorkspaceState
+  expandedNodes: Record<string, boolean>
+  setExpandedNodes: Dispatch<SetStateAction<Record<string, boolean>>>
+  depth?: number
+}) {
+  const { copy } = useI18n()
+  const decision = getImportConflictNodeDecision(node, workspace)
+  const isExpanded = node.kind === "folder" ? Boolean(expandedNodes[node.id]) : true
+  const targetPaths = collectImportConflictTargetPaths([node])
+
+  return (
+    <div className={depth > 0 ? "pl-4" : undefined}>
+      <Card
+        className={
+          depth === 0
+            ? "rounded-[20px] border-amber-200 bg-amber-50/60 shadow-none dark:border-amber-500/20 dark:bg-amber-500/10"
+            : "rounded-[18px] border border-black/5 bg-white/70 shadow-none dark:border-white/10 dark:bg-white/[0.04]"
+        }
+      >
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex items-center gap-2">
+                {node.kind === "folder" ? (
+                  <FolderOpen className="size-4 text-amber-700 dark:text-amber-200" />
+                ) : (
+                  <Files className="size-4 text-amber-700 dark:text-amber-200" />
+                )}
+                <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                  {node.kind === "folder"
+                    ? node.name || copy.workspaceDialogs.installToRoot
+                    : node.name}
+                </p>
+                <Badge
+                  variant="secondary"
+                  className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] text-amber-700 dark:bg-amber-500/15 dark:text-amber-200"
+                >
+                  {targetPaths.length}
+                </Badge>
+              </div>
+              <div className="rounded-2xl border border-amber-200/70 bg-white/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-white/5 dark:text-amber-100">
+                <span className="font-medium">
+                  {node.kind === "folder"
+                    ? copy.workspacePage.directory
+                    : copy.workspaceDialogs.targetPath}
+                </span>
+                <p className="mt-1 break-all">
+                  {node.kind === "folder"
+                    ? node.path || copy.workspaceDialogs.installToRoot
+                    : node.targetPath}
+                </p>
+              </div>
+            </div>
+
+            {node.kind === "folder" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={softOutlineButtonClass}
+                onClick={() =>
+                  setExpandedNodes((current) => ({
+                    ...current,
+                    [node.id]: !current[node.id],
+                  }))
+                }
+              >
+                {isExpanded
+                  ? copy.builderPage.hideDetailedMappings
+                  : copy.builderPage.showDetailedMappings}
+                {isExpanded ? (
+                  <ChevronUp className="size-4" />
+                ) : (
+                  <ChevronDown className="size-4" />
+                )}
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={decision === "overwrite" ? "default" : "outline"}
+              className={softOutlineButtonClass}
+              onClick={() => resolveImportConflictNodeDecision(node, workspace, "overwrite")}
+            >
+              {copy.workspaceDialogs.overwrite}
+            </Button>
+            <Button
+              size="sm"
+              variant={decision === "skip" ? "secondary" : "outline"}
+              className={softOutlineButtonClass}
+              onClick={() => resolveImportConflictNodeDecision(node, workspace, "skip")}
+            >
+              {copy.workspaceDialogs.skip}
+            </Button>
+            <ConflictDecisionBadge decision={decision} />
+          </div>
+
+          {node.kind === "folder" ? (
+            isExpanded ? (
+              <div className="space-y-2 rounded-2xl border border-black/5 bg-background/60 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                {node.children.map((child) => (
+                  <ImportConflictTreeNode
+                    key={child.id}
+                    node={child}
+                    workspace={workspace}
+                    expandedNodes={expandedNodes}
+                    setExpandedNodes={setExpandedNodes}
+                    depth={depth + 1}
+                  />
+                ))}
+              </div>
+            ) : null
+          ) : (
+            <div className="space-y-2">
+              {node.conflicts.map((conflict) => (
+                <div
+                  key={conflict.id}
+                  className="rounded-2xl border border-black/5 bg-white/80 px-3 py-2 text-xs text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                >
+                  <p className="font-medium">
+                    {copy.workspaceDialogs.sameTargetFile(conflict.otherModName)}
+                  </p>
+                  <p className="mt-1 break-all text-slate-500 dark:text-slate-400">
+                    {conflict.otherSourcePath}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 function PreviewMetricCard({
   icon,
   label,
@@ -903,37 +1282,150 @@ function DeleteGameDialog({ workspace }: { workspace: WorkspaceState }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-xl">
-        <Card className={modalCardClass}>
-          <CardContent className="p-6">
-            <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">{copy.workspaceDialogs.deleteBadge}</Badge>
-            <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-              {copy.workspaceDialogs.deleteTitle(targetGame.name)}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              {copy.workspaceDialogs.deleteDescription}
-            </p>
-            <p className="mt-3 break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm text-slate-600 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
-              {targetGame.gamePath}
-            </p>
+    <div className={drawerOverlayClass}>
+      <div className={drawerViewportClass}>
+        <Card className={drawerPanelClass}>
+          <CardContent className={drawerCardContentClass}>
+            <div className={drawerHandleClass}>
+              <div className={drawerHandleBarClass} />
+            </div>
 
-            <div className="mt-6 flex gap-3">
-              <Button
-                className="cursor-pointer rounded-xl bg-red-600 text-white shadow-sm hover:bg-red-700"
-                onClick={() => void workspace.confirmDeleteGame(targetGame.id)}
-                disabled={workspace.savingGameId === targetGame.id}
-              >
-                <Trash2 className="size-4" />
-                {workspace.savingGameId === targetGame.id ? copy.workspaceDialogs.deleting : copy.workspaceDialogs.confirmDelete}
-              </Button>
-              <Button
-                variant="outline"
-                className={softOutlineButtonClass}
-                onClick={() => workspace.setDeleteTargetGameId(null)}
-              >
-                {copy.workspaceDialogs.cancel}
-              </Button>
+            <div className={drawerHeaderClass}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
+                    {copy.workspaceDialogs.deleteBadge}
+                  </Badge>
+                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+                    {copy.workspaceDialogs.deleteTitle(targetGame.name)}
+                  </h2>
+                </div>
+
+                <Button
+                  variant="outline"
+                  className={softOutlineButtonClass}
+                  onClick={() => workspace.setDeleteTargetGameId(null)}
+                >
+                  {copy.workspaceDialogs.cancel}
+                </Button>
+              </div>
+            </div>
+
+            <div className={drawerBodyClass}>
+              <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                {copy.workspaceDialogs.deleteDescription}
+              </p>
+              <p className="mt-3 break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm text-slate-600 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+                {targetGame.gamePath}
+              </p>
+            </div>
+
+            <div className={drawerFooterClass}>
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  variant="outline"
+                  className={softOutlineButtonClass}
+                  onClick={() => workspace.setDeleteTargetGameId(null)}
+                >
+                  {copy.workspaceDialogs.cancel}
+                </Button>
+                <Button
+                  className="cursor-pointer rounded-xl bg-red-600 text-white shadow-sm hover:bg-red-700"
+                  onClick={() => void workspace.confirmDeleteGame(targetGame.id)}
+                  disabled={workspace.savingGameId === targetGame.id}
+                >
+                  <Trash2 className="size-4" />
+                  {workspace.savingGameId === targetGame.id ? copy.workspaceDialogs.deleting : copy.workspaceDialogs.confirmDelete}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function DeleteModDialog({ workspace }: { workspace: WorkspaceState }) {
+  const { copy } = useI18n()
+  if (!workspace.deleteTargetModId) {
+    return null
+  }
+
+  const targetMod = workspace.mods.find((mod) => mod.id === workspace.deleteTargetModId)
+  if (!targetMod) {
+    return null
+  }
+
+  return (
+    <div className={drawerOverlayClass}>
+      <div className={drawerViewportClass}>
+        <Card className={drawerPanelClass}>
+          <CardContent className={drawerCardContentClass}>
+            <div className={drawerHandleClass}>
+              <div className={drawerHandleBarClass} />
+            </div>
+
+            <div className={drawerHeaderClass}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
+                    {copy.workspaceDialogs.deleteModBadge}
+                  </Badge>
+                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+                    {copy.workspaceDialogs.deleteModTitle(targetMod.name)}
+                  </h2>
+                </div>
+
+                <Button
+                  variant="outline"
+                  className={softOutlineButtonClass}
+                  onClick={() => workspace.setDeleteTargetModId(null)}
+                >
+                  {copy.workspaceDialogs.cancel}
+                </Button>
+              </div>
+            </div>
+
+            <div className={drawerBodyClass}>
+              <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                {copy.workspaceDialogs.deleteModDescription}
+              </p>
+              <div className="mt-4 space-y-3">
+                <p className="break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm text-slate-600 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+                  {targetMod.name}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                    {targetMod.type}
+                  </Badge>
+                  <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                    {copy.workspaceDialogs.version} {targetMod.version}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className={drawerFooterClass}>
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  variant="outline"
+                  className={softOutlineButtonClass}
+                  onClick={() => workspace.setDeleteTargetModId(null)}
+                >
+                  {copy.workspaceDialogs.cancel}
+                </Button>
+                <Button
+                  className="cursor-pointer rounded-xl bg-red-600 text-white shadow-sm hover:bg-red-700"
+                  onClick={() => void workspace.confirmDeleteMod(targetMod.id)}
+                  disabled={workspace.deletingModId === targetMod.id}
+                >
+                  <Trash2 className="size-4" />
+                  {workspace.deletingModId === targetMod.id
+                    ? copy.workspaceActions.deletingMod
+                    : copy.workspacePage.deleteCurrentMod}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1058,6 +1550,33 @@ function getGameTypeLabel(
   }
 
   return copy.workspaceDialogs.notDetected
+}
+
+function getMissingPrerequisiteWarnings(
+  modType: ModType,
+  prerequisites: GamePrerequisite[],
+): MissingPrerequisiteWarning[] {
+  const prerequisiteKeysByModType: Record<ModType, string[]> = {
+    ModLoader: ["modloader"],
+    CLEO: ["cleo", "asiloader"],
+    "CLEO Redux": ["asiloader"],
+    ASI: ["asiloader"],
+    Mixed: [],
+  }
+
+  const requiredKeys = prerequisiteKeysByModType[modType] ?? []
+  const availablePrerequisites = new Map(
+    prerequisites.map((item) => [item.key.trim().toLowerCase(), item]),
+  )
+
+  return requiredKeys
+    .map((key) => availablePrerequisites.get(key))
+    .filter((item): item is GamePrerequisite => item != null)
+    .filter((item) => !item.detected)
+    .map((item) => ({
+      key: item.key,
+      label: item.label,
+    }))
 }
 
 function GameCoverPreview({

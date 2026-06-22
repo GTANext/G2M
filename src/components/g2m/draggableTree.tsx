@@ -41,6 +41,8 @@ export const TARGET_FOLDER_PRESETS: TargetFolderPreset[] = [
   "scripts",
   "cleo",
 ]
+export const ROOT_INSTALL_TARGET = "__g2m_root__"
+export const SKIP_INSTALL_TARGET = "__g2m_skip__"
 
 export function buildTargetDragPath(
   path: string,
@@ -389,8 +391,29 @@ export function buildMovedTargetPath(
   payload: DragPayload,
   dest: string,
 ): string | null {
-  const normalizedDest = normalizePath(dest)
+  if (dest === SKIP_INSTALL_TARGET) {
+    if (payload.mode === "source") {
+      const normalizedSource = normalizePath(payload.path)
+      if (payload.kind === "file") {
+        return normalizePath(file.relativePath) === normalizedSource ? "" : null
+      }
 
+      return normalizePath(file.relativePath).startsWith(`${normalizedSource}/`) ? "" : null
+    }
+
+    const normalizedTarget = normalizePath(payload.path)
+    if (payload.kind === "file") {
+      return normalizePath(file.targetPath) === normalizedTarget ? "" : null
+    }
+
+    return normalizePath(file.targetPath).startsWith(`${normalizedTarget}/`) ? "" : null
+  }
+
+  const normalizedDest = dest === ROOT_INSTALL_TARGET ? "" : normalizePath(dest)
+
+  if (dest !== ROOT_INSTALL_TARGET && !normalizedDest) {
+    return null
+  }
   if (payload.mode === "source") {
     if (payload.kind === "file") {
       if (normalizePath(file.relativePath) !== normalizePath(payload.path)) {
@@ -431,30 +454,31 @@ export function moveFiles(
   payload: DragPayload,
   dest: string,
 ): ModImportFileEntry[] {
-  const normalizedDest = normalizePath(dest)
-  if (!normalizedDest) {
+  const normalizedDest = dest === ROOT_INSTALL_TARGET ? "" : normalizePath(dest)
+  if (dest !== ROOT_INSTALL_TARGET && dest !== SKIP_INSTALL_TARGET && !normalizedDest) {
     return files
   }
 
-  if (payload.mode === "target" && payload.kind === "folder") {
+  if (dest !== SKIP_INSTALL_TARGET && payload.mode === "target" && payload.kind === "folder") {
     const normalizedDragged = normalizePath(payload.path)
     if (
       normalizedDest === normalizedDragged ||
-      normalizedDest.startsWith(`${normalizedDragged}/`)
+      (normalizedDest && normalizedDest.startsWith(`${normalizedDragged}/`))
     ) {
       return files
     }
   }
 
   return files.map((file) => {
-    const nextPath = buildMovedTargetPath(file, payload, normalizedDest)
-    if (!nextPath || nextPath === file.targetPath) {
+    const nextPath = buildMovedTargetPath(file, payload, dest)
+    if (nextPath === null || nextPath === file.targetPath) {
       return file
     }
     return {
       ...file,
       targetPath: nextPath,
       targetFolder: inferTargetFolderFromPath(nextPath),
+      skipInstall: !nextPath,
     }
   })
 }

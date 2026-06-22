@@ -1,4 +1,4 @@
-import { ArrowRight, FolderOpen, HardDriveDownload, Pencil } from "lucide-react"
+import { ChevronRight, FolderOpen, HardDriveDownload, Home, Pencil, Sparkles } from "lucide-react"
 
 import { useI18n } from "@/components/app/i18nProvider"
 import { Button } from "@/components/ui/button"
@@ -25,19 +25,24 @@ function G2MWorkspaceBreadcrumb({
   const { copy } = useI18n()
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-[24px] bg-background/80 px-4 py-4 text-sm shadow-[0_16px_60px_rgba(15,23,42,0.08)] ring-1 ring-black/5 backdrop-blur-xl dark:bg-white/5 dark:shadow-[0_16px_60px_rgba(0,0,0,0.34)] dark:ring-white/10">
-      <button
-        type="button"
-        onClick={onHomeClick}
-        className="cursor-pointer rounded-lg px-2 py-1 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100"
-      >
-        {copy.workspace.breadcrumbHome}
-      </button>
-      <ArrowRight className="size-4 text-slate-400 dark:text-slate-500" />
-      <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-900 dark:bg-white/10 dark:text-slate-100">
-        {gameName}
-      </span>
-      <span className="ml-auto rounded-full bg-white px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[28px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(241,245,249,0.9))] px-4 py-3 shadow-[0_20px_70px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.03] backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(15,23,42,0.9),rgba(15,23,42,0.72))] dark:shadow-[0_20px_70px_rgba(0,0,0,0.34)] dark:ring-white/[0.04]">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+        <button
+          type="button"
+          onClick={onHomeClick}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/5 bg-white/80 px-3 py-1.5 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-white hover:text-slate-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/[0.1] dark:hover:text-white"
+        >
+          <Home className="size-3.5" />
+          {copy.workspace.breadcrumbHome}
+        </button>
+        <ChevronRight className="size-4 text-slate-300 dark:text-slate-600" />
+        <span className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 font-medium text-white shadow-sm dark:bg-white dark:text-slate-950">
+          {gameName}
+        </span>
+      </div>
+
+      <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/80 bg-violet-50/90 px-3 py-1.5 text-xs font-medium text-violet-700 shadow-sm dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-200">
+        <Sparkles className="size-3.5" />
         {copy.workspace.breadcrumbWorkspace}
       </span>
     </div>

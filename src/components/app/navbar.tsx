@@ -1,6 +1,8 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   AppWindowMac,
+  ExternalLink,
   FileCode2,
   House,
   Maximize2,
@@ -232,6 +234,19 @@ function Navbar({ subtitle, title }: NavbarProps) {
                 <Settings2 className="size-4" />
                 <span>{copy.navbar.settings}</span>
               </NavLink>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "cursor-pointer rounded-xl px-3 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
+                isMacStyle && "h-9 rounded-full px-3",
+              )}
+              onClick={() => void openUrl("https://github.com/GTANext/G2M")}
+              title="GitHub"
+            >
+              <ExternalLink className="size-4" />
+              <span>GitHub</span>
             </Button>
             <Button
               variant="ghost"

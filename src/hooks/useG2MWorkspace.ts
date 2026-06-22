@@ -1,10 +1,10 @@
-import { invoke } from "@tauri-apps/api/core"
 import { open } from "@tauri-apps/plugin-dialog"
-import { openPath, openUrl } from "@tauri-apps/plugin-opener"
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { useI18n } from "@/components/app/i18nProvider"
+import { formatApiErrorMessage, invokeApi } from "@/lib/api"
 import {
   buildGamesFromBackend,
   buildDisplayMods,
@@ -69,6 +69,7 @@ const createDefaultImportModForm = (
 export type UseG2mWorkspaceResult = {
   activeGame: Game | null
   activeGameId: string | null
+  activeGameMods: ManagedMod[]
   addGameForm: AddGameForm
   closeAddGameDialog: () => void
   closeConflictDialog: () => void
@@ -76,14 +77,17 @@ export type UseG2mWorkspaceResult = {
   bootstrap: BootstrapPayload | null
   bootstrapping: boolean
   confirmDeleteGame: (gameId: string) => Promise<void>
+  confirmDeleteMod: (modId: string) => Promise<void>
   confirmEditGame: () => Promise<void>
   configuredGames: Game[]
   currentView: "home" | "game"
   deleteTargetGameId: string | null
+  deleteTargetModId: string | null
   editGameForm: EditGameForm
   allModsCount: number
   games: Game[]
   getConflictDecision: (modId: string, conflictId: string) => ConflictDecision | null
+  getImportConflictDecision: (targetPath: string) => ConflictDecision | null
   goHome: () => void
   hasConfiguredGames: boolean
   isAddGameDialogOpen: boolean
@@ -96,10 +100,13 @@ export type UseG2mWorkspaceResult = {
   importModForm: ImportModForm
   importModMappings: ModImportFileEntry[]
   importModPreview: ModImportPreview | null
+  installGamePrerequisite: (prerequisiteKey: string) => Promise<void>
+  installingPrerequisiteKey: string | null
   mods: ManagedMod[]
   closeImportModDialog: () => void
   openConflictDialog: () => void
   openDeleteGameDialog: (gameId: string) => void
+  openDeleteModDialog: (modId: string) => void
   openEditGameDialog: (gameId: string) => void
   openImportModDialog: () => void
   openGameDirectory: (gameId?: string) => Promise<void>
@@ -114,12 +121,14 @@ export type UseG2mWorkspaceResult = {
   openGame: (gameId: string) => void
   modSearchQuery: string
   savingGameId: string | null
+  deletingModId: string | null
   selectedMod: ManagedMod | null
   selectedModId: string
   setModSearchQuery: (value: string) => void
   confirmAddGame: () => Promise<void>
   setAddGameForm: (patch: Partial<AddGameForm>) => void
   setDeleteTargetGameId: (gameId: string | null) => void
+  setDeleteTargetModId: (modId: string | null) => void
   setEditGameForm: (patch: Partial<EditGameForm>) => void
   setImportModName: (value: string) => void
   setImportModMappings: (files: ModImportFileEntry[]) => void
@@ -132,6 +141,8 @@ export type UseG2mWorkspaceResult = {
   togglingModId: string | null
   refreshWorkspace: () => Promise<void>
   resolveConflict: (modId: string, conflictId: string, decision: ConflictDecision) => void
+  resolveImportConflict: (targetPath: string, decision: ConflictDecision) => void
+  resolveImportConflicts: (targetPaths: string[], decision: ConflictDecision) => void
   startAddGame: () => void
 }
 
@@ -147,6 +158,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const [isImportingMod, setIsImportingMod] = useState(false)
   const [isPreviewingMod, setIsPreviewingMod] = useState(false)
   const [deleteTargetGameId, setDeleteTargetGameId] = useState<string | null>(null)
+  const [deleteTargetModId, setDeleteTargetModId] = useState<string | null>(null)
   const [addGameForm, setAddGameFormState] = useState<AddGameForm>(createDefaultAddGameForm)
   const [editGameForm, setEditGameFormState] = useState<EditGameForm>(createDefaultEditGameForm)
   const [importModForm, setImportModForm] = useState<ImportModForm>(createDefaultImportModForm)
@@ -154,12 +166,15 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const [importModPreview, setImportModPreview] = useState<ModImportPreview | null>(null)
   const [allMods, setAllMods] = useState<ManagedMod[]>([])
   const [conflictDecisions, setConflictDecisions] = useState<Record<string, ConflictDecision>>({})
+  const [importConflictDecisions, setImportConflictDecisions] = useState<Record<string, ConflictDecision>>({})
   const [modSearchQuery, setModSearchQuery] = useState("")
   const [selectedModId, setSelectedModId] = useState("")
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null)
   const [bootstrapping, setBootstrapping] = useState(true)
   const [savingGameId, setSavingGameId] = useState<string | null>(null)
+  const [deletingModId, setDeletingModId] = useState<string | null>(null)
   const [togglingModId, setTogglingModId] = useState<string | null>(null)
+  const [installingPrerequisiteKey, setInstallingPrerequisiteKey] = useState<string | null>(null)
 
   const applyBootstrap = useCallback(
     (payload: BootstrapPayload) => {
@@ -201,11 +216,11 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const refreshWorkspace = useCallback(async () => {
     try {
       setBootstrapping(true)
-      const payload = await invoke<BootstrapPayload>("bootstrap_app")
+      const payload = await invokeApi<BootstrapPayload>("bootstrap_app")
       applyBootstrap(payload)
     } catch (error) {
       toast.error(copy.workspaceActions.initFailed, {
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     } finally {
       setBootstrapping(false)
@@ -274,7 +289,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       setTogglingModId(modId)
       toastId = toast.loading(copy.workspaceActions.updatingModState)
 
-      const payload = await invoke<BootstrapPayload>("update_mod_enabled", {
+      const payload = await invokeApi<BootstrapPayload>("update_mod_enabled", {
         modId,
         enabled: nextEnabledState,
       })
@@ -290,7 +305,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     } catch (error) {
       toast.error(copy.workspaceActions.updateModFailed, {
         id: toastId,
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     } finally {
       setTogglingModId(null)
@@ -345,6 +360,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     setImportModForm(createDefaultImportModForm(sourceType))
     setImportModMappingsState([])
     setImportModPreview(null)
+    setImportConflictDecisions({})
     setIsPreviewingMod(false)
   }, [])
 
@@ -389,7 +405,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       setIsDetectingGame(true)
       toastId = toast.loading(copy.workspaceActions.checkingDirectory)
 
-      const detectedGame = await invoke<DetectedGame>("detect_game_directory", {
+      const detectedGame = await invokeApi<DetectedGame>("detect_game_directory", {
         gamePath: selected,
       })
 
@@ -410,7 +426,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     } catch (error) {
       toast.error(copy.workspaceActions.directoryCheckFailed, {
         id: toastId,
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     } finally {
       setIsDetectingGame(false)
@@ -473,7 +489,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       setSavingGameId("add-game")
       toastId = toast.loading(copy.workspaceActions.savingGameConfig)
 
-      const payload = await invoke<BootstrapPayload>("save_game_path", {
+      const payload = await invokeApi<BootstrapPayload>("save_game_path", {
         gamePath: addGameForm.dir.trim(),
         gameType: addGameForm.type,
         name: addGameForm.name,
@@ -496,7 +512,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     } catch (error) {
       toast.error(copy.workspaceActions.addFailed, {
         id: toastId,
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     } finally {
       setSavingGameId(null)
@@ -579,7 +595,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       setSavingGameId(editGameForm.id)
       toastId = toast.loading(copy.workspaceActions.savingGameInfo(editGameForm.name))
 
-      const payload = await invoke<BootstrapPayload>("update_game_entry", {
+      const payload = await invokeApi<BootstrapPayload>("update_game_entry", {
         gameId: editGameForm.id,
         gameType: editGameForm.type,
         name: editGameForm.name,
@@ -597,7 +613,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     } catch (error) {
       toast.error(copy.workspaceActions.editFailed, {
         id: toastId,
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     } finally {
       setSavingGameId(null)
@@ -615,6 +631,10 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     setDeleteTargetGameId(gameId)
   }, [])
 
+  const openDeleteModDialog = useCallback((modId: string) => {
+    setDeleteTargetModId(modId)
+  }, [])
+
   const confirmDeleteGame = useCallback(async (gameId: string) => {
     let toastId: string | number | undefined
 
@@ -623,7 +643,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       const gameName = games.find((game) => game.id === gameId)?.name ?? copy.workspaceActions.currentGame
       toastId = toast.loading(copy.workspaceActions.deletingGameConfig)
 
-      const payload = await invoke<BootstrapPayload>("delete_game_entry", {
+      const payload = await invokeApi<BootstrapPayload>("delete_game_entry", {
         gameId,
       })
 
@@ -640,7 +660,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     } catch (error) {
       toast.error(copy.workspaceActions.deleteFailed, {
         id: toastId,
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     } finally {
       setSavingGameId(null)
@@ -652,6 +672,41 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     copy.workspaceActions.deletingGameConfig,
     copy.workspaceActions.gameDeleted,
     games,
+  ])
+
+  const confirmDeleteMod = useCallback(async (modId: string) => {
+    let toastId: string | number | undefined
+
+    try {
+      setDeletingModId(modId)
+      const modName = allMods.find((mod) => mod.id === modId)?.name ?? copy.workspacePage.importMod
+      toastId = toast.loading(copy.workspaceActions.deletingMod)
+
+      const payload = await invokeApi<BootstrapPayload>("delete_mod_entry", {
+        modId,
+      })
+
+      applyBootstrap(payload)
+      setDeleteTargetModId(null)
+      toast.success(copy.workspaceActions.modDeleted, {
+        id: toastId,
+        description: modName,
+      })
+    } catch (error) {
+      toast.error(copy.workspaceActions.deleteModFailed, {
+        id: toastId,
+        description: formatApiErrorMessage(error),
+      })
+    } finally {
+      setDeletingModId(null)
+    }
+  }, [
+    allMods,
+    applyBootstrap,
+    copy.workspaceActions.deleteModFailed,
+    copy.workspaceActions.deletingMod,
+    copy.workspaceActions.modDeleted,
+    copy.workspacePage.importMod,
   ])
 
   const goHome = useCallback(() => {
@@ -679,7 +734,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       toast.success(copy.workspaceActions.downloadPageOpened)
     } catch (error) {
       toast.error(copy.workspaceActions.openDownloadPageFailed, {
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     }
   }, [copy.workspaceActions.downloadPageOpened, copy.workspaceActions.openDownloadPageFailed])
@@ -694,13 +749,13 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     }
 
     try {
-      await openPath(targetGame.gamePath)
+      await revealItemInDir(targetGame.gamePath)
       toast.success(copy.workspaceActions.gameDirectoryOpened, {
         description: targetGame.gamePath,
       })
     } catch (error) {
       toast.error(copy.workspaceActions.openGameDirectoryFailed, {
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     }
   }, [
@@ -709,6 +764,44 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     copy.workspaceActions.noOpenDirectory,
     copy.workspaceActions.openGameDirectoryFailed,
     games,
+  ])
+
+  const installGamePrerequisite = useCallback(async (prerequisiteKey: string) => {
+    if (!activeGame?.id) {
+      toast.warning(copy.workspaceActions.currentGame)
+      return
+    }
+
+    let toastId: string | number | undefined
+
+    try {
+      setInstallingPrerequisiteKey(prerequisiteKey)
+      toastId = toast.loading(copy.workspaceActions.installingPrerequisite)
+
+      const payload = await invokeApi<BootstrapPayload>("install_game_prerequisite_module", {
+        gameId: activeGame.id,
+        prerequisiteKey,
+      })
+
+      applyBootstrap(payload)
+      toast.success(copy.workspaceActions.prerequisiteInstalled, {
+        id: toastId,
+      })
+    } catch (error) {
+      toast.error(copy.workspaceActions.installPrerequisiteFailed, {
+        id: toastId,
+        description: formatApiErrorMessage(error),
+      })
+    } finally {
+      setInstallingPrerequisiteKey(null)
+    }
+  }, [
+    activeGame?.id,
+    applyBootstrap,
+    copy.workspaceActions.currentGame,
+    copy.workspaceActions.installPrerequisiteFailed,
+    copy.workspaceActions.installingPrerequisite,
+    copy.workspaceActions.prerequisiteInstalled,
   ])
 
   const previewImportModSource = useCallback(async (selectedPath: string) => {
@@ -732,7 +825,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       setIsPreviewingMod(true)
       toastId = toast.loading(copy.workspaceActions.previewingMod)
 
-      const preview = await invoke<ModImportPreview>("preview_mod_directory", {
+      const preview = await invokeApi<ModImportPreview>("preview_mod_directory", {
         gameId: activeGame.id,
         modPath: selectedPath,
         modName: modName || undefined,
@@ -745,6 +838,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       })
       setImportModMappingsState(preview.files)
       setImportModPreview(preview)
+      setImportConflictDecisions({})
       toast.success(copy.workspaceActions.modPreviewReady, {
         id: toastId,
         description: preview.name || modName || copy.workspacePage.importMod,
@@ -754,7 +848,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       setImportModPreview(null)
       toast.error(copy.workspaceActions.importPreviewFailed, {
         id: toastId,
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     } finally {
       setIsPreviewingMod(false)
@@ -788,7 +882,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       await previewImportModSource(String(selected))
     } catch (error) {
       toast.error(copy.workspaceActions.importPreviewFailed, {
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     }
   }, [
@@ -824,7 +918,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       await previewImportModSource(String(selected))
     } catch (error) {
       toast.error(copy.workspaceActions.importPreviewFailed, {
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     }
   }, [
@@ -869,11 +963,76 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
               ...file,
               targetPath,
               targetFolder: inferTargetFolderFromPath(targetPath),
+              skipInstall: !targetPath.trim(),
             }
           : file,
       ),
     )
   }, [])
+
+  const resolveImportConflict = useCallback((targetPath: string, decision: ConflictDecision) => {
+    setImportConflictDecisions((current) => ({
+      ...current,
+      [normalizeConflictTargetPath(targetPath)]: decision,
+    }))
+
+    toast.success(
+      decision === "overwrite"
+        ? copy.workspaceActions.conflictSetOverwrite
+        : copy.workspaceActions.conflictSetSkip,
+      {
+        description: targetPath,
+      },
+    )
+  }, [
+    copy.workspaceActions.conflictSetOverwrite,
+    copy.workspaceActions.conflictSetSkip,
+  ])
+
+  const resolveImportConflicts = useCallback(
+    (targetPaths: string[], decision: ConflictDecision) => {
+      const normalizedTargetPaths = Array.from(
+        new Set(
+          targetPaths
+            .map((targetPath) => normalizeConflictTargetPath(targetPath))
+            .filter(Boolean),
+        ),
+      )
+      if (normalizedTargetPaths.length === 0) {
+        return
+      }
+
+      setImportConflictDecisions((current) => {
+        const next = { ...current }
+        for (const targetPath of normalizedTargetPaths) {
+          next[targetPath] = decision
+        }
+        return next
+      })
+
+      toast.success(
+        decision === "overwrite"
+          ? copy.workspaceActions.conflictSetOverwrite
+          : copy.workspaceActions.conflictSetSkip,
+        {
+          description:
+            normalizedTargetPaths.length === 1
+              ? normalizedTargetPaths[0]
+              : `${normalizedTargetPaths[0]} +${normalizedTargetPaths.length - 1}`,
+        },
+      )
+    },
+    [
+      copy.workspaceActions.conflictSetOverwrite,
+      copy.workspaceActions.conflictSetSkip,
+    ],
+  )
+
+  const getImportConflictDecision = useCallback(
+    (targetPath: string) =>
+      importConflictDecisions[normalizeConflictTargetPath(targetPath)] ?? null,
+    [importConflictDecisions],
+  )
 
   const confirmImportMod = useCallback(async () => {
     if (!activeGame?.id) {
@@ -895,11 +1054,61 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       setIsImportingMod(true)
       toastId = toast.loading(copy.workspaceActions.importingMod)
 
-      const payload = await invoke<BootstrapPayload>("import_mod_directory", {
+      const activeConflictTargets = Array.from(
+        new Set(
+          importModPreview.conflictFiles
+            .map((conflict) => normalizeConflictTargetPath(conflict.targetPath))
+            .filter((targetPath) =>
+              importModMappings.some(
+                (file) =>
+                  normalizeConflictTargetPath(file.targetPath) === targetPath &&
+                  !file.skipInstall &&
+                  file.targetPath.trim(),
+              ),
+            ),
+        ),
+      )
+
+      const unresolvedConflictTargets = activeConflictTargets.filter(
+        (targetPath) => !importConflictDecisions[targetPath],
+      )
+
+      if (unresolvedConflictTargets.length > 0) {
+        toast.warning(
+          copy.workspaceActions.resolveImportConflictsFirst(unresolvedConflictTargets.length),
+          {
+            id: toastId,
+          },
+        )
+        return
+      }
+
+      const preparedMappings = importModMappings.map((file) => ({
+        ...file,
+        skipInstall: Boolean(
+          file.skipInstall ||
+            !file.targetPath.trim() ||
+            getImportConflictDecision(file.targetPath) === "skip",
+        ),
+        overwriteExisting: getImportConflictDecision(file.targetPath) === "overwrite",
+      }))
+      const skippedMappingsCount = preparedMappings.filter((file) => file.skipInstall).length
+
+      if (skippedMappingsCount > 0) {
+        setImportModMappingsState(preparedMappings)
+        toast.info(copy.workspaceActions.emptyTargetPathsHandled(skippedMappingsCount))
+      }
+
+      const payload = await invokeApi<BootstrapPayload>("import_mod_directory", {
         gameId: activeGame.id,
         modPath: importModForm.dir.trim(),
         modName: importModForm.name.trim() || undefined,
-        files: importModMappings,
+        files: preparedMappings.map((file) => ({
+          relativePath: file.relativePath,
+          targetPath: file.targetPath,
+          skipInstall: Boolean(file.skipInstall || !file.targetPath.trim()),
+          overwriteExisting: Boolean(file.overwriteExisting),
+        })),
       })
 
       applyBootstrap(payload)
@@ -911,7 +1120,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     } catch (error) {
       toast.error(copy.workspaceActions.importModFailed, {
         id: toastId,
-        description: formatErrorMessage(error),
+        description: formatApiErrorMessage(error),
       })
     } finally {
       setIsImportingMod(false)
@@ -921,12 +1130,16 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     applyBootstrap,
     closeImportModDialog,
     copy.workspaceActions.currentGame,
+    copy.workspaceActions.emptyTargetPathsHandled,
     copy.workspaceActions.importModFailed,
     copy.workspaceActions.importingMod,
     copy.workspaceActions.modImported,
+    copy.workspaceActions.resolveImportConflictsFirst,
     copy.workspaceActions.scanModFirst,
     copy.workspaceActions.selectModDirectoryFirst,
     copy.workspacePage.importMod,
+    getImportConflictDecision,
+    importConflictDecisions,
     importModForm.dir,
     importModForm.name,
     importModMappings,
@@ -936,6 +1149,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   return {
     activeGame,
     activeGameId,
+    activeGameMods,
     allModsCount: activeGameMods.length,
     addGameForm,
     closeAddGameDialog,
@@ -945,15 +1159,19 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     bootstrapping,
     confirmAddGame,
     confirmDeleteGame,
+    confirmDeleteMod,
     confirmEditGame,
     confirmImportMod,
     configuredGames,
     closeImportModDialog,
     currentView,
     deleteTargetGameId,
+    deleteTargetModId,
+    deletingModId,
     editGameForm,
     games,
     getConflictDecision,
+    getImportConflictDecision,
     goHome,
     hasConfiguredGames,
     isAddGameDialogOpen,
@@ -966,11 +1184,14 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     importModForm,
     importModMappings,
     importModPreview,
+    installGamePrerequisite,
+    installingPrerequisiteKey,
     modSearchQuery,
     mods,
     openImportModDialog,
     openConflictDialog,
     openDeleteGameDialog,
+    openDeleteModDialog,
     openEditGameDialog,
     openGameDirectory,
     pickImportModSource,
@@ -986,6 +1207,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     selectedModId,
     setAddGameForm,
     setDeleteTargetGameId,
+    setDeleteTargetModId,
     setEditGameForm,
     setImportModName: (value) =>
       setImportModForm((current) => ({
@@ -1003,6 +1225,8 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     togglingModId,
     refreshWorkspace,
     resolveConflict,
+    resolveImportConflict,
+    resolveImportConflicts,
     startAddGame,
   }
 }
@@ -1011,12 +1235,8 @@ function buildConflictDecisionKey(modId: string, conflictId: string): string {
   return `${modId}::${conflictId}`
 }
 
-function formatErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message
-  }
-
-  return String(error)
+function normalizeConflictTargetPath(targetPath: string): string {
+  return targetPath.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
 }
 
 function matchesModSearch(mod: ManagedMod, keyword: string): boolean {

@@ -15,6 +15,16 @@ export type Game = {
   createdAt: number
   updatedAt: number
   status: "ready" | "pending"
+  prerequisites: GamePrerequisite[]
+}
+
+export type GamePrerequisite = {
+  key: string
+  label: string
+  detected: boolean
+  canInstall: boolean
+  scanScope: "root" | "scriptsPlugins" | string
+  detectedPath: string | null
 }
 
 export type ModType = "ModLoader" | "CLEO" | "CLEO Redux" | "ASI" | "Mixed"
@@ -33,6 +43,39 @@ export type ModImportFileEntry = {
   relativePath: string
   targetPath: string
   targetFolder: string
+  skipInstall?: boolean
+}
+
+export type ExistingBuilderManifestFile = {
+  path: string
+  installTo: string
+  games: string[]
+}
+
+export type ExistingBuilderManifestLink = {
+  kind?: string
+  label: string
+  url: string
+}
+
+export type ExistingBuilderManifestUpdate = {
+  md5: string
+  md5Mode: string
+}
+
+export type ExistingBuilderManifest = {
+  name: string
+  version: string
+  author: string
+  modType: string
+  links: ExistingBuilderManifestLink[]
+  update: ExistingBuilderManifestUpdate | null
+  files: ExistingBuilderManifestFile[]
+}
+
+export type ManifestSourceDigest = {
+  md5: string
+  md5Mode: "archive" | "directory" | string
 }
 
 export type ModMappingSummary = {
@@ -49,6 +92,7 @@ export type ManagedMod = {
   id: string
   gameId: string
   name: string
+  version: string
   type: ModType
   author: string
   enabled: boolean
@@ -75,6 +119,7 @@ export type BackendGame = {
   createdAt: number
   updatedAt: number
   configured: boolean
+  prerequisites: GamePrerequisite[]
 }
 
 export type DetectedGame = {
@@ -89,6 +134,7 @@ export type BackendMod = {
   id: string
   gameId: string
   name: string
+  version: string
   modType: ModType
   author: string
   enabled: boolean
@@ -115,6 +161,7 @@ export type ModImportPreview = {
   targetFolders: string[]
   previewFiles: string[]
   files: ModImportFileEntry[]
+  existingManifest: ExistingBuilderManifest | null
   conflictFiles: ModConflictItem[]
   conflictWith: string[]
 }
@@ -132,8 +179,14 @@ export type ModFileTreeNode = {
 export type BootstrapPayload = {
   dataDir: string
   databasePath: string
+  isElevated: boolean
   games: BackendGame[]
   mods: BackendMod[]
+}
+
+export type AppInfoPayload = {
+  productName: string
+  version: string
 }
 
 export type WorkspaceStats = {
@@ -151,6 +204,7 @@ export function buildDisplayMods(sourceMods: BackendMod[]): ManagedMod[] {
     id: mod.id,
     gameId: mod.gameId,
     name: mod.name,
+    version: mod.version || i18n.t("common.notProvided"),
     type: mod.modType,
     author: mod.author || i18n.t("common.notProvided"),
     enabled: mod.enabled,
@@ -198,6 +252,7 @@ export function buildGamesFromBackend(
     createdAt: game.createdAt,
     updatedAt: game.updatedAt,
     status: game.configured ? "ready" : "pending",
+    prerequisites: game.prerequisites ?? [],
   }))
 }
 
@@ -396,6 +451,7 @@ export function applyMappingSummaryTargetPath(
         ...file,
         targetPath: normalizedTargetPath,
         targetFolder: inferTargetFolderFromPath(normalizedTargetPath),
+        skipInstall: !normalizedTargetPath,
       }
     }
 
@@ -412,6 +468,7 @@ export function applyMappingSummaryTargetPath(
       ...file,
       targetPath: nextTargetPath,
       targetFolder: inferTargetFolderFromPath(nextTargetPath),
+      skipInstall: !nextTargetPath,
     }
   })
 }
@@ -460,6 +517,10 @@ function syncTreeNodeCounts(nodes: ModFileTreeNode[]): number {
 }
 
 function inferFolderSummaryTargetPath(folderPath: string, files: ModImportFileEntry[]): string {
+  if (files.every((file) => !normalizeModPath(file.targetPath))) {
+    return ""
+  }
+
   const sourcePrefix = `${folderPath}/`
   const candidates = files
     .map((file) => {
