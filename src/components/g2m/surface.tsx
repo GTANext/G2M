@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from "react"
+import type { HTMLAttributes, ElementType, ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -28,16 +28,24 @@ function G2MSubtlePanel({ className, ...props }: HTMLAttributes<HTMLDivElement>)
 
 function G2MPill({
   className,
+  children,
+  icon: Icon,
+  title,
   ...props
-}: HTMLAttributes<HTMLSpanElement>) {
+}: HTMLAttributes<HTMLSpanElement> & { icon?: ElementType; title?: ReactNode }) {
+  const content = title ?? children
+
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium",
+        "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium",
         className,
       )}
       {...props}
-    />
+    >
+      {Icon && <Icon className="size-4" />}
+      {content}
+    </span>
   )
 }
 

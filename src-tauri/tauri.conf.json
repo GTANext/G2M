@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "GTAMODX Manager",
-        "width": 1440,
-        "height": 920,
+        "width": 1280,
+        "height": 720,
         "minWidth": 1200,
         "minHeight": 760,
         "decorations": false

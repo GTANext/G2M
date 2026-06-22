@@ -35,6 +35,16 @@ export type ModImportFileEntry = {
   targetFolder: string
 }
 
+export type ModMappingSummary = {
+  id: string
+  sourcePath: string
+  targetPath: string
+  targetFolder: string
+  kind: "file" | "folder"
+  fileCount: number
+  files: ModImportFileEntry[]
+}
+
 export type ManagedMod = {
   id: string
   gameId: string
@@ -114,6 +124,7 @@ export type ModFileTreeNode = {
   name: string
   fullPath: string
   kind: "folder" | "file"
+  fileCount: number
   children: ModFileTreeNode[]
   file: ModImportFileEntry | null
 }
@@ -132,6 +143,8 @@ export type WorkspaceStats = {
   conflicts: number
   files: number
 }
+
+export type ImportSourceType = "directory" | "zip"
 
 export function buildDisplayMods(sourceMods: BackendMod[]): ManagedMod[] {
   return sourceMods.map((mod) => ({
@@ -300,6 +313,7 @@ export function buildModFileTree(
         name: segment,
         fullPath: currentPath,
         kind: isLeaf ? "file" : "folder",
+        fileCount: 0,
         children: [],
         file: isLeaf ? file : null,
       }
@@ -309,7 +323,97 @@ export function buildModFileTree(
     }
   }
 
+  syncTreeNodeCounts(Array.from(root.values()))
   return sortTreeNodes(Array.from(root.values()))
+}
+
+export function buildModMappingSummaries(files: ModImportFileEntry[]): ModMappingSummary[] {
+  const folderGroups = new Map<string, ModImportFileEntry[]>()
+  const summaries: ModMappingSummary[] = []
+
+  for (const file of files) {
+    const segments = file.relativePath.split("/").filter(Boolean)
+    if (segments.length <= 1) {
+      summaries.push({
+        id: `file:${file.relativePath}`,
+        sourcePath: file.relativePath,
+        targetPath: file.targetPath,
+        targetFolder: file.targetFolder,
+        kind: "file",
+        fileCount: 1,
+        files: [file],
+      })
+      continue
+    }
+
+    const folderPath = segments[0]
+    const group = folderGroups.get(folderPath) ?? []
+    group.push(file)
+    folderGroups.set(folderPath, group)
+  }
+
+  for (const [folderPath, groupFiles] of folderGroups.entries()) {
+    summaries.push({
+      id: `folder:${folderPath}`,
+      sourcePath: folderPath,
+      targetPath: inferFolderSummaryTargetPath(folderPath, groupFiles),
+      targetFolder: inferTargetFolderFromPath(groupFiles[0]?.targetPath ?? ""),
+      kind: "folder",
+      fileCount: groupFiles.length,
+      files: groupFiles,
+    })
+  }
+
+  return summaries.sort((left, right) => {
+    if (left.kind !== right.kind) {
+      return left.kind === "folder" ? -1 : 1
+    }
+
+    return left.sourcePath.localeCompare(right.sourcePath)
+  })
+}
+
+export function applyMappingSummaryTargetPath(
+  files: ModImportFileEntry[],
+  summary: ModMappingSummary,
+  targetPath: string,
+): ModImportFileEntry[] {
+  const normalizedTargetPath = normalizeModPath(targetPath)
+  if (!normalizedTargetPath) {
+    return files
+  }
+
+  return files.map((file) => {
+    const matchesSummary = summary.files.some(
+      (summaryFile) => summaryFile.relativePath === file.relativePath,
+    )
+    if (!matchesSummary) {
+      return file
+    }
+
+    if (summary.kind === "file") {
+      return {
+        ...file,
+        targetPath: normalizedTargetPath,
+        targetFolder: inferTargetFolderFromPath(normalizedTargetPath),
+      }
+    }
+
+    const normalizedSourcePath = normalizeModPath(summary.sourcePath)
+    const normalizedRelativePath = normalizeModPath(file.relativePath)
+    const suffix = normalizedRelativePath
+      .slice(normalizedSourcePath.length)
+      .replace(/^\/+/, "")
+    const nextTargetPath = suffix
+      ? `${normalizedTargetPath}/${suffix}`
+      : normalizedTargetPath
+
+    return {
+      ...file,
+      targetPath: nextTargetPath,
+      targetFolder: inferTargetFolderFromPath(nextTargetPath),
+    }
+  })
 }
 
 function ensureTreeChildren(node: ModFileTreeNode): Map<string, ModFileTreeNode> {
@@ -338,4 +442,64 @@ function sortTreeNodes(nodes: ModFileTreeNode[]): ModFileTreeNode[] {
 
       return left.name.localeCompare(right.name)
     })
+}
+
+function syncTreeNodeCounts(nodes: ModFileTreeNode[]): number {
+  let total = 0
+
+  for (const node of nodes) {
+    if (node.kind === "file") {
+      node.fileCount = 1
+    } else {
+      node.fileCount = syncTreeNodeCounts(Array.from(ensureTreeChildren(node).values()))
+    }
+    total += node.fileCount
+  }
+
+  return total
+}
+
+function inferFolderSummaryTargetPath(folderPath: string, files: ModImportFileEntry[]): string {
+  const sourcePrefix = `${folderPath}/`
+  const candidates = files
+    .map((file) => {
+      const normalizedRelativePath = normalizeModPath(file.relativePath)
+      const normalizedTargetPath = normalizeModPath(file.targetPath)
+      if (!normalizedRelativePath.startsWith(sourcePrefix)) {
+        return ""
+      }
+
+      const remainder = normalizedRelativePath.slice(sourcePrefix.length)
+      if (!remainder) {
+        return normalizedTargetPath
+      }
+
+      const suffix = `/${remainder}`
+      if (!normalizedTargetPath.endsWith(suffix)) {
+        return ""
+      }
+
+      return normalizedTargetPath.slice(0, normalizedTargetPath.length - suffix.length)
+    })
+    .filter(Boolean)
+
+  const uniqueCandidates = Array.from(new Set(candidates))
+  if (uniqueCandidates.length === 1) {
+    return uniqueCandidates[0]
+  }
+
+  return normalizeModPath(files[0]?.targetFolder || folderPath)
+}
+
+export function inferTargetFolderFromPath(targetPath: string): string {
+  const normalized = normalizeModPath(targetPath)
+  return normalized.split("/").filter(Boolean)[0] ?? ""
+}
+
+export function inferImportSourceType(selectedPath: string): ImportSourceType {
+  return selectedPath.toLowerCase().endsWith(".zip") ? "zip" : "directory"
+}
+
+export function normalizeModPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/").replace(/\/+$/, "")
 }

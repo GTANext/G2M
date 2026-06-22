@@ -70,30 +70,49 @@ type AppCopy = {
   builderPage: {
     badge: string
     copyJson: string
+    copyManifest: string
+    generateManifestFailed: string
+    generateManifestSuccess: string
     copied: string
+    copiedToClipboard: string
     chooseFolder: string
     chooseZip: string
     generatedJsonTitle: string
+    gameTargets: string
     heroDescription: string
     heroTitle: string
+    hideDetailedMappings: string
+    hideMappingDetails: string
     inspectFailed: string
     inspectSource: string
-    hideMappingDetails: string
+    inspectSuccess: string
+    manifestPreviewTitle: string
     mappingTitle: string
     metadataTitle: string
     modAuthor: string
     modAuthorPlaceholder: string
     modVersion: string
     modVersionPlaceholder: string
+    pageDescription: string
+    pickArchive: string
+    pickDirectory: string
+    selectManifestSavePath: string
+    pickSourceDescription: string
+    pickSourceTitle: string
     resetMappings: string
+    showDetailedMappings: string
+    showMappingDetails: string
     sourcePath: string
     sourcePlaceholder: string
     sourceReady: string
+    sourceTitle: string
     sourceTreeTitle: string
     sourceType: string
     sourceWaiting: string
-    showMappingDetails: string
+    summaryFolder: string
+    summaryFile: string
     targetTreeTitle: string
+    zipFiles: string
   }
   settings: {
     appearanceDescription: string
@@ -252,6 +271,8 @@ type AppCopy = {
     currentCover: string
     currentModSource: string
     currentStatusTitle: string
+    customTargetFolder: string
+    customTargetFolderPlaceholder: string
     customImage: string
     defaultCover: string
     deleteBadge: string
@@ -290,6 +311,9 @@ type AppCopy = {
     importTitle: string
     importTipTitle: string
     importWaitingSelection: string
+    installPath: string
+    addTargetFolder: string
+    modMetadata: string
     manifestDetected: string
     manifestMissing: string
     manifestStatus: string
@@ -495,30 +519,49 @@ function useI18n() {
       builderPage: {
         badge: t("builderPage.badge"),
         copyJson: t("builderPage.copyJson"),
+        copyManifest: t("builderPage.copyManifest"),
+        generateManifestFailed: t("builderPage.generateManifestFailed"),
+        generateManifestSuccess: t("builderPage.generateManifestSuccess"),
         copied: t("builderPage.copied"),
+        copiedToClipboard: t("builderPage.copiedToClipboard"),
         chooseFolder: t("builderPage.chooseFolder"),
         chooseZip: t("builderPage.chooseZip"),
         generatedJsonTitle: t("builderPage.generatedJsonTitle"),
+        gameTargets: t("builderPage.gameTargets"),
         heroDescription: t("builderPage.heroDescription"),
         heroTitle: t("builderPage.heroTitle"),
+        hideDetailedMappings: t("builderPage.hideDetailedMappings"),
+        hideMappingDetails: t("builderPage.hideMappingDetails"),
         inspectFailed: t("builderPage.inspectFailed"),
         inspectSource: t("builderPage.inspectSource"),
-        hideMappingDetails: t("builderPage.hideMappingDetails"),
+        inspectSuccess: t("builderPage.inspectSuccess"),
+        manifestPreviewTitle: t("builderPage.manifestPreviewTitle"),
         mappingTitle: t("builderPage.mappingTitle"),
         metadataTitle: t("builderPage.metadataTitle"),
         modAuthor: t("builderPage.modAuthor"),
         modAuthorPlaceholder: t("builderPage.modAuthorPlaceholder"),
         modVersion: t("builderPage.modVersion"),
         modVersionPlaceholder: t("builderPage.modVersionPlaceholder"),
+        pageDescription: t("builderPage.pageDescription"),
+        pickArchive: t("builderPage.pickArchive"),
+        pickDirectory: t("builderPage.pickDirectory"),
+        selectManifestSavePath: t("builderPage.selectManifestSavePath"),
+        pickSourceDescription: t("builderPage.pickSourceDescription"),
+        pickSourceTitle: t("builderPage.pickSourceTitle"),
         resetMappings: t("builderPage.resetMappings"),
+        showDetailedMappings: t("builderPage.showDetailedMappings"),
+        showMappingDetails: t("builderPage.showMappingDetails"),
         sourcePath: t("builderPage.sourcePath"),
         sourcePlaceholder: t("builderPage.sourcePlaceholder"),
         sourceReady: t("builderPage.sourceReady"),
+        sourceTitle: t("builderPage.sourceTitle"),
         sourceTreeTitle: t("builderPage.sourceTreeTitle"),
         sourceType: t("builderPage.sourceType"),
         sourceWaiting: t("builderPage.sourceWaiting"),
-        showMappingDetails: t("builderPage.showMappingDetails"),
+        summaryFolder: t("builderPage.summaryFolder"),
+        summaryFile: t("builderPage.summaryFile"),
         targetTreeTitle: t("builderPage.targetTreeTitle"),
+        zipFiles: t("builderPage.zipFiles"),
       },
       settings: {
         appearanceDescription: t("settings.appearanceDescription"),
@@ -684,6 +727,8 @@ function useI18n() {
         currentCover: t("workspaceDialogs.currentCover"),
         currentModSource: t("workspaceDialogs.currentModSource"),
         currentStatusTitle: t("workspaceDialogs.currentStatusTitle"),
+        customTargetFolder: t("workspaceDialogs.customTargetFolder"),
+        customTargetFolderPlaceholder: t("workspaceDialogs.customTargetFolderPlaceholder"),
         customImage: t("workspaceDialogs.customImage"),
         defaultCover: t("workspaceDialogs.defaultCover"),
         deleteBadge: t("workspaceDialogs.deleteBadge"),
@@ -723,6 +768,9 @@ function useI18n() {
         importTitle: t("workspaceDialogs.importTitle"),
         importTipTitle: t("workspaceDialogs.importTipTitle"),
         importWaitingSelection: t("workspaceDialogs.importWaitingSelection"),
+        installPath: t("workspaceDialogs.installPath"),
+        addTargetFolder: t("workspaceDialogs.addTargetFolder"),
+        modMetadata: t("workspaceDialogs.modMetadata"),
         manifestDetected: t("workspaceDialogs.manifestDetected"),
         manifestMissing: t("workspaceDialogs.manifestMissing"),
         manifestStatus: t("workspaceDialogs.manifestStatus"),

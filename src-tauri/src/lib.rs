@@ -186,6 +186,50 @@ fn detect_game_directory(app: AppHandle, gamePath: String) -> Result<DetectedGam
 
 #[allow(non_snake_case)]
 #[tauri::command]
+fn generate_manifest_file(
+    sourcePath: String,
+    sourceType: String,
+    manifestContent: String,
+    savePath: Option<String>,
+) -> Result<String, String> {
+    let source_path = sourcePath.trim();
+    if source_path.is_empty() {
+        return Err("source path is empty".to_string());
+    }
+
+    let target_path = match sourceType.trim() {
+        "directory" => Path::new(source_path).join("g2m.json"),
+        "zip" => {
+            let selected_path = savePath.unwrap_or_default();
+            let selected_path = selected_path.trim();
+            if selected_path.is_empty() {
+                return Err("save path is empty".to_string());
+            }
+
+            let mut path = PathBuf::from(selected_path);
+            if path.extension().is_none() {
+                path.set_extension("json");
+            }
+            path
+        }
+        other => return Err(format!("unsupported source type: {other}")),
+    };
+
+    if let Some(parent_dir) = target_path.parent() {
+        if !parent_dir.as_os_str().is_empty() {
+            fs::create_dir_all(parent_dir)
+                .map_err(|error| format!("failed to create manifest directory: {error}"))?;
+        }
+    }
+
+    fs::write(&target_path, manifestContent)
+        .map_err(|error| format!("failed to write g2m.json: {error}"))?;
+
+    Ok(target_path.to_string_lossy().to_string())
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
 fn save_game_path(
     app: AppHandle,
     gamePath: String,
@@ -1319,6 +1363,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             bootstrap_app,
             detect_game_directory,
+            generate_manifest_file,
             save_game_path,
             update_game_entry,
             delete_game_entry,

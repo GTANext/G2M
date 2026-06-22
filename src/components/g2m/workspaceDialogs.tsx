@@ -1,16 +1,21 @@
-import type { DragEvent, ReactNode } from "react"
-import { useMemo, useState } from "react"
-import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, FileCode2, Files, FolderTree, GripVertical, HardDriveDownload, ImagePlus, MapPinned, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
+import type { ReactNode } from "react"
+import { AlertTriangle, CheckCircle2, CircleHelp, Files, HardDriveDownload, ImagePlus, MapPinned, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
 import { useI18n } from "@/components/app/i18nProvider"
+import { ModMappingWorkbench } from "@/components/g2m/ModMappingWorkbench"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { UseG2mWorkspaceResult } from "@/hooks/useG2MWorkspace"
-import { buildModFileTree, formatFileSize, resolveGameImageSrc, type ModFileTreeNode, type ModImportFileEntry } from "@/lib/g2m"
-import { cn } from "@/lib/utils"
+import {
+  formatFileSize,
+  resolveGameImageSrc,
+} from "@/lib/g2m"
+import {
+  DragPayload,
+  moveFiles,
+} from "@/components/g2m/draggableTree"
 
 type WorkspaceState = UseG2mWorkspaceResult
 
@@ -23,15 +28,7 @@ const modalSubtleCardClass =
 const softOutlineButtonClass =
   "cursor-pointer rounded-xl border-border/70 bg-background/70 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
 
-const TARGET_FOLDER_PRESETS = ["modloader", "plugins", "scripts", "cleo"] as const
 
-type TargetFolderPreset = (typeof TARGET_FOLDER_PRESETS)[number]
-type ImportTreeMode = "source" | "target"
-type ImportDragPayload = {
-  kind: "file" | "folder"
-  mode: ImportTreeMode
-  path: string
-}
 
 function WorkspaceDialogs({ workspace }: { workspace: WorkspaceState }) {
   return (
@@ -367,7 +364,14 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
             </div>
 
             <div className="border-t border-border/60 bg-background/90 px-6 py-4 backdrop-blur dark:border-white/10 dark:bg-[#10131a]/90 lg:px-7">
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  variant="outline"
+                  className={`px-4 ${softOutlineButtonClass}`}
+                  onClick={workspace.closeAddGameDialog}
+                >
+                  {copy.workspaceDialogs.later}
+                </Button>
                 <Button
                   className="cursor-pointer rounded-xl px-4 shadow-sm"
                   onClick={() => void workspace.confirmAddGame()}
@@ -375,13 +379,6 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                 >
                   <Plus className="size-4" />
                   {workspace.savingGameId === "add-game" ? copy.workspaceDialogs.adding : copy.workspaceDialogs.confirmAddGame}
-                </Button>
-                <Button
-                  variant="outline"
-                  className={`px-4 ${softOutlineButtonClass}`}
-                  onClick={workspace.closeAddGameDialog}
-                >
-                  {copy.workspaceDialogs.later}
                 </Button>
               </div>
             </div>
@@ -540,6 +537,8 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
 
 function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
   const { copy } = useI18n()
+  const importFiles = workspace.importModMappings
+
   if (!workspace.isImportModDialogOpen) {
     return null
   }
@@ -549,35 +548,13 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
   const hasPreview = Boolean(preview)
   const hasConflicts = (preview?.conflictFiles.length ?? 0) > 0
   const activeGameName = workspace.activeGame?.name || copy.workspaceActions.currentGame
-  const importFiles = workspace.importModMappings
-  const [draggingPayload, setDraggingPayload] = useState<ImportDragPayload | null>(null)
-
-  const sourceTree = useMemo(() => buildModFileTree(importFiles, "source"), [importFiles])
-  const targetTree = useMemo(() => buildModFileTree(importFiles, "target"), [importFiles])
 
   function handleResetMappings() {
     workspace.setImportModMappings(preview?.files ?? [])
   }
 
-  function handleDragStart(payload: ImportDragPayload, event: DragEvent<HTMLElement>) {
-    event.dataTransfer.effectAllowed = "move"
-    event.dataTransfer.setData("application/g2m-import-tree", JSON.stringify(payload))
-    setDraggingPayload(payload)
-  }
-
-  function handleDragEnd() {
-    setDraggingPayload(null)
-  }
-
-  function handleDropToFolder(destinationFolder: string, event: DragEvent<HTMLElement>) {
-    event.preventDefault()
-    const payload = readImportDragPayload(event)
-    setDraggingPayload(null)
-    if (!payload) {
-      return
-    }
-
-    const nextMappings = moveImportEntries(workspace.importModMappings, payload, destinationFolder)
+  function handleDropToFolder(destinationFolder: string, payload: DragPayload) {
+    const nextMappings = moveFiles(workspace.importModMappings, payload, destinationFolder)
     workspace.setImportModMappings(nextMappings)
   }
 
@@ -755,154 +732,40 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                     />
                   </div>
 
-                  <DialogTipCard title={copy.workspacePage.filePreview} icon={<FolderTree className="size-4 text-violet-600" />} className="mt-4">
-                    <div className="space-y-4">
-                      <div>
-                        <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                          {copy.workspacePage.targetFolders}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {preview.targetFolders.length > 0 ? preview.targetFolders.map((folder) => (
-                            <Badge
-                              key={`import-target-${folder}`}
-                              variant="secondary"
-                              className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
-                            >
-                              {folder}
-                            </Badge>
-                          )) : (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">{copy.demo.targetPending}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                          {copy.workspacePage.filesDetected}
-                        </p>
-                        <div className="space-y-4">
-                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                            {TARGET_FOLDER_PRESETS.map((folder) => (
-                              <TargetFolderDropZone
-                                key={`import-target-drop-${folder}`}
-                                folder={folder}
-                                fileCount={importFiles.filter((file) => inferTargetFolder(file.targetPath).toLowerCase() === folder).length}
-                                fileCountLabel={copy.workspacePage.fileCount}
-                                isDragging={draggingPayload !== null}
-                                onDragEnd={handleDragEnd}
-                                onDropToFolder={handleDropToFolder}
-                              />
-                            ))}
-                          </div>
-
-                          <div className="grid gap-4 xl:grid-cols-2">
-                            <ImportTreeCard title={copy.builderPage.sourceTreeTitle}>
-                              <ImportInteractiveTree
-                                draggingPayload={draggingPayload}
-                                emptyLabel={copy.demo.previewPending}
-                                mode="source"
-                                nodes={sourceTree}
-                                onDragEnd={handleDragEnd}
-                                onDragStart={handleDragStart}
-                                onDropToFolder={handleDropToFolder}
-                              />
-                            </ImportTreeCard>
-                            <ImportTreeCard title={copy.builderPage.targetTreeTitle}>
-                              <ImportInteractiveTree
-                                draggingPayload={draggingPayload}
-                                emptyLabel={copy.demo.targetPending}
-                                mode="target"
-                                nodes={targetTree}
-                                onDragEnd={handleDragEnd}
-                                onDragStart={handleDragStart}
-                                onDropToFolder={handleDropToFolder}
-                              />
-                            </ImportTreeCard>
-                          </div>
-
-                          <div>
-                            <div className="mb-3 flex items-center justify-between gap-3">
-                              <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                                {copy.builderPage.mappingTitle}
-                              </p>
-                              <Button
-                                variant="outline"
-                                className={`px-3 ${softOutlineButtonClass}`}
-                                onClick={handleResetMappings}
-                                disabled={!hasPreview}
-                              >
-                                <RotateCcw className="size-4" />
-                                {copy.builderPage.resetMappings}
-                              </Button>
-                            </div>
-                            <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
-                              {importFiles.map((file) => (
-                                <div
-                                  key={`import-map-${file.relativePath}`}
-                                  className={cn(
-                                    "rounded-2xl border border-black/5 bg-white/70 p-4 transition-colors dark:border-white/10 dark:bg-white/[0.04]",
-                                    draggingPayload?.kind === "file" && draggingPayload.path === file.targetPath && "border-violet-300 bg-violet-50/70 dark:border-violet-400/40 dark:bg-violet-500/10",
-                                  )}
-                                  draggable
-                                  onDragEnd={handleDragEnd}
-                                  onDragStart={(event) =>
-                                    handleDragStart(
-                                      {
-                                        kind: "file",
-                                        mode: "target",
-                                        path: file.targetPath,
-                                      },
-                                      event,
-                                    )}
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-                                      <GripVertical className="size-4" />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="break-all text-sm font-semibold text-slate-950 dark:text-slate-50">
-                                        {file.relativePath}
-                                      </p>
-                                      <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">
-                                        {file.targetPath}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-3 grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
-                                    <Select
-                                      value={isTargetFolderPreset(file.targetFolder) ? file.targetFolder : undefined}
-                                      onValueChange={(value) =>
-                                        workspace.updateImportModMappingTarget(
-                                          file.relativePath,
-                                          replaceImportTargetRoot(file, value as TargetFolderPreset),
-                                        )}
-                                    >
-                                      <SelectTrigger className="h-11 w-full rounded-2xl border-border/70 bg-background/70 px-3 shadow-none dark:border-white/10 dark:bg-white/[0.04]">
-                                        <SelectValue placeholder={copy.workspacePage.targetFolders} />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {TARGET_FOLDER_PRESETS.map((folder) => (
-                                          <SelectItem key={`import-folder-${folder}`} value={folder}>
-                                            {folder}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-
-                                    <Input
-                                      value={file.targetPath}
-                                      onChange={(event) => workspace.updateImportModMappingTarget(file.relativePath, event.currentTarget.value)}
-                                      className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
-                                    />
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <DialogTipCard title={copy.workspacePage.filePreview} className="mt-4">
+                    <ModMappingWorkbench
+                      copy={copy}
+                      files={importFiles}
+                      headerTitle={copy.workspacePage.filePreview}
+                      headerDescription={copy.workspacePage.detailHint}
+                      headerBadges={
+                        <>
+                          <Badge className="rounded-full bg-slate-950 px-3 py-1 text-white dark:bg-white dark:text-slate-950">
+                            {preview.name || workspace.importModForm.name || copy.workspaceDialogs.modName}
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
+                          >
+                            {preview.modType}
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
+                          >
+                            {workspace.importModForm.sourceType === "zip"
+                              ? copy.workspaceDialogs.importSourceZip
+                              : copy.workspaceDialogs.importSourceDirectory}
+                          </Badge>
+                        </>
+                      }
+                      initialTargetFolders={preview.targetFolders}
+                      targetDescription={copy.workspaceDialogs.installPath}
+                      summaryDescription={copy.workspacePage.detailHint}
+                      onDropToFolder={handleDropToFolder}
+                      onResetMappings={handleResetMappings}
+                      emptyTargetLabel={copy.demo.targetPending}
+                    />
                   </DialogTipCard>
 
                   {hasConflicts ? (
@@ -970,7 +833,14 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
             </div>
 
             <div className="border-t border-border/60 bg-background/90 px-6 py-4 backdrop-blur dark:border-white/10 dark:bg-[#10131a]/90 lg:px-7">
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  variant="outline"
+                  className={`px-4 ${softOutlineButtonClass}`}
+                  onClick={workspace.closeImportModDialog}
+                >
+                  {copy.workspaceDialogs.later}
+                </Button>
                 <Button
                   className="cursor-pointer rounded-xl px-4 shadow-sm"
                   onClick={() => void workspace.confirmImportMod()}
@@ -978,13 +848,6 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                 >
                   <HardDriveDownload className="size-4" />
                   {workspace.isImportingMod ? copy.workspaceDialogs.importing : copy.workspaceDialogs.confirmImportMod}
-                </Button>
-                <Button
-                  variant="outline"
-                  className={`px-4 ${softOutlineButtonClass}`}
-                  onClick={workspace.closeImportModDialog}
-                >
-                  {copy.workspaceDialogs.later}
                 </Button>
               </div>
             </div>
@@ -994,219 +857,6 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
     </div>
   )
 }
-
-function ImportTreeCard({
-  title,
-  children,
-}: {
-  title: string
-  children: ReactNode
-}) {
-  return (
-    <div className="rounded-2xl border border-black/5 bg-white/60 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-      <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
-      {children}
-    </div>
-  )
-}
-
-function ImportInteractiveTree({
-  nodes,
-  mode,
-  emptyLabel,
-  draggingPayload,
-  onDragStart,
-  onDragEnd,
-  onDropToFolder,
-}: {
-  nodes: ModFileTreeNode[]
-  mode: ImportTreeMode
-  emptyLabel: string
-  draggingPayload: ImportDragPayload | null
-  onDragStart: (payload: ImportDragPayload, event: DragEvent<HTMLElement>) => void
-  onDragEnd: () => void
-  onDropToFolder: (destinationFolder: string, event: DragEvent<HTMLElement>) => void
-}) {
-  if (nodes.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border/70 p-4 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-        {emptyLabel}
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-h-[260px] space-y-1 overflow-y-auto pr-1">
-      {nodes.map((node) => (
-        <ImportTreeNodeView
-          key={`${mode}-${node.key}`}
-          node={node}
-          depth={0}
-          mode={mode}
-          draggingPayload={draggingPayload}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          onDropToFolder={onDropToFolder}
-        />
-      ))}
-    </div>
-  )
-}
-
-function ImportTreeNodeView({
-  node,
-  depth,
-  mode,
-  draggingPayload,
-  onDragStart,
-  onDragEnd,
-  onDropToFolder,
-}: {
-  node: ModFileTreeNode
-  depth: number
-  mode: ImportTreeMode
-  draggingPayload: ImportDragPayload | null
-  onDragStart: (payload: ImportDragPayload, event: DragEvent<HTMLElement>) => void
-  onDragEnd: () => void
-  onDropToFolder: (destinationFolder: string, event: DragEvent<HTMLElement>) => void
-}) {
-  const isFolder = node.kind === "folder"
-  const [isExpanded, setIsExpanded] = useState(false)
-  const isDragging = draggingPayload?.path === node.fullPath
-
-  return (
-    <div>
-      <div
-        className={cn(
-          "flex items-start gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 ring-1 ring-black/5 transition-colors dark:text-slate-200 dark:ring-white/10",
-          isFolder
-            ? "cursor-pointer bg-slate-50/80 hover:bg-slate-100/80 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
-            : "cursor-grab bg-background/80 hover:bg-slate-50 dark:bg-white/[0.02] dark:hover:bg-white/[0.05]",
-          isDragging && "border-violet-300 bg-violet-50/70 dark:border-violet-400/40 dark:bg-violet-500/10",
-        )}
-        style={{ marginLeft: depth * 14 }}
-        onClick={isFolder ? () => setIsExpanded((current) => !current) : undefined}
-        draggable
-        onDragEnd={onDragEnd}
-        onDragOver={
-          mode === "target" && isFolder
-            ? (event) => {
-                event.preventDefault()
-                event.dataTransfer.dropEffect = "move"
-              }
-            : undefined
-        }
-        onDrop={mode === "target" && isFolder ? (event) => onDropToFolder(node.fullPath, event) : undefined}
-        onDragStart={(event) =>
-          onDragStart(
-            {
-              kind: isFolder ? "folder" : "file",
-              mode,
-              path: node.fullPath,
-            },
-            event,
-          )}
-      >
-        {isFolder ? (
-          <>
-            <ChevronRight
-              className={cn(
-                "mt-0.5 size-4 shrink-0 text-slate-400 transition-transform dark:text-slate-500",
-                isExpanded && "rotate-90",
-              )}
-            />
-            <FolderTree className="mt-0.5 size-4 shrink-0 text-violet-600 dark:text-violet-300" />
-          </>
-        ) : (
-          <>
-            <GripVertical className="mt-0.5 size-4 shrink-0 text-slate-400 dark:text-slate-500" />
-            <FileCode2 className="mt-0.5 size-4 shrink-0 text-slate-500 dark:text-slate-400" />
-          </>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="break-all font-medium">{node.name}</p>
-          {!isFolder && node.file ? (
-            <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">
-              {node.file.targetPath}
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      {isFolder && isExpanded && node.children.length > 0 ? (
-        <div className="mt-1 space-y-1">
-          {node.children.map((child) => (
-            <ImportTreeNodeView
-              key={`${mode}-${child.key}`}
-              node={child}
-              depth={depth + 1}
-              mode={mode}
-              draggingPayload={draggingPayload}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDropToFolder={onDropToFolder}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function TargetFolderDropZone({
-  folder,
-  fileCount,
-  fileCountLabel,
-  isDragging,
-  onDragEnd,
-  onDropToFolder,
-}: {
-  folder: TargetFolderPreset
-  fileCount: number
-  fileCountLabel: string
-  isDragging: boolean
-  onDragEnd: () => void
-  onDropToFolder: (destinationFolder: string, event: DragEvent<HTMLElement>) => void
-}) {
-  const [isOver, setIsOver] = useState(false)
-
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border border-black/5 bg-white/70 p-4 transition-colors dark:border-white/10 dark:bg-white/[0.04]",
-        isDragging && "border-dashed",
-        isOver && "border-violet-300 bg-violet-50/70 dark:border-violet-400/40 dark:bg-violet-500/10",
-      )}
-      onDragEnter={(event) => {
-        event.preventDefault()
-        setIsOver(true)
-      }}
-      onDragLeave={() => setIsOver(false)}
-      onDragOver={(event) => {
-        event.preventDefault()
-        event.dataTransfer.dropEffect = "move"
-      }}
-      onDrop={(event) => {
-        setIsOver(false)
-        onDropToFolder(folder, event)
-        onDragEnd()
-      }}
-    >
-      <div className="flex items-center gap-3 text-slate-900 dark:text-slate-100">
-        <div className="flex size-10 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-          <FolderTree className="size-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">{folder}</p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {fileCountLabel} {fileCount}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function PreviewMetricCard({
   icon,
   label,
@@ -1425,130 +1075,3 @@ function GameCoverPreview({
 }
 
 export { WorkspaceDialogs }
-
-function readImportDragPayload(event: DragEvent<HTMLElement>): ImportDragPayload | null {
-  const rawPayload = event.dataTransfer.getData("application/g2m-import-tree")
-  if (!rawPayload) {
-    return null
-  }
-
-  try {
-    return JSON.parse(rawPayload) as ImportDragPayload
-  } catch {
-    return null
-  }
-}
-
-function moveImportEntries(
-  files: ModImportFileEntry[],
-  payload: ImportDragPayload,
-  destinationFolder: string,
-): ModImportFileEntry[] {
-  const normalizedDestination = normalizeImportPath(destinationFolder)
-  if (!normalizedDestination) {
-    return files
-  }
-
-  if (payload.mode === "target" && payload.kind === "folder") {
-    const normalizedDraggedFolder = normalizeImportPath(payload.path)
-    if (
-      normalizedDestination === normalizedDraggedFolder ||
-      normalizedDestination.startsWith(`${normalizedDraggedFolder}/`)
-    ) {
-      return files
-    }
-  }
-
-  return files.map((file) => {
-    const nextTargetPath = buildMovedImportTargetPath(file, payload, normalizedDestination)
-    if (!nextTargetPath || nextTargetPath === file.targetPath) {
-      return file
-    }
-
-    return {
-      ...file,
-      targetPath: nextTargetPath,
-      targetFolder: inferTargetFolder(nextTargetPath),
-    }
-  })
-}
-
-function buildMovedImportTargetPath(
-  file: ModImportFileEntry,
-  payload: ImportDragPayload,
-  destinationFolder: string,
-): string | null {
-  if (payload.mode === "source") {
-    if (payload.kind === "file") {
-      if (normalizeImportPath(file.relativePath) !== normalizeImportPath(payload.path)) {
-        return null
-      }
-
-      return joinImportPath(destinationFolder, getImportBaseName(file.relativePath))
-    }
-
-    const normalizedSourceFolder = normalizeImportPath(payload.path)
-    const normalizedRelativePath = normalizeImportPath(file.relativePath)
-    if (!normalizedRelativePath.startsWith(`${normalizedSourceFolder}/`)) {
-      return null
-    }
-
-    const suffix = normalizedRelativePath.slice(normalizedSourceFolder.length).replace(/^\/+/, "")
-    return joinImportPath(destinationFolder, getImportBaseName(normalizedSourceFolder), suffix)
-  }
-
-  if (payload.kind === "file") {
-    if (normalizeImportPath(file.targetPath) !== normalizeImportPath(payload.path)) {
-      return null
-    }
-
-    return joinImportPath(destinationFolder, getImportBaseName(file.targetPath))
-  }
-
-  const normalizedTargetFolder = normalizeImportPath(payload.path)
-  const normalizedTargetPath = normalizeImportPath(file.targetPath)
-  if (!normalizedTargetPath.startsWith(`${normalizedTargetFolder}/`)) {
-    return null
-  }
-
-  const suffix = normalizedTargetPath.slice(normalizedTargetFolder.length).replace(/^\/+/, "")
-  return joinImportPath(destinationFolder, getImportBaseName(normalizedTargetFolder), suffix)
-}
-
-function replaceImportTargetRoot(file: ModImportFileEntry, nextRoot: TargetFolderPreset): string {
-  const normalizedTargetPath = normalizeImportPath(file.targetPath)
-  const normalizedRelativePath = normalizeImportPath(file.relativePath)
-  const currentRoot = inferTargetFolder(normalizedTargetPath)
-  const suffix =
-    currentRoot && normalizedTargetPath.toLowerCase().startsWith(`${currentRoot.toLowerCase()}/`)
-      ? normalizedTargetPath.slice(currentRoot.length + 1)
-      : normalizedRelativePath
-
-  return joinImportPath(nextRoot, suffix || normalizedRelativePath)
-}
-
-function normalizeImportPath(value: string): string {
-  return value.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/").replace(/\/+$/, "")
-}
-
-function joinImportPath(...segments: string[]): string {
-  return segments
-    .map((segment) => normalizeImportPath(segment))
-    .filter(Boolean)
-    .join("/")
-}
-
-function getImportBaseName(value: string): string {
-  const normalized = normalizeImportPath(value)
-  const segments = normalized.split("/").filter(Boolean)
-  return segments[segments.length - 1] ?? normalized
-}
-
-function inferTargetFolder(targetPath: string): string {
-  const normalized = normalizeImportPath(targetPath)
-  return normalized.split("/").filter(Boolean)[0] ?? ""
-}
-
-function isTargetFolderPreset(value: string): value is TargetFolderPreset {
-  return TARGET_FOLDER_PRESETS.includes(value as TargetFolderPreset)
-}

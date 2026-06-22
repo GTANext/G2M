@@ -13,6 +13,37 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) {
+            return undefined
+          }
+
+          if (
+            /node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(id)
+          ) {
+            return "react-vendor"
+          }
+
+          if (/node_modules[\\/](@tauri-apps)[\\/]/.test(id)) {
+            return "tauri-vendor"
+          }
+
+          if (/node_modules[\\/](i18next|react-i18next)[\\/]/.test(id)) {
+            return "i18n-vendor"
+          }
+
+          if (/node_modules[\\/](lucide-react|next-themes|sonner)[\\/]/.test(id)) {
+            return "ui-vendor"
+          }
+
+          return "vendor"
+        },
+      },
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

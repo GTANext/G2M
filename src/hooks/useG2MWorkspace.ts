@@ -12,6 +12,8 @@ import {
   type BootstrapPayload,
   type DetectedGame,
   type Game,
+  inferImportSourceType,
+  inferTargetFolderFromPath,
   type ManagedMod,
   type ModImportFileEntry,
   type ModImportPreview,
@@ -39,6 +41,30 @@ type ImportModForm = {
 }
 
 type ConflictDecision = "overwrite" | "skip"
+
+const createDefaultAddGameForm = (): AddGameForm => ({
+  dir: "",
+  type: "",
+  name: "",
+  version: "",
+  exeName: "",
+  imagePath: "",
+  customImageSourcePath: "",
+  useDefaultImage: true,
+})
+
+const createDefaultEditGameForm = (): EditGameForm => ({
+  id: "",
+  ...createDefaultAddGameForm(),
+})
+
+const createDefaultImportModForm = (
+  sourceType: ImportModForm["sourceType"] = "directory",
+): ImportModForm => ({
+  dir: "",
+  name: "",
+  sourceType,
+})
 
 export type UseG2mWorkspaceResult = {
   activeGame: Game | null
@@ -121,32 +147,9 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const [isImportingMod, setIsImportingMod] = useState(false)
   const [isPreviewingMod, setIsPreviewingMod] = useState(false)
   const [deleteTargetGameId, setDeleteTargetGameId] = useState<string | null>(null)
-  const [addGameForm, setAddGameFormState] = useState<AddGameForm>({
-    dir: "",
-    type: "",
-    name: "",
-    version: "",
-    exeName: "",
-    imagePath: "",
-    customImageSourcePath: "",
-    useDefaultImage: true,
-  })
-  const [editGameForm, setEditGameFormState] = useState<EditGameForm>({
-    id: "",
-    dir: "",
-    type: "",
-    name: "",
-    version: "",
-    exeName: "",
-    imagePath: "",
-    customImageSourcePath: "",
-    useDefaultImage: true,
-  })
-  const [importModForm, setImportModForm] = useState<ImportModForm>({
-    dir: "",
-    name: "",
-    sourceType: "directory",
-  })
+  const [addGameForm, setAddGameFormState] = useState<AddGameForm>(createDefaultAddGameForm)
+  const [editGameForm, setEditGameFormState] = useState<EditGameForm>(createDefaultEditGameForm)
+  const [importModForm, setImportModForm] = useState<ImportModForm>(createDefaultImportModForm)
   const [importModMappings, setImportModMappingsState] = useState<ModImportFileEntry[]>([])
   const [importModPreview, setImportModPreview] = useState<ModImportPreview | null>(null)
   const [allMods, setAllMods] = useState<ManagedMod[]>([])
@@ -338,19 +341,17 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     }))
   }, [])
 
+  const resetImportModState = useCallback((sourceType: ImportModForm["sourceType"] = "directory") => {
+    setImportModForm(createDefaultImportModForm(sourceType))
+    setImportModMappingsState([])
+    setImportModPreview(null)
+    setIsPreviewingMod(false)
+  }, [])
+
   const closeAddGameDialog = useCallback(() => {
     setIsAddGameDialogOpen(false)
     setIsDetectingGame(false)
-    setAddGameFormState({
-      dir: "",
-      type: "",
-      name: "",
-      version: "",
-      exeName: "",
-      imagePath: "",
-      customImageSourcePath: "",
-      useDefaultImage: true,
-    })
+    setAddGameFormState(createDefaultAddGameForm())
   }, [])
 
   const openConflictDialog = useCallback(() => {
@@ -363,30 +364,13 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
   const closeEditGameDialog = useCallback(() => {
     setIsEditGameDialogOpen(false)
-    setEditGameFormState({
-      id: "",
-      dir: "",
-      type: "",
-      name: "",
-      version: "",
-      exeName: "",
-      imagePath: "",
-      customImageSourcePath: "",
-      useDefaultImage: true,
-    })
+    setEditGameFormState(createDefaultEditGameForm())
   }, [])
 
   const closeImportModDialog = useCallback(() => {
     setIsImportModDialogOpen(false)
-    setImportModForm({
-      dir: "",
-      name: "",
-      sourceType: "directory",
-    })
-    setImportModMappingsState([])
-    setImportModPreview(null)
-    setIsPreviewingMod(false)
-  }, [])
+    resetImportModState()
+  }, [resetImportModState])
 
   const pickGameDirectory = useCallback(async () => {
     let toastId: string | number | undefined
@@ -681,29 +665,13 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
   const startAddGame = useCallback(() => {
     setIsAddGameDialogOpen(true)
-    setAddGameFormState({
-      dir: "",
-      type: "",
-      name: "",
-      version: "",
-      exeName: "",
-      imagePath: "",
-      customImageSourcePath: "",
-      useDefaultImage: true,
-    })
+    setAddGameFormState(createDefaultAddGameForm())
   }, [])
 
   const openImportModDialog = useCallback(() => {
     setIsImportModDialogOpen(true)
-    setImportModForm({
-      dir: "",
-      name: "",
-      sourceType: "directory",
-    })
-    setImportModMappingsState([])
-    setImportModPreview(null)
-    setIsPreviewingMod(false)
-  }, [])
+    resetImportModState()
+  }, [resetImportModState])
 
   const openGamesDownloadPage = useCallback(async () => {
     try {
@@ -886,14 +854,8 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   }, [importModForm.sourceType, pickImportModArchive, pickImportModDirectory])
 
   const setImportModSourceType = useCallback((value: ImportModForm["sourceType"]) => {
-    setImportModForm({
-      dir: "",
-      name: "",
-      sourceType: value,
-    })
-    setImportModMappingsState([])
-    setImportModPreview(null)
-  }, [])
+    resetImportModState(value)
+  }, [resetImportModState])
 
   const setImportModMappings = useCallback((files: ModImportFileEntry[]) => {
     setImportModMappingsState(files)
@@ -906,7 +868,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
           ? {
               ...file,
               targetPath,
-              targetFolder: inferTargetFolder(targetPath),
+              targetFolder: inferTargetFolderFromPath(targetPath),
             }
           : file,
       ),
@@ -1055,15 +1017,6 @@ function formatErrorMessage(error: unknown): string {
   }
 
   return String(error)
-}
-
-function inferImportSourceType(selectedPath: string): ImportModForm["sourceType"] {
-  return selectedPath.toLowerCase().endsWith(".zip") ? "zip" : "directory"
-}
-
-function inferTargetFolder(targetPath: string): string {
-  const normalized = targetPath.replace(/\\/g, "/").replace(/^\/+/, "")
-  return normalized.split("/").filter(Boolean)[0] ?? ""
 }
 
 function matchesModSearch(mod: ManagedMod, keyword: string): boolean {
