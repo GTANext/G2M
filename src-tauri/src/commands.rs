@@ -1,4 +1,4 @@
-const versionAlpha: bool = true;
+const VERSION_ALPHA: bool = true;
 
 use std::{
     fs,
@@ -12,8 +12,8 @@ use crate::{
     AppInfoPayload,
     game_prerequisites::{detect_game_prerequisites, install_game_prerequisite},
     game_support::{
-        canonical_game_name, cleanup_custom_game_cover, default_game_name,
-        detect_game_installation, normalize_game_type, store_game_cover_image,
+        canonical_game_name, default_game_name,
+        detect_game_installation, normalize_game_type,
     },
     mod_import::{
         build_mod_import_preview, build_mod_source_preview, copy_directory_recursive,
@@ -45,7 +45,7 @@ pub(crate) fn get_app_info() -> CommandResponse<AppInfoPayload> {
         let config = load_tauri_config_info()?;
         Ok(AppInfoPayload {
             product_name: config.product_name,
-            version: format!("v{}{}", config.version, if versionAlpha { "-alpha" } else { "" }),
+            version: format!("v{}{}", config.version, if VERSION_ALPHA { "-alpha" } else { "" }),
         })
     })
 }
@@ -84,6 +84,25 @@ fn load_tauri_config_info() -> Result<TauriConfigInfo, String> {
 
 #[allow(non_snake_case)]
 #[tauri::command]
+pub(crate) fn read_game_folders(path: String) -> CommandResponse<Vec<String>> {
+    wrap_command(|| {
+        let mut folders = Vec::new();
+        if let Ok(entries) = fs::read_dir(Path::new(path.trim())) {
+            for entry in entries.flatten() {
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_dir() {
+                        folders.push(entry.file_name().to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+        folders.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        Ok(folders)
+    })
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
 pub(crate) fn detect_game_directory(
     app: AppHandle,
     gamePath: String,
@@ -97,7 +116,14 @@ pub(crate) fn detect_game_directory(
             return Err("game path is empty".to_string());
         }
 
-        let detected_game = detect_game_installation(Path::new(normalized_path), &existing_games)?;
+        let mut detected_game = detect_game_installation(Path::new(normalized_path), &existing_games)?;
+        let mut cover_base64 = None;
+
+        if let Ok(Some(package)) = crate::workspace_package::read_game_workspace_package(&Path::new(normalized_path).join("package.json")) {
+            detected_game.name = package.name;
+            detected_game.game_type = package.game_type;
+            cover_base64 = package.cover_base64;
+        }
 
         Ok(DetectedGamePayload {
             game_type: detected_game.game_type,
@@ -105,6 +131,7 @@ pub(crate) fn detect_game_directory(
             path: detected_game.path,
             exe_name: detected_game.exe_name,
             version: detected_game.version,
+            cover_base64,
         })
     })
 }
@@ -141,15 +168,8 @@ pub(crate) fn generate_manifest_file(
             other => return Err(format!("unsupported source type: {other}")),
         };
 
-        if let Some(parent_dir) = target_path.parent() {
-            if !parent_dir.as_os_str().is_empty() {
-                fs::create_dir_all(parent_dir)
-                    .map_err(|error| format!("failed to create manifest directory: {error}"))?;
-            }
-        }
-
-        fs::write(&target_path, manifestContent)
-            .map_err(|error| format!("failed to write g2m.json: {error}"))?;
+        fs::write(&target_path, manifestContent.trim())
+            .map_err(|error| format!("failed to write manifest: {error}"))?;
 
         Ok(target_path.to_string_lossy().to_string())
     })
@@ -173,6 +193,7 @@ pub(crate) fn save_game_path(
     name: String,
     version: Option<String>,
     coverImageSourcePath: Option<String>,
+    existingCoverBase64: Option<String>,
 ) -> CommandResponse<BootstrapPayload> {
     wrap_command(|| {
         let paths = ensure_storage(&app)?;
@@ -206,21 +227,34 @@ pub(crate) fn save_game_path(
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
             .unwrap_or_default();
-        detected_game.image_path = store_game_cover_image(
-            &paths.custom_assets_dir,
-            &detected_game.game_type,
-            coverImageSourcePath.as_deref(),
-        )?;
+        detected_game.image_path = if let Some(source_path) = coverImageSourcePath.as_deref() {
+            crate::game_support::read_image_as_base64(source_path)?
+        } else if let Some(existing_b64) = existingCoverBase64 {
+            existing_b64
+        } else {
+            String::new()
+        };
         detected_game.created_at = current_timestamp();
         detected_game.updated_at = detected_game.created_at;
 
-        if let Err(error) = crate::insert_game_entry(&paths.database_path, &detected_game) {
-            cleanup_custom_game_cover(&paths.custom_assets_dir, &detected_game.image_path)?;
-            return Err(error);
-        }
+        crate::insert_game_entry(&paths.database_path, &detected_game)?;
         ensure_game_workspace(Path::new(normalized_path))?;
+        
+        crate::workspace_package::update_game_workspace_package_info(
+            Path::new(normalized_path),
+            &detected_game.name,
+            &detected_game.game_type,
+            &detected_game.image_path,
+        )?;
 
         bootstrap_app_payload(&app)
+    })
+}
+
+#[tauri::command]
+pub(crate) fn read_image_base64(path: String) -> CommandResponse<String> {
+    wrap_command(|| {
+        crate::game_support::read_image_as_base64(&path)
     })
 }
 
@@ -233,6 +267,7 @@ pub(crate) fn update_game_entry(
     name: String,
     version: Option<String>,
     coverImageSourcePath: Option<String>,
+    existingCoverBase64: Option<String>,
     useDefaultImage: bool,
 ) -> CommandResponse<BootstrapPayload> {
     wrap_command(|| {
@@ -242,18 +277,16 @@ pub(crate) fn update_game_entry(
         let existing_game = load_stored_game_by_id(&paths.database_path, &gameId)?
             .ok_or_else(|| "未找到要编辑的游戏".to_string())?;
         let next_image_path = if let Some(source_path) = coverImageSourcePath.as_deref() {
-            store_game_cover_image(&paths.custom_assets_dir, normalized_game_type, Some(source_path))?
+            crate::game_support::read_image_as_base64(source_path)?
         } else if useDefaultImage {
             String::new()
+        } else if let Some(existing_b64) = existingCoverBase64 {
+            existing_b64
         } else {
             existing_game.image_path.clone()
         };
 
-        if next_image_path != existing_game.image_path {
-            cleanup_custom_game_cover(&paths.custom_assets_dir, &existing_game.image_path)?;
-        }
-
-        let updated_rows = match update_game_entry_in_database(
+        let updated_rows = update_game_entry_in_database(
             &paths.database_path,
             &gameId,
             normalized_game_type,
@@ -269,19 +302,24 @@ pub(crate) fn update_game_entry(
                 .as_str(),
             &next_image_path,
             current_timestamp(),
-        ) {
-            Ok(updated_rows) => updated_rows,
-            Err(error) => {
-                if next_image_path != existing_game.image_path {
-                    cleanup_custom_game_cover(&paths.custom_assets_dir, &next_image_path)?;
-                }
-
-                return Err(error);
-            }
-        };
+        )?;
 
         if updated_rows == 0 {
             return Err("未找到要编辑的游戏".to_string());
+        }
+        
+        // Update package.json
+        if let Some(game_path) = existing_game.path.as_str().into() {
+            crate::workspace_package::update_game_workspace_package_info(
+                std::path::Path::new(game_path),
+                if normalized_name.is_empty() {
+                    canonical_game_name(normalized_game_type)
+                } else {
+                    normalized_name
+                },
+                normalized_game_type,
+                &next_image_path,
+            )?;
         }
 
         bootstrap_app_payload(&app)
@@ -296,7 +334,7 @@ pub(crate) fn delete_game_entry(
 ) -> CommandResponse<BootstrapPayload> {
     wrap_command(|| {
         let paths = ensure_storage(&app)?;
-        let existing_game = load_stored_game_by_id(&paths.database_path, &gameId)?;
+        let _existing_game = load_stored_game_by_id(&paths.database_path, &gameId)?;
         delete_mods_for_game(&paths.database_path, &gameId)?;
         let deleted_rows = delete_game_entry_from_database(&paths.database_path, &gameId)?;
 
@@ -304,8 +342,34 @@ pub(crate) fn delete_game_entry(
             return Err("未找到要删除的游戏".to_string());
         }
 
-        if let Some(game) = existing_game {
-            cleanup_custom_game_cover(&paths.custom_assets_dir, &game.image_path)?;
+        bootstrap_app_payload(&app)
+    })
+}
+
+#[derive(serde::Deserialize)]
+pub(crate) struct GameSortOrder {
+    pub(crate) id: String,
+    pub(crate) sort_order: i64,
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub(crate) fn update_games_sort_order(
+    app: AppHandle,
+    orders: Vec<GameSortOrder>,
+) -> CommandResponse<BootstrapPayload> {
+    wrap_command(|| {
+        let paths = ensure_storage(&app)?;
+        let connection = rusqlite::Connection::open(&paths.database_path)
+            .map_err(|error| format!("failed to open database: {error}"))?;
+
+        for order in orders {
+            connection
+                .execute(
+                    "UPDATE games SET sort_order = ?1 WHERE id = ?2",
+                    rusqlite::params![order.sort_order, order.id],
+                )
+                .map_err(|error| format!("failed to update sort order: {error}"))?;
         }
 
         bootstrap_app_payload(&app)
@@ -387,6 +451,7 @@ pub(crate) fn preview_mod_directory(
     wrap_command(|| {
         let paths = ensure_storage(&app)?;
         let (game, source) = resolve_import_source(&paths.database_path, &gameId, &modPath)?;
+        
         let mod_name_override = modName
             .as_deref()
             .map(str::trim)
@@ -397,7 +462,7 @@ pub(crate) fn preview_mod_directory(
             &paths.database_path,
             &gameId,
             &game.game_type,
-            &source.source_dir,
+            &source,
             Some(mod_name_override),
         )
     })
@@ -417,7 +482,7 @@ pub(crate) fn inspect_mod_source(
             .filter(|value| !value.is_empty())
             .unwrap_or(source.display_name.as_str());
 
-        build_mod_source_preview(&source.source_dir, Some(mod_name_override))
+        build_mod_source_preview(&source, Some(mod_name_override))
     })
 }
 
@@ -467,7 +532,7 @@ pub(crate) fn import_mod_directory(
             &gameId,
             &game.game_type,
             Path::new(&game.path),
-            &target_dir,
+            &source,
             Some(source_name),
             file_overrides.as_deref(),
         );
@@ -534,5 +599,73 @@ pub(crate) fn install_game_prerequisite_module(
         )?;
 
         bootstrap_app_payload(&app)
+    })
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
+pub(crate) fn install_all_game_prerequisites(
+    app: AppHandle,
+    gameId: String,
+) -> CommandResponse<BootstrapPayload> {
+    wrap_command(|| {
+        let paths = ensure_storage(&app)?;
+        let game = load_stored_game_by_id(&paths.database_path, &gameId)?
+            .ok_or_else(|| "未找到要安装前置组件的游戏".to_string())?;
+
+        let game_path = Path::new(&game.path);
+        let game_type = &game.game_type;
+
+        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "asiloader");
+        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "modloader");
+        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "cleo");
+        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "cleo_redux");
+        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "silentpatch");
+
+        bootstrap_app_payload(&app)
+    })
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
+pub(crate) fn fix_misplaced_cleo_redux(
+    app: AppHandle,
+    path: String,
+) -> CommandResponse<BootstrapPayload> {
+    wrap_command(|| {
+        let p = Path::new(path.trim());
+        if p.is_file() {
+            if let Some(plugins_dir) = p.parent() {
+                if let Some(game_root) = plugins_dir.parent() {
+                    let target = game_root.join("cleo_redux.asi");
+                    fs::rename(p, target).map_err(|e| format!("移动失败: {}", e))?;
+                }
+            }
+        }
+        bootstrap_app_payload(&app)
+    })
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
+pub(crate) fn build_mod_archive(
+    sourcePath: String,
+    sourceType: String,
+    manifestContent: String,
+    outputPath: String,
+) -> CommandResponse<String> {
+    wrap_command(|| {
+        let source_path = sourcePath.trim();
+        let output_path = outputPath.trim();
+        if source_path.is_empty() || output_path.is_empty() {
+            return Err("source or output path is empty".to_string());
+        }
+
+        crate::mod_import::build_mod_archive(
+            Path::new(source_path),
+            sourceType.trim(),
+            &manifestContent,
+            Path::new(output_path),
+        )
     })
 }

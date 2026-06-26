@@ -72,9 +72,22 @@ struct ExistingBuilderManifestInput {
     #[serde(default)]
     links: Vec<ExistingBuilderManifestLinkInput>,
     #[serde(default)]
+    prerequisites: Vec<String>,
+    #[serde(default)]
+    custom_prerequisites: Vec<ExistingBuilderManifestCustomPrerequisiteInput>,
+    #[serde(default)]
     update: Option<ExistingBuilderManifestUpdateInput>,
     #[serde(default)]
     files: Vec<ExistingBuilderManifestFileInput>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExistingBuilderManifestCustomPrerequisiteInput {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -100,6 +113,8 @@ struct ExistingBuilderManifestUpdateInput {
 pub(crate) struct PreparedImportSource {
     pub(crate) source_dir: PathBuf,
     pub(crate) display_name: String,
+    pub(crate) original_is_zip: bool,
+    pub(crate) original_zip_path: Option<PathBuf>,
     cleanup_dir: Option<PathBuf>,
 }
 
@@ -134,6 +149,8 @@ pub(crate) fn prepare_import_source(mod_path: &str) -> Result<PreparedImportSour
         return Ok(PreparedImportSource {
             source_dir: source_path,
             display_name,
+            original_is_zip: false,
+            original_zip_path: None,
             cleanup_dir: None,
         });
     }
@@ -169,6 +186,8 @@ pub(crate) fn prepare_import_source(mod_path: &str) -> Result<PreparedImportSour
     Ok(PreparedImportSource {
         source_dir: effective_source_dir,
         display_name,
+        original_is_zip: true,
+        original_zip_path: Some(source_path),
         cleanup_dir: Some(extraction_parent),
     })
 }
@@ -220,13 +239,21 @@ pub(crate) fn import_mod_into_database(
     game_id: &str,
     game_type: &str,
     game_path: &Path,
-    mod_dir: &Path,
+    prepared_source: &PreparedImportSource,
     mod_name_override: Option<&str>,
     file_overrides: Option<&[ImportFileOverride]>,
 ) -> Result<String, String> {
     let mut import_summary =
-        scan_imported_mod_directory(mod_dir, mod_name_override, Some(game_type))?;
+        scan_imported_mod_directory(
+            &prepared_source.source_dir,
+            mod_name_override,
+            Some(game_type),
+            prepared_source.original_is_zip,
+            prepared_source.original_zip_path.as_deref()
+        )?;
     apply_import_file_overrides(&mut import_summary.files, file_overrides)?;
+    wrap_modloader_targets(&mut import_summary.files, &import_summary.name);
+
     if import_summary.files.is_empty() {
         return Err("选择的 Mod 文件夹里没有可导入的文件".to_string());
     }
@@ -278,10 +305,16 @@ pub(crate) fn build_mod_import_preview(
     database_path: &Path,
     game_id: &str,
     game_type: &str,
-    mod_dir: &Path,
+    prepared_source: &PreparedImportSource,
     mod_name_override: Option<&str>,
 ) -> Result<ModImportPreviewPayload, String> {
-    let import_summary = scan_imported_mod_directory(mod_dir, mod_name_override, Some(game_type))?;
+    let import_summary = scan_imported_mod_directory(
+        &prepared_source.source_dir,
+        mod_name_override,
+        Some(game_type),
+        prepared_source.original_is_zip,
+        prepared_source.original_zip_path.as_deref()
+    )?;
     if import_summary.files.is_empty() {
         return Err("选择的 Mod 文件夹里没有可导入的文件".to_string());
     }
@@ -340,10 +373,16 @@ pub(crate) fn build_mod_import_preview(
 }
 
 pub(crate) fn build_mod_source_preview(
-    mod_dir: &Path,
+    prepared_source: &PreparedImportSource,
     mod_name_override: Option<&str>,
 ) -> Result<ModImportPreviewPayload, String> {
-    let import_summary = scan_imported_mod_directory(mod_dir, mod_name_override, None)?;
+    let import_summary = scan_imported_mod_directory(
+        &prepared_source.source_dir,
+        mod_name_override,
+        None,
+        prepared_source.original_is_zip,
+        prepared_source.original_zip_path.as_deref()
+    )?;
     if import_summary.files.is_empty() {
         return Err("选择的 Mod 文件夹里没有可导出的文件".to_string());
     }
@@ -389,10 +428,101 @@ pub(crate) fn build_mod_source_preview(
     })
 }
 
+pub(crate) fn build_mod_archive(
+    source_path: &Path,
+    source_type: &str,
+    manifest_content: &str,
+    output_path: &Path,
+) -> Result<String, String> {
+    if !source_path.exists() {
+        return Err("Source path does not exist".to_string());
+    }
+
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+
+    let output_file = File::create(output_path)
+        .map_err(|e| format!("Failed to create output archive: {}", e))?;
+    let mut zip = zip::ZipWriter::new(output_file);
+    let options = zip::write::FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    // 1. Add g2m.json at the root
+    zip.start_file("g2m.json", options)
+        .map_err(|e| format!("Failed to start g2m.json in archive: {}", e))?;
+    use std::io::Write;
+    zip.write_all(manifest_content.as_bytes())
+        .map_err(|e| format!("Failed to write g2m.json: {}", e))?;
+
+    // 2. Add source files
+    if source_type == "directory" {
+        add_directory_to_zip(&mut zip, source_path, source_path, options.clone())?;
+    } else if source_type == "zip" {
+        // If source is a ZIP, we need to extract it to a temp dir and then zip it
+        let extraction_parent = std::env::temp_dir().join(format!("g2m-repack-{}", random_suffix()));
+        fs::create_dir_all(&extraction_parent)
+            .map_err(|e| format!("Failed to create temp dir: {}", e))?;
+        
+        let extract_res = extract_zip_archive(source_path, &extraction_parent);
+        if let Err(e) = extract_res {
+            let _ = fs::remove_dir_all(&extraction_parent);
+            return Err(e);
+        }
+
+        let effective_root = detect_import_root(&extraction_parent)
+            .unwrap_or_else(|_| extraction_parent.clone());
+
+        let add_res = add_directory_to_zip(&mut zip, &effective_root, &effective_root, options.clone());
+        let _ = fs::remove_dir_all(&extraction_parent);
+        add_res?;
+    } else {
+        return Err(format!("Unsupported source type: {}", source_type));
+    }
+
+    zip.finish().map_err(|e| format!("Failed to finish zip: {}", e))?;
+
+    Ok(output_path.to_string_lossy().to_string())
+}
+
+fn add_directory_to_zip<W: std::io::Write + std::io::Seek>(
+    zip: &mut zip::ZipWriter<W>,
+    base_dir: &Path,
+    current_dir: &Path,
+    options: zip::write::FileOptions,
+) -> Result<(), String> {
+    for entry in fs::read_dir(current_dir).map_err(|e| format!("Failed to read dir: {}", e))? {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            add_directory_to_zip(zip, base_dir, &path, options.clone())?;
+        } else if path.is_file() {
+            let relative_path = path.strip_prefix(base_dir)
+                .map_err(|e| format!("Failed to get relative path: {}", e))?
+                .to_string_lossy()
+                .replace('\\', "/");
+
+            if relative_path.eq_ignore_ascii_case("g2m.json") {
+                continue; // We already added the new g2m.json
+            }
+
+            zip.start_file(relative_path, options.clone())
+                .map_err(|e| format!("Failed to start file in zip: {}", e))?;
+            let mut f = File::open(&path).map_err(|e| format!("Failed to open file: {}", e))?;
+            std::io::copy(&mut f, zip).map_err(|e| format!("Failed to write file to zip: {}", e))?;
+        }
+    }
+    Ok(())
+}
+
 fn scan_imported_mod_directory(
     mod_dir: &Path,
     mod_name_override: Option<&str>,
     game_type: Option<&str>,
+    _original_source_is_zip: bool,
+    _original_source_zip_path: Option<&Path>,
 ) -> Result<ImportedModSummary, String> {
     let mut files = Vec::new();
     let mut total_size = 0_i64;
@@ -401,7 +531,26 @@ fn scan_imported_mod_directory(
     let mut has_asi = false;
     let g2m_manifest_path = mod_dir.join("g2m.json");
     let has_g2m_manifest = g2m_manifest_path.is_file();
-    let existing_manifest = read_existing_builder_manifest(&g2m_manifest_path)?;
+
+    let mut existing_manifest: Option<ExistingBuilderManifestPayload> = None;
+
+    // 1. If it's a zip, try to fetch online manifest using its MD5 first
+    // TODO: GTAMODX fetch logic using zip_md5 when available
+    // let mut fetched_online = false;
+    // if original_source_is_zip {
+    //     if let Some(zip_path) = original_source_zip_path {
+    //         let zip_md5 = compute_file_digest(zip_path)?;
+    //         if let Ok(Some(online_manifest)) = fetch_gtamodx_manifest(&zip_md5) {
+    //             existing_manifest = Some(online_manifest);
+    //             fetched_online = true;
+    //         }
+    //     }
+    // }
+
+    // 2. If no online manifest, fallback to local g2m.json (if original was zip, it extracted here; if original was folder, it's just here)
+    if existing_manifest.is_none() {
+        existing_manifest = read_existing_builder_manifest(&g2m_manifest_path)?;
+    }
 
     collect_imported_mod_files(
         mod_dir,
@@ -439,6 +588,9 @@ fn scan_imported_mod_directory(
                 .map(str::to_string)
         })
         .ok_or_else(|| "无法识别 Mod 名称".to_string())?;
+
+    wrap_modloader_targets(&mut files, &mod_name);
+
     let mod_type = existing_manifest
         .as_ref()
         .map(|manifest| manifest.mod_type.trim())
@@ -478,7 +630,11 @@ fn read_existing_builder_manifest(
 
     let content = fs::read_to_string(manifest_path)
         .map_err(|error| format!("failed to read g2m.json: {error}"))?;
-    let parsed = serde_json::from_str::<ExistingBuilderManifestInput>(&content)
+    parse_builder_manifest_content(&content)
+}
+
+fn parse_builder_manifest_content(content: &str) -> Result<Option<ExistingBuilderManifestPayload>, String> {
+    let parsed = serde_json::from_str::<ExistingBuilderManifestInput>(content)
         .map_err(|error| format!("failed to parse g2m.json: {error}"))?;
     let links = build_manifest_links_payload(&parsed);
 
@@ -488,6 +644,15 @@ fn read_existing_builder_manifest(
         author: parsed.author.trim().to_string(),
         mod_type: parsed.mod_type.trim().to_string(),
         links,
+        prerequisites: parsed.prerequisites,
+        custom_prerequisites: parsed
+            .custom_prerequisites
+            .into_iter()
+            .map(|cp| crate::ExistingBuilderManifestCustomPrerequisitePayload {
+                name: cp.name.trim().to_string(),
+                url: cp.url.trim().to_string(),
+            })
+            .collect(),
         update: parsed.update.map(|update| ExistingBuilderManifestUpdatePayload {
             md5: update.md5.trim().to_string(),
             md5_mode: update.md5_mode.trim().to_string(),
@@ -898,6 +1063,26 @@ fn normalize_target_path(target_path: &str) -> Result<String, String> {
         .replace('\\', "/")
         .trim_matches('/')
         .to_string())
+}
+
+fn wrap_modloader_targets(files: &mut [ImportedModFile], mod_name: &str) {
+    let wrapper_dir = format!("[G2M] {}", mod_name.replace('/', "_").replace('\\', "_"));
+    let wrapper_prefix = format!("modloader/{}/", wrapper_dir).to_lowercase();
+    
+    for file in files {
+        if file.target_folder.eq_ignore_ascii_case("modloader") {
+            let target_lower = file.target_path.to_lowercase();
+            if target_lower.starts_with(&wrapper_prefix) {
+                continue;
+            }
+            if target_lower.starts_with("modloader/") {
+                let suffix = &file.target_path["modloader/".len()..];
+                file.target_path = format!("modloader/{}/{}", wrapper_dir, suffix);
+            } else if target_lower == "modloader" {
+                file.target_path = format!("modloader/{}", wrapper_dir);
+            }
+        }
+    }
 }
 
 fn infer_target_folder_from_target_path(target_path: &str) -> String {

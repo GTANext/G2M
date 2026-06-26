@@ -35,25 +35,25 @@ const modalSubtleCardClass =
 const softOutlineButtonClass =
   "cursor-pointer rounded-xl border-border/70 bg-background/70 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
 
-const drawerOverlayClass =
+export const drawerOverlayClass =
   "fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-3 pt-10 backdrop-blur-sm sm:px-4"
 
-const drawerViewportClass = "mx-auto w-full max-w-full lg:w-[1040px]"
+export const drawerViewportClass = "mx-auto w-full max-w-full lg:w-[1040px]"
 
-const drawerPanelClass =
+export const drawerPanelClass =
   `${modalCardClass} max-h-[calc(100vh-20px)] overflow-hidden rounded-b-none border-b-0`
 
-const drawerCardContentClass = "flex max-h-[calc(100vh-20px)] flex-col p-0"
+export const drawerCardContentClass = "flex max-h-[calc(100vh-20px)] flex-col p-0"
 
-const drawerHandleClass = "px-6 pt-3 lg:px-7"
+export const drawerHandleClass = "px-6 pt-3 lg:px-7"
 
-const drawerHandleBarClass = "mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-200 dark:bg-white/15"
+export const drawerHandleBarClass = "mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-200 dark:bg-white/15"
 
-const drawerHeaderClass = "px-6 pb-6 lg:px-7"
+export const drawerHeaderClass = "px-6 pb-6 lg:px-7"
 
-const drawerBodyClass = "flex-1 overflow-y-auto px-6 pb-4 lg:px-7"
+export const drawerBodyClass = "flex-1 overflow-y-auto px-6 pb-4 lg:px-7"
 
-const drawerFooterClass =
+export const drawerFooterClass =
   "border-t border-border/60 bg-background/90 px-6 py-4 backdrop-blur dark:border-white/10 dark:bg-[#10131a]/90 lg:px-7"
 
 
@@ -546,9 +546,6 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                       </div>
                       <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
                         {copy.workspaceDialogs.coverDescription}
-                      </p>
-                      <p className="break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-xs text-slate-500 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
-                        {workspace.editGameForm.imagePath || copy.workspaceDialogs.usingDefaultCover}
                       </p>
                     </div>
                   </div>
@@ -1556,15 +1553,19 @@ function getMissingPrerequisiteWarnings(
   modType: ModType,
   prerequisites: GamePrerequisite[],
 ): MissingPrerequisiteWarning[] {
+  // asiloader and modloader are mandatory for all mod types
+  const baseKeys = ["asiloader", "modloader"]
+  
   const prerequisiteKeysByModType: Record<ModType, string[]> = {
-    ModLoader: ["modloader"],
-    CLEO: ["cleo", "asiloader"],
-    "CLEO Redux": ["asiloader"],
-    ASI: ["asiloader"],
+    ModLoader: [],
+    CLEO: ["cleo"],
+    "CLEO Redux": ["cleo_redux"],
+    ASI: [],
     Mixed: [],
   }
 
-  const requiredKeys = prerequisiteKeysByModType[modType] ?? []
+  const specificKeys = prerequisiteKeysByModType[modType] ?? []
+  const requiredKeys = Array.from(new Set([...baseKeys, ...specificKeys]))
   const availablePrerequisites = new Map(
     prerequisites.map((item) => [item.key.trim().toLowerCase(), item]),
   )

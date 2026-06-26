@@ -1,7 +1,6 @@
-import { open } from "@tauri-apps/plugin-dialog"
-import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { toast } from "sonner"
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener"
 
 import { useI18n } from "@/components/app/i18nProvider"
 import { formatApiErrorMessage, invokeApi } from "@/lib/api"
@@ -10,179 +9,46 @@ import {
   buildDisplayMods,
   buildWorkspaceStats,
   type BootstrapPayload,
-  type DetectedGame,
-  type Game,
-  inferImportSourceType,
-  inferTargetFolderFromPath,
   type ManagedMod,
-  type ModImportFileEntry,
-  type ModImportPreview,
 } from "@/lib/g2m"
 
-type AddGameForm = {
-  dir: string
-  type: "sa" | "vc" | "iii" | ""
-  name: string
-  version: string
-  exeName: string
-  imagePath: string
-  customImageSourcePath: string
-  useDefaultImage: boolean
+import { useWorkspaceState } from "./workspace/useWorkspaceState"
+import { useGameManagement } from "./workspace/useGameManagement"
+import { useModManagement } from "./workspace/useModManagement"
+import { usePrerequisites } from "./workspace/usePrerequisites"
+import { useConflictResolution } from "./workspace/useConflictResolution"
+import type { UseG2mWorkspaceResult } from "./workspace/types"
+
+function buildConflictDecisionKey(modId: string, conflictId: string): string {
+  return `${modId}::${conflictId}`
 }
 
-type EditGameForm = AddGameForm & {
-  id: string
-}
-
-type ImportModForm = {
-  dir: string
-  name: string
-  sourceType: "directory" | "zip"
-}
-
-type ConflictDecision = "overwrite" | "skip"
-
-const createDefaultAddGameForm = (): AddGameForm => ({
-  dir: "",
-  type: "",
-  name: "",
-  version: "",
-  exeName: "",
-  imagePath: "",
-  customImageSourcePath: "",
-  useDefaultImage: true,
-})
-
-const createDefaultEditGameForm = (): EditGameForm => ({
-  id: "",
-  ...createDefaultAddGameForm(),
-})
-
-const createDefaultImportModForm = (
-  sourceType: ImportModForm["sourceType"] = "directory",
-): ImportModForm => ({
-  dir: "",
-  name: "",
-  sourceType,
-})
-
-export type UseG2mWorkspaceResult = {
-  activeGame: Game | null
-  activeGameId: string | null
-  activeGameMods: ManagedMod[]
-  addGameForm: AddGameForm
-  closeAddGameDialog: () => void
-  closeConflictDialog: () => void
-  closeEditGameDialog: () => void
-  bootstrap: BootstrapPayload | null
-  bootstrapping: boolean
-  confirmDeleteGame: (gameId: string) => Promise<void>
-  confirmDeleteMod: (modId: string) => Promise<void>
-  confirmEditGame: () => Promise<void>
-  configuredGames: Game[]
-  currentView: "home" | "game"
-  deleteTargetGameId: string | null
-  deleteTargetModId: string | null
-  editGameForm: EditGameForm
-  allModsCount: number
-  games: Game[]
-  getConflictDecision: (modId: string, conflictId: string) => ConflictDecision | null
-  getImportConflictDecision: (targetPath: string) => ConflictDecision | null
-  goHome: () => void
-  hasConfiguredGames: boolean
-  isAddGameDialogOpen: boolean
-  isConflictDialogOpen: boolean
-  isDetectingGame: boolean
-  isEditGameDialogOpen: boolean
-  isImportModDialogOpen: boolean
-  isImportingMod: boolean
-  isPreviewingMod: boolean
-  importModForm: ImportModForm
-  importModMappings: ModImportFileEntry[]
-  importModPreview: ModImportPreview | null
-  installGamePrerequisite: (prerequisiteKey: string) => Promise<void>
-  installingPrerequisiteKey: string | null
-  mods: ManagedMod[]
-  closeImportModDialog: () => void
-  openConflictDialog: () => void
-  openDeleteGameDialog: (gameId: string) => void
-  openDeleteModDialog: (modId: string) => void
-  openEditGameDialog: (gameId: string) => void
-  openImportModDialog: () => void
-  openGameDirectory: (gameId?: string) => Promise<void>
-  confirmImportMod: () => Promise<void>
-  pickImportModSource: (sourceType?: ImportModForm["sourceType"]) => Promise<void>
-  pickAddGameImage: () => Promise<void>
-  pickEditGameImage: () => Promise<void>
-  pickGameDirectory: () => Promise<void>
-  resetAddGameImage: () => void
-  resetEditGameImage: () => void
-  openGamesDownloadPage: () => Promise<void>
-  openGame: (gameId: string) => void
-  modSearchQuery: string
-  savingGameId: string | null
-  deletingModId: string | null
-  selectedMod: ManagedMod | null
-  selectedModId: string
-  setModSearchQuery: (value: string) => void
-  confirmAddGame: () => Promise<void>
-  setAddGameForm: (patch: Partial<AddGameForm>) => void
-  setDeleteTargetGameId: (gameId: string | null) => void
-  setDeleteTargetModId: (modId: string | null) => void
-  setEditGameForm: (patch: Partial<EditGameForm>) => void
-  setImportModName: (value: string) => void
-  setImportModMappings: (files: ModImportFileEntry[]) => void
-  setImportModSourceType: (value: ImportModForm["sourceType"]) => void
-  updateImportModMappingTarget: (relativePath: string, targetPath: string) => void
-  setActiveGameId: (gameId: string) => void
-  setSelectedModId: (modId: string) => void
-  stats: ReturnType<typeof buildWorkspaceStats>
-  toggleMod: (modId: string) => Promise<void>
-  togglingModId: string | null
-  refreshWorkspace: () => Promise<void>
-  resolveConflict: (modId: string, conflictId: string, decision: ConflictDecision) => void
-  resolveImportConflict: (targetPath: string, decision: ConflictDecision) => void
-  resolveImportConflicts: (targetPaths: string[], decision: ConflictDecision) => void
-  startAddGame: () => void
+function matchesModSearch(mod: ManagedMod, keyword: string): boolean {
+  return [
+    mod.name,
+    mod.author,
+    mod.type,
+    mod.description,
+    ...mod.targetFolders,
+    ...mod.previewFiles,
+    ...mod.conflictWith,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(keyword)
 }
 
 export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const { copy } = useI18n()
-  const [activeGameId, setActiveGameId] = useState<string | null>(null)
-  const [currentView, setCurrentView] = useState<"home" | "game">("home")
-  const [isAddGameDialogOpen, setIsAddGameDialogOpen] = useState(false)
-  const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false)
-  const [isDetectingGame, setIsDetectingGame] = useState(false)
-  const [isEditGameDialogOpen, setIsEditGameDialogOpen] = useState(false)
-  const [isImportModDialogOpen, setIsImportModDialogOpen] = useState(false)
-  const [isImportingMod, setIsImportingMod] = useState(false)
-  const [isPreviewingMod, setIsPreviewingMod] = useState(false)
-  const [deleteTargetGameId, setDeleteTargetGameId] = useState<string | null>(null)
-  const [deleteTargetModId, setDeleteTargetModId] = useState<string | null>(null)
-  const [addGameForm, setAddGameFormState] = useState<AddGameForm>(createDefaultAddGameForm)
-  const [editGameForm, setEditGameFormState] = useState<EditGameForm>(createDefaultEditGameForm)
-  const [importModForm, setImportModForm] = useState<ImportModForm>(createDefaultImportModForm)
-  const [importModMappings, setImportModMappingsState] = useState<ModImportFileEntry[]>([])
-  const [importModPreview, setImportModPreview] = useState<ModImportPreview | null>(null)
-  const [allMods, setAllMods] = useState<ManagedMod[]>([])
-  const [conflictDecisions, setConflictDecisions] = useState<Record<string, ConflictDecision>>({})
-  const [importConflictDecisions, setImportConflictDecisions] = useState<Record<string, ConflictDecision>>({})
-  const [modSearchQuery, setModSearchQuery] = useState("")
-  const [selectedModId, setSelectedModId] = useState("")
-  const [bootstrap, setBootstrap] = useState<BootstrapPayload | null>(null)
-  const [bootstrapping, setBootstrapping] = useState(true)
-  const [savingGameId, setSavingGameId] = useState<string | null>(null)
-  const [deletingModId, setDeletingModId] = useState<string | null>(null)
-  const [togglingModId, setTogglingModId] = useState<string | null>(null)
-  const [installingPrerequisiteKey, setInstallingPrerequisiteKey] = useState<string | null>(null)
+  const state = useWorkspaceState()
 
   const applyBootstrap = useCallback(
     (payload: BootstrapPayload) => {
-      setBootstrap(payload)
+      state.setBootstrap(payload)
 
       const nextMods = buildDisplayMods(payload.mods)
-      setAllMods(nextMods)
-      setConflictDecisions((current) => {
+      state.setAllMods(nextMods)
+      state.setConflictDecisions((current) => {
         const validKeys = new Set(
           nextMods.flatMap((mod) =>
             mod.conflictFiles.map((conflict) => buildConflictDecisionKey(mod.id, conflict.id)),
@@ -194,7 +60,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         )
       })
 
-      setSelectedModId((currentSelectedModId) => {
+      state.setSelectedModId((currentSelectedModId) => {
         if (nextMods.some((mod) => mod.id === currentSelectedModId)) {
           return currentSelectedModId
         }
@@ -202,7 +68,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         return nextMods[0]?.id ?? ""
       })
 
-      setActiveGameId((currentActiveGameId) => {
+      state.setActiveGameId((currentActiveGameId) => {
         if (currentActiveGameId && payload.games.some((game) => game.id === currentActiveGameId)) {
           return currentActiveGameId
         }
@@ -210,12 +76,12 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         return payload.games[0]?.id ?? null
       })
     },
-    [],
+    [state],
   )
 
   const refreshWorkspace = useCallback(async () => {
     try {
-      setBootstrapping(true)
+      state.setBootstrapping(true)
       const payload = await invokeApi<BootstrapPayload>("bootstrap_app")
       applyBootstrap(payload)
     } catch (error) {
@@ -223,44 +89,45 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         description: formatApiErrorMessage(error),
       })
     } finally {
-      setBootstrapping(false)
+      state.setBootstrapping(false)
     }
-  }, [applyBootstrap, copy.workspaceActions.initFailed])
+  }, [applyBootstrap, copy.workspaceActions.initFailed, state.setBootstrapping])
 
   useEffect(() => {
     void refreshWorkspace()
-  }, [refreshWorkspace])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const games = useMemo(() => {
-    if (!bootstrap) {
+    if (!state.bootstrap) {
       return []
     }
 
-    return buildGamesFromBackend(bootstrap.games, bootstrap.mods)
-  }, [bootstrap])
+    return buildGamesFromBackend(state.bootstrap.games, state.bootstrap.mods).sort((a, b) => a.sortOrder - b.sortOrder)
+  }, [state.bootstrap])
 
   const activeGameMods = useMemo(
-    () => allMods.filter((mod) => !activeGameId || mod.gameId === activeGameId),
-    [activeGameId, allMods],
+    () => state.allMods.filter((mod) => !state.activeGameId || mod.gameId === state.activeGameId),
+    [state.activeGameId, state.allMods],
   )
 
   const mods = useMemo(() => {
-    const keyword = modSearchQuery.trim().toLowerCase()
+    const keyword = state.modSearchQuery.trim().toLowerCase()
     if (!keyword) {
       return activeGameMods
     }
 
     return activeGameMods.filter((mod) => matchesModSearch(mod, keyword))
-  }, [activeGameMods, modSearchQuery])
+  }, [activeGameMods, state.modSearchQuery])
 
   const activeGame = useMemo(
-    () => games.find((game) => game.id === activeGameId) ?? games[0] ?? null,
-    [activeGameId, games],
+    () => games.find((game) => game.id === state.activeGameId) ?? games[0] ?? null,
+    [state.activeGameId, games],
   )
 
   const selectedMod = useMemo(
-    () => mods.find((mod) => mod.id === selectedModId) ?? mods[0] ?? null,
-    [mods, selectedModId],
+    () => mods.find((mod) => mod.id === state.selectedModId) ?? mods[0] ?? null,
+    [mods, state.selectedModId],
   )
 
   const configuredGames = useMemo(
@@ -271,462 +138,49 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const stats = useMemo(() => buildWorkspaceStats(activeGameMods), [activeGameMods])
 
   useEffect(() => {
-    if (currentView === "game" && !activeGame) {
-      setCurrentView("home")
+    if (state.currentView === "game" && !activeGame) {
+      state.setCurrentView("home")
     }
-  }, [activeGame, currentView])
+  }, [activeGame, state])
 
-  const toggleMod = useCallback(async (modId: string) => {
-    const targetMod = allMods.find((mod) => mod.id === modId)
-    if (!targetMod) {
-      return
-    }
-
-    const nextEnabledState = !targetMod.enabled
-    let toastId: string | number | undefined
-
-    try {
-      setTogglingModId(modId)
-      toastId = toast.loading(copy.workspaceActions.updatingModState)
-
-      const payload = await invokeApi<BootstrapPayload>("update_mod_enabled", {
-        modId,
-        enabled: nextEnabledState,
-      })
-
-      applyBootstrap(payload)
-      toast.success(
-        nextEnabledState ? copy.workspaceActions.modEnabled : copy.workspaceActions.modDisabled,
-        {
-          id: toastId,
-          description: targetMod.name,
-        },
-      )
-    } catch (error) {
-      toast.error(copy.workspaceActions.updateModFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setTogglingModId(null)
-    }
-  }, [
-    allMods,
-    applyBootstrap,
-    copy.workspaceActions.modDisabled,
-    copy.workspaceActions.modEnabled,
-    copy.workspaceActions.updateModFailed,
-    copy.workspaceActions.updatingModState,
-  ])
-
-  const resolveConflict = useCallback(
-    (modId: string, conflictId: string, decision: ConflictDecision) => {
-      setConflictDecisions((current) => ({
-        ...current,
-        [buildConflictDecisionKey(modId, conflictId)]: decision,
-      }))
-
-      const mod = mods.find((item) => item.id === modId)
-      const conflict = mod?.conflictFiles.find((item) => item.id === conflictId)
-
-      toast.success(decision === "overwrite" ? copy.workspaceActions.conflictSetOverwrite : copy.workspaceActions.conflictSetSkip, {
-        description: conflict?.fileName ?? copy.workspaceActions.conflictUpdated,
-      })
-    },
-    [copy.workspaceActions.conflictSetOverwrite, copy.workspaceActions.conflictSetSkip, copy.workspaceActions.conflictUpdated, mods],
-  )
-
-  const getConflictDecision = useCallback(
-    (modId: string, conflictId: string) =>
-      conflictDecisions[buildConflictDecisionKey(modId, conflictId)] ?? null,
-    [conflictDecisions],
-  )
-
-  const setAddGameForm = useCallback((patch: Partial<AddGameForm>) => {
-    setAddGameFormState((current) => ({
-      ...current,
-      ...patch,
-    }))
-  }, [])
-
-  const setEditGameForm = useCallback((patch: Partial<EditGameForm>) => {
-    setEditGameFormState((current) => ({
-      ...current,
-      ...patch,
-    }))
-  }, [])
-
-  const resetImportModState = useCallback((sourceType: ImportModForm["sourceType"] = "directory") => {
-    setImportModForm(createDefaultImportModForm(sourceType))
-    setImportModMappingsState([])
-    setImportModPreview(null)
-    setImportConflictDecisions({})
-    setIsPreviewingMod(false)
-  }, [])
-
-  const closeAddGameDialog = useCallback(() => {
-    setIsAddGameDialogOpen(false)
-    setIsDetectingGame(false)
-    setAddGameFormState(createDefaultAddGameForm())
-  }, [])
-
-  const openConflictDialog = useCallback(() => {
-    setIsConflictDialogOpen(true)
-  }, [])
-
-  const closeConflictDialog = useCallback(() => {
-    setIsConflictDialogOpen(false)
-  }, [])
-
-  const closeEditGameDialog = useCallback(() => {
-    setIsEditGameDialogOpen(false)
-    setEditGameFormState(createDefaultEditGameForm())
-  }, [])
-
-  const closeImportModDialog = useCallback(() => {
-    setIsImportModDialogOpen(false)
-    resetImportModState()
-  }, [resetImportModState])
-
-  const pickGameDirectory = useCallback(async () => {
-    let toastId: string | number | undefined
-
-    try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: copy.workspaceActions.chooseGameDirectoryTitle,
-      })
-
-      if (!selected || Array.isArray(selected)) {
-        return
-      }
-
-      setIsDetectingGame(true)
-      toastId = toast.loading(copy.workspaceActions.checkingDirectory)
-
-      const detectedGame = await invokeApi<DetectedGame>("detect_game_directory", {
-        gamePath: selected,
-      })
-
-      setAddGameFormState({
-        dir: detectedGame.path,
-        type: detectedGame.gameType,
-        name: detectedGame.name,
-        version: detectedGame.version,
-        exeName: detectedGame.exeName,
-        imagePath: "",
-        customImageSourcePath: "",
-        useDefaultImage: true,
-      })
-      toast.success(copy.workspaceActions.gameDetected, {
-        id: toastId,
-        description: `${detectedGame.name} · ${detectedGame.exeName}`,
-      })
-    } catch (error) {
-      toast.error(copy.workspaceActions.directoryCheckFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setIsDetectingGame(false)
-    }
-  }, [
-    copy.workspaceActions.checkingDirectory,
-    copy.workspaceActions.chooseGameDirectoryTitle,
-    copy.workspaceActions.directoryCheckFailed,
-    copy.workspaceActions.gameDetected,
-  ])
-
-  const pickAddGameImage = useCallback(async () => {
-    const selected = await open({
-      multiple: false,
-      title: copy.workspaceActions.chooseGameCoverTitle,
-      filters: [
-        {
-          name: "Image",
-          extensions: ["jpg", "jpeg", "png", "webp"],
-        },
-      ],
-    })
-
-    if (!selected || Array.isArray(selected)) {
-      return
-    }
-
-    setAddGameFormState((current) => ({
-      ...current,
-      imagePath: selected,
-      customImageSourcePath: selected,
-      useDefaultImage: false,
-    }))
-    toast.success(copy.workspaceActions.coverSelected)
-  }, [copy.workspaceActions.chooseGameCoverTitle, copy.workspaceActions.coverSelected])
-
-  const resetAddGameImage = useCallback(() => {
-    setAddGameFormState((current) => ({
-      ...current,
-      imagePath: "",
-      customImageSourcePath: "",
-      useDefaultImage: true,
-    }))
-    toast.info(copy.workspaceActions.coverReset)
-  }, [copy.workspaceActions.coverReset])
-
-  const confirmAddGame = useCallback(async () => {
-    if (!addGameForm.dir.trim()) {
-      toast.warning(copy.workspaceActions.selectGameDirectoryFirst)
-      return
-    }
-    if (!addGameForm.type) {
-      toast.warning(copy.workspaceActions.confirmGameTypeFirst)
-      return
-    }
-
-    let toastId: string | number | undefined
-
-    try {
-      setSavingGameId("add-game")
-      toastId = toast.loading(copy.workspaceActions.savingGameConfig)
-
-      const payload = await invokeApi<BootstrapPayload>("save_game_path", {
-        gamePath: addGameForm.dir.trim(),
-        gameType: addGameForm.type,
-        name: addGameForm.name,
-        version: addGameForm.version,
-        coverImageSourcePath: addGameForm.customImageSourcePath || null,
-      })
-
-      const addedGame = payload.games[payload.games.length - 1]
-      applyBootstrap(payload)
-      toast.success(copy.workspaceActions.gameAdded, {
-        id: toastId,
-        description: addGameForm.name || addedGame?.name || copy.workspaceActions.gameConfigSaved,
-      })
-      closeAddGameDialog()
-      setCurrentView("home")
-
-      if (addedGame) {
-        setActiveGameId(addedGame.id)
-      }
-    } catch (error) {
-      toast.error(copy.workspaceActions.addFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setSavingGameId(null)
-    }
-  }, [
-    addGameForm,
-    applyBootstrap,
-    closeAddGameDialog,
-    copy.workspaceActions.addFailed,
-    copy.workspaceActions.confirmGameTypeFirst,
-    copy.workspaceActions.gameAdded,
-    copy.workspaceActions.gameConfigSaved,
-    copy.workspaceActions.savingGameConfig,
-    copy.workspaceActions.selectGameDirectoryFirst,
-  ])
-
-  const openEditGameDialog = useCallback((gameId: string) => {
-    const game = games.find((item) => item.id === gameId)
-    if (!game) {
-      return
-    }
-
-    setEditGameFormState({
-      id: game.id,
-      dir: game.gamePath,
-      type: game.gameType,
-      name: game.name,
-      version: game.version,
-      exeName: game.exeName,
-      imagePath: game.imagePath,
-      customImageSourcePath: "",
-      useDefaultImage: !game.imagePath,
-    })
-    setIsEditGameDialogOpen(true)
-  }, [games])
-
-  const pickEditGameImage = useCallback(async () => {
-    const selected = await open({
-      multiple: false,
-      title: copy.workspaceActions.chooseGameCoverTitle,
-      filters: [
-        {
-          name: "Image",
-          extensions: ["jpg", "jpeg", "png", "webp"],
-        },
-      ],
-    })
-
-    if (!selected || Array.isArray(selected)) {
-      return
-    }
-
-    setEditGameFormState((current) => ({
-      ...current,
-      imagePath: selected,
-      customImageSourcePath: selected,
-      useDefaultImage: false,
-    }))
-    toast.success(copy.workspaceActions.coverSelectionUpdated)
-  }, [copy.workspaceActions.chooseGameCoverTitle, copy.workspaceActions.coverSelectionUpdated])
-
-  const resetEditGameImage = useCallback(() => {
-    setEditGameFormState((current) => ({
-      ...current,
-      imagePath: "",
-      customImageSourcePath: "",
-      useDefaultImage: true,
-    }))
-    toast.info(copy.workspaceActions.coverReset)
-  }, [copy.workspaceActions.coverReset])
-
-  const confirmEditGame = useCallback(async () => {
-    if (!editGameForm.id) {
-      return
-    }
-
-    let toastId: string | number | undefined
-
-    try {
-      setSavingGameId(editGameForm.id)
-      toastId = toast.loading(copy.workspaceActions.savingGameInfo(editGameForm.name))
-
-      const payload = await invokeApi<BootstrapPayload>("update_game_entry", {
-        gameId: editGameForm.id,
-        gameType: editGameForm.type,
-        name: editGameForm.name,
-        version: editGameForm.version,
-        coverImageSourcePath: editGameForm.customImageSourcePath || null,
-        useDefaultImage: editGameForm.useDefaultImage,
-      })
-
-      applyBootstrap(payload)
-      closeEditGameDialog()
-      toast.success(copy.workspaceActions.gameUpdated, {
-        id: toastId,
-        description: editGameForm.name,
-      })
-    } catch (error) {
-      toast.error(copy.workspaceActions.editFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setSavingGameId(null)
-    }
-  }, [
-    applyBootstrap,
-    closeEditGameDialog,
-    copy.workspaceActions.editFailed,
-    copy.workspaceActions.gameUpdated,
-    copy.workspaceActions.savingGameInfo,
-    editGameForm,
-  ])
-
-  const openDeleteGameDialog = useCallback((gameId: string) => {
-    setDeleteTargetGameId(gameId)
-  }, [])
-
-  const openDeleteModDialog = useCallback((modId: string) => {
-    setDeleteTargetModId(modId)
-  }, [])
-
-  const confirmDeleteGame = useCallback(async (gameId: string) => {
-    let toastId: string | number | undefined
-
-    try {
-      setSavingGameId(gameId)
-      const gameName = games.find((game) => game.id === gameId)?.name ?? copy.workspaceActions.currentGame
-      toastId = toast.loading(copy.workspaceActions.deletingGameConfig)
-
-      const payload = await invokeApi<BootstrapPayload>("delete_game_entry", {
-        gameId,
-      })
-
-      applyBootstrap(payload)
-      setDeleteTargetGameId(null)
-      toast.success(copy.workspaceActions.gameDeleted, {
-        id: toastId,
-        description: gameName,
-      })
-
-      if (payload.games.length === 0) {
-        setCurrentView("home")
-      }
-    } catch (error) {
-      toast.error(copy.workspaceActions.deleteFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setSavingGameId(null)
-    }
-  }, [
-    applyBootstrap,
-    copy.workspaceActions.currentGame,
-    copy.workspaceActions.deleteFailed,
-    copy.workspaceActions.deletingGameConfig,
-    copy.workspaceActions.gameDeleted,
-    games,
-  ])
-
-  const confirmDeleteMod = useCallback(async (modId: string) => {
-    let toastId: string | number | undefined
-
-    try {
-      setDeletingModId(modId)
-      const modName = allMods.find((mod) => mod.id === modId)?.name ?? copy.workspacePage.importMod
-      toastId = toast.loading(copy.workspaceActions.deletingMod)
-
-      const payload = await invokeApi<BootstrapPayload>("delete_mod_entry", {
-        modId,
-      })
-
-      applyBootstrap(payload)
-      setDeleteTargetModId(null)
-      toast.success(copy.workspaceActions.modDeleted, {
-        id: toastId,
-        description: modName,
-      })
-    } catch (error) {
-      toast.error(copy.workspaceActions.deleteModFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setDeletingModId(null)
-    }
-  }, [
-    allMods,
-    applyBootstrap,
-    copy.workspaceActions.deleteModFailed,
-    copy.workspaceActions.deletingMod,
-    copy.workspaceActions.modDeleted,
-    copy.workspacePage.importMod,
-  ])
+  const gameManagement = useGameManagement(state, games, applyBootstrap)
+  const modManagement = useModManagement(state, activeGame, applyBootstrap)
+  const prerequisites = usePrerequisites(state, activeGame, applyBootstrap)
+  const conflictResolution = useConflictResolution(state, mods)
 
   const goHome = useCallback(() => {
-    setCurrentView("home")
-  }, [])
+    state.setCurrentView("home")
+  }, [state])
 
   const openGame = useCallback((gameId: string) => {
-    setActiveGameId(gameId)
-    setCurrentView("game")
-  }, [])
+    state.setActiveGameId(gameId)
+    state.setCurrentView("game")
+  }, [state])
 
   const startAddGame = useCallback(() => {
-    setIsAddGameDialogOpen(true)
-    setAddGameFormState(createDefaultAddGameForm())
-  }, [])
+    state.setIsAddGameDialogOpen(true)
+  }, [state])
+
+  const openConflictDialog = useCallback(() => {
+    state.setIsConflictDialogOpen(true)
+  }, [state])
+
+  const closeConflictDialog = useCallback(() => {
+    state.setIsConflictDialogOpen(false)
+  }, [state])
+
+  const openDeleteGameDialog = useCallback((gameId: string) => {
+    state.setDeleteTargetGameId(gameId)
+  }, [state])
+
+  const openDeleteModDialog = useCallback((modId: string) => {
+    state.setDeleteTargetModId(modId)
+  }, [state])
 
   const openImportModDialog = useCallback(() => {
-    setIsImportModDialogOpen(true)
-    resetImportModState()
-  }, [resetImportModState])
+    state.setIsImportModDialogOpen(true)
+    modManagement.resetImportModState()
+  }, [state, modManagement])
 
   const openGamesDownloadPage = useCallback(async () => {
     try {
@@ -758,498 +212,43 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         description: formatApiErrorMessage(error),
       })
     }
-  }, [
-    activeGame,
-    copy.workspaceActions.gameDirectoryOpened,
-    copy.workspaceActions.noOpenDirectory,
-    copy.workspaceActions.openGameDirectoryFailed,
-    games,
-  ])
-
-  const installGamePrerequisite = useCallback(async (prerequisiteKey: string) => {
-    if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
-      return
-    }
-
-    let toastId: string | number | undefined
-
-    try {
-      setInstallingPrerequisiteKey(prerequisiteKey)
-      toastId = toast.loading(copy.workspaceActions.installingPrerequisite)
-
-      const payload = await invokeApi<BootstrapPayload>("install_game_prerequisite_module", {
-        gameId: activeGame.id,
-        prerequisiteKey,
-      })
-
-      applyBootstrap(payload)
-      toast.success(copy.workspaceActions.prerequisiteInstalled, {
-        id: toastId,
-      })
-    } catch (error) {
-      toast.error(copy.workspaceActions.installPrerequisiteFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setInstallingPrerequisiteKey(null)
-    }
-  }, [
-    activeGame?.id,
-    applyBootstrap,
-    copy.workspaceActions.currentGame,
-    copy.workspaceActions.installPrerequisiteFailed,
-    copy.workspaceActions.installingPrerequisite,
-    copy.workspaceActions.prerequisiteInstalled,
-  ])
-
-  const previewImportModSource = useCallback(async (selectedPath: string) => {
-    if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
-      return
-    }
-
-    let toastId: string | number | undefined
-
-    try {
-      const modName = selectedPath.split(/[\\/]/).pop() || ""
-      const sourceType = inferImportSourceType(selectedPath)
-      setImportModForm({
-        dir: selectedPath,
-        name: modName,
-        sourceType,
-      })
-      setImportModMappingsState([])
-      setImportModPreview(null)
-      setIsPreviewingMod(true)
-      toastId = toast.loading(copy.workspaceActions.previewingMod)
-
-      const preview = await invokeApi<ModImportPreview>("preview_mod_directory", {
-        gameId: activeGame.id,
-        modPath: selectedPath,
-        modName: modName || undefined,
-      })
-
-      setImportModForm({
-        dir: selectedPath,
-        name: preview.name || modName,
-        sourceType,
-      })
-      setImportModMappingsState(preview.files)
-      setImportModPreview(preview)
-      setImportConflictDecisions({})
-      toast.success(copy.workspaceActions.modPreviewReady, {
-        id: toastId,
-        description: preview.name || modName || copy.workspacePage.importMod,
-      })
-    } catch (error) {
-      setImportModMappingsState([])
-      setImportModPreview(null)
-      toast.error(copy.workspaceActions.importPreviewFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setIsPreviewingMod(false)
-    }
-  }, [
-    activeGame?.id,
-    copy.workspaceActions.currentGame,
-    copy.workspaceActions.importPreviewFailed,
-    copy.workspaceActions.modPreviewReady,
-    copy.workspaceActions.previewingMod,
-    copy.workspacePage.importMod,
-  ])
-
-  const pickImportModDirectory = useCallback(async () => {
-    if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
-      return
-    }
-
-    try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: copy.workspaceActions.chooseModDirectoryTitle,
-      })
-
-      if (!selected || Array.isArray(selected)) {
-        return
-      }
-
-      await previewImportModSource(String(selected))
-    } catch (error) {
-      toast.error(copy.workspaceActions.importPreviewFailed, {
-        description: formatApiErrorMessage(error),
-      })
-    }
-  }, [
-    activeGame?.id,
-    copy.workspaceActions.chooseModDirectoryTitle,
-    copy.workspaceActions.currentGame,
-    copy.workspaceActions.importPreviewFailed,
-    previewImportModSource,
-  ])
-
-  const pickImportModArchive = useCallback(async () => {
-    if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
-      return
-    }
-
-    try {
-      const selected = await open({
-        multiple: false,
-        title: copy.workspaceActions.chooseModArchiveTitle,
-        filters: [
-          {
-            name: "ZIP",
-            extensions: ["zip"],
-          },
-        ],
-      })
-
-      if (!selected || Array.isArray(selected)) {
-        return
-      }
-
-      await previewImportModSource(String(selected))
-    } catch (error) {
-      toast.error(copy.workspaceActions.importPreviewFailed, {
-        description: formatApiErrorMessage(error),
-      })
-    }
-  }, [
-    activeGame?.id,
-    copy.workspaceActions.chooseModArchiveTitle,
-    copy.workspaceActions.currentGame,
-    copy.workspaceActions.importPreviewFailed,
-    previewImportModSource,
-  ])
-
-  const pickImportModSource = useCallback(async (sourceType?: ImportModForm["sourceType"]) => {
-    const nextSourceType = sourceType ?? importModForm.sourceType
-
-    if (sourceType) {
-      setImportModForm((current) => ({
-        ...current,
-        sourceType,
-      }))
-    }
-
-    if (nextSourceType === "zip") {
-      await pickImportModArchive()
-      return
-    }
-
-    await pickImportModDirectory()
-  }, [importModForm.sourceType, pickImportModArchive, pickImportModDirectory])
-
-  const setImportModSourceType = useCallback((value: ImportModForm["sourceType"]) => {
-    resetImportModState(value)
-  }, [resetImportModState])
-
-  const setImportModMappings = useCallback((files: ModImportFileEntry[]) => {
-    setImportModMappingsState(files)
-  }, [])
-
-  const updateImportModMappingTarget = useCallback((relativePath: string, targetPath: string) => {
-    setImportModMappingsState((current) =>
-      current.map((file) =>
-        file.relativePath === relativePath
-          ? {
-              ...file,
-              targetPath,
-              targetFolder: inferTargetFolderFromPath(targetPath),
-              skipInstall: !targetPath.trim(),
-            }
-          : file,
-      ),
-    )
-  }, [])
-
-  const resolveImportConflict = useCallback((targetPath: string, decision: ConflictDecision) => {
-    setImportConflictDecisions((current) => ({
-      ...current,
-      [normalizeConflictTargetPath(targetPath)]: decision,
-    }))
-
-    toast.success(
-      decision === "overwrite"
-        ? copy.workspaceActions.conflictSetOverwrite
-        : copy.workspaceActions.conflictSetSkip,
-      {
-        description: targetPath,
-      },
-    )
-  }, [
-    copy.workspaceActions.conflictSetOverwrite,
-    copy.workspaceActions.conflictSetSkip,
-  ])
-
-  const resolveImportConflicts = useCallback(
-    (targetPaths: string[], decision: ConflictDecision) => {
-      const normalizedTargetPaths = Array.from(
-        new Set(
-          targetPaths
-            .map((targetPath) => normalizeConflictTargetPath(targetPath))
-            .filter(Boolean),
-        ),
-      )
-      if (normalizedTargetPaths.length === 0) {
-        return
-      }
-
-      setImportConflictDecisions((current) => {
-        const next = { ...current }
-        for (const targetPath of normalizedTargetPaths) {
-          next[targetPath] = decision
-        }
-        return next
-      })
-
-      toast.success(
-        decision === "overwrite"
-          ? copy.workspaceActions.conflictSetOverwrite
-          : copy.workspaceActions.conflictSetSkip,
-        {
-          description:
-            normalizedTargetPaths.length === 1
-              ? normalizedTargetPaths[0]
-              : `${normalizedTargetPaths[0]} +${normalizedTargetPaths.length - 1}`,
-        },
-      )
-    },
-    [
-      copy.workspaceActions.conflictSetOverwrite,
-      copy.workspaceActions.conflictSetSkip,
-    ],
-  )
-
-  const getImportConflictDecision = useCallback(
-    (targetPath: string) =>
-      importConflictDecisions[normalizeConflictTargetPath(targetPath)] ?? null,
-    [importConflictDecisions],
-  )
-
-  const confirmImportMod = useCallback(async () => {
-    if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
-      return
-    }
-    if (!importModForm.dir.trim()) {
-      toast.warning(copy.workspaceActions.selectModDirectoryFirst)
-      return
-    }
-    if (!importModPreview) {
-      toast.warning(copy.workspaceActions.scanModFirst)
-      return
-    }
-
-    let toastId: string | number | undefined
-
-    try {
-      setIsImportingMod(true)
-      toastId = toast.loading(copy.workspaceActions.importingMod)
-
-      const activeConflictTargets = Array.from(
-        new Set(
-          importModPreview.conflictFiles
-            .map((conflict) => normalizeConflictTargetPath(conflict.targetPath))
-            .filter((targetPath) =>
-              importModMappings.some(
-                (file) =>
-                  normalizeConflictTargetPath(file.targetPath) === targetPath &&
-                  !file.skipInstall &&
-                  file.targetPath.trim(),
-              ),
-            ),
-        ),
-      )
-
-      const unresolvedConflictTargets = activeConflictTargets.filter(
-        (targetPath) => !importConflictDecisions[targetPath],
-      )
-
-      if (unresolvedConflictTargets.length > 0) {
-        toast.warning(
-          copy.workspaceActions.resolveImportConflictsFirst(unresolvedConflictTargets.length),
-          {
-            id: toastId,
-          },
-        )
-        return
-      }
-
-      const preparedMappings = importModMappings.map((file) => ({
-        ...file,
-        skipInstall: Boolean(
-          file.skipInstall ||
-            !file.targetPath.trim() ||
-            getImportConflictDecision(file.targetPath) === "skip",
-        ),
-        overwriteExisting: getImportConflictDecision(file.targetPath) === "overwrite",
-      }))
-      const skippedMappingsCount = preparedMappings.filter((file) => file.skipInstall).length
-
-      if (skippedMappingsCount > 0) {
-        setImportModMappingsState(preparedMappings)
-        toast.info(copy.workspaceActions.emptyTargetPathsHandled(skippedMappingsCount))
-      }
-
-      const payload = await invokeApi<BootstrapPayload>("import_mod_directory", {
-        gameId: activeGame.id,
-        modPath: importModForm.dir.trim(),
-        modName: importModForm.name.trim() || undefined,
-        files: preparedMappings.map((file) => ({
-          relativePath: file.relativePath,
-          targetPath: file.targetPath,
-          skipInstall: Boolean(file.skipInstall || !file.targetPath.trim()),
-          overwriteExisting: Boolean(file.overwriteExisting),
-        })),
-      })
-
-      applyBootstrap(payload)
-      toast.success(copy.workspaceActions.modImported, {
-        id: toastId,
-        description: importModPreview.name || importModForm.name || copy.workspacePage.importMod,
-      })
-      closeImportModDialog()
-    } catch (error) {
-      toast.error(copy.workspaceActions.importModFailed, {
-        id: toastId,
-        description: formatApiErrorMessage(error),
-      })
-    } finally {
-      setIsImportingMod(false)
-    }
-  }, [
-    activeGame,
-    applyBootstrap,
-    closeImportModDialog,
-    copy.workspaceActions.currentGame,
-    copy.workspaceActions.emptyTargetPathsHandled,
-    copy.workspaceActions.importModFailed,
-    copy.workspaceActions.importingMod,
-    copy.workspaceActions.modImported,
-    copy.workspaceActions.resolveImportConflictsFirst,
-    copy.workspaceActions.scanModFirst,
-    copy.workspaceActions.selectModDirectoryFirst,
-    copy.workspacePage.importMod,
-    getImportConflictDecision,
-    importConflictDecisions,
-    importModForm.dir,
-    importModForm.name,
-    importModMappings,
-    importModPreview,
-  ])
+  }, [activeGame, copy, games])
 
   return {
+    ...state,
     activeGame,
-    activeGameId,
     activeGameMods,
     allModsCount: activeGameMods.length,
-    addGameForm,
-    closeAddGameDialog,
-    closeConflictDialog,
-    closeEditGameDialog,
-    bootstrap,
-    bootstrapping,
-    confirmAddGame,
-    confirmDeleteGame,
-    confirmDeleteMod,
-    confirmEditGame,
-    confirmImportMod,
     configuredGames,
-    closeImportModDialog,
-    currentView,
-    deleteTargetGameId,
-    deleteTargetModId,
-    deletingModId,
-    editGameForm,
-    games,
-    getConflictDecision,
-    getImportConflictDecision,
-    goHome,
     hasConfiguredGames,
-    isAddGameDialogOpen,
-    isConflictDialogOpen,
-    isDetectingGame,
-    isEditGameDialogOpen,
-    isImportModDialogOpen,
-    isImportingMod,
-    isPreviewingMod,
-    importModForm,
-    importModMappings,
-    importModPreview,
-    installGamePrerequisite,
-    installingPrerequisiteKey,
-    modSearchQuery,
+    games,
     mods,
-    openImportModDialog,
+    selectedMod,
+    stats,
+
+    goHome,
+    openGame,
+    startAddGame,
     openConflictDialog,
+    closeConflictDialog,
     openDeleteGameDialog,
     openDeleteModDialog,
-    openEditGameDialog,
-    openGameDirectory,
-    pickImportModSource,
-    pickAddGameImage,
-    pickEditGameImage,
-    pickGameDirectory,
-    resetAddGameImage,
-    resetEditGameImage,
+    openImportModDialog,
     openGamesDownloadPage,
-    openGame,
-    savingGameId,
-    selectedMod,
-    selectedModId,
-    setAddGameForm,
-    setDeleteTargetGameId,
-    setDeleteTargetModId,
-    setEditGameForm,
-    setImportModName: (value) =>
-      setImportModForm((current) => ({
+    openGameDirectory,
+    refreshWorkspace,
+    setImportModName: (value: string) =>
+      state.setImportModForm((current) => ({
         ...current,
         name: value,
       })),
-    setImportModMappings,
-    setImportModSourceType,
-    updateImportModMappingTarget,
-    setModSearchQuery,
-    setActiveGameId,
-    setSelectedModId,
-    stats,
-    toggleMod,
-    togglingModId,
-    refreshWorkspace,
-    resolveConflict,
-    resolveImportConflict,
-    resolveImportConflicts,
-    startAddGame,
+    setImportModMappings: state.setImportModMappingsState,
+
+    ...gameManagement,
+    ...modManagement,
+    ...prerequisites,
+    ...conflictResolution,
   }
 }
 
-function buildConflictDecisionKey(modId: string, conflictId: string): string {
-  return `${modId}::${conflictId}`
-}
-
-function normalizeConflictTargetPath(targetPath: string): string {
-  return targetPath.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
-}
-
-function matchesModSearch(mod: ManagedMod, keyword: string): boolean {
-  return [
-    mod.name,
-    mod.author,
-    mod.type,
-    mod.description,
-    ...mod.targetFolders,
-    ...mod.previewFiles,
-    ...mod.conflictWith,
-  ]
-    .join(" ")
-    .toLowerCase()
-    .includes(keyword)
-}
+export type { UseG2mWorkspaceResult }

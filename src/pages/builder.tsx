@@ -1,7 +1,6 @@
 import { open, save } from "@tauri-apps/plugin-dialog"
 import type { ReactNode } from "react"
 import {
-  ChevronRight,
   CheckCircle2,
   FileCode2,
   Files,
@@ -10,8 +9,8 @@ import {
   Link2,
   PackageCheck,
   Plus,
+  Puzzle,
   RefreshCcw,
-  Sparkles,
   ShieldCheck,
   Trash2,
 } from "lucide-react"
@@ -19,13 +18,31 @@ import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { useI18n } from "@/components/app/i18nProvider"
+import { useAppPreferences } from "@/components/app/preferencesProvider"
 import { ModMappingWorkbench } from "@/components/g2m/ModMappingWorkbench"
-import { G2MPanel, G2MPill } from "@/components/g2m/surface"
+import { ModMappingExplorer } from "@/components/g2m/ModMappingExplorer"
+import { ModMappingList } from "@/components/g2m/ModMappingList"
+import { type DragPayload, moveFiles } from "@/components/g2m/draggableTree"
+import { G2MPageHeroCard } from "@/components/g2m/pageHeroCard"
+import { G2MPanel } from "@/components/g2m/surface"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { type DragPayload, moveFiles } from "@/components/g2m/draggableTree"
+import {
+  drawerBodyClass,
+  drawerCardContentClass,
+  drawerFooterClass,
+  drawerHandleBarClass,
+  drawerHandleClass,
+  drawerHeaderClass,
+  drawerOverlayClass,
+  drawerPanelClass,
+  drawerViewportClass,
+} from "@/components/g2m/workspaceDialogs"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+
 import { formatApiErrorMessage, invokeApi } from "@/lib/api"
 import {
   buildModFileTree,
@@ -40,12 +57,17 @@ import {
   type ModFileTreeNode,
   type ModImportPreview,
   type ModMappingSummary,
+  type GameTypeTarget,
+  type BuilderGameTargetNode,
+  type BuilderCustomPrerequisite,
 } from "@/lib/g2m"
 
 type BuilderForm = {
   author: string
   links: BuilderLinkInput[]
   name: string
+  prerequisites: string[]
+  customPrerequisites: BuilderCustomPrerequisite[]
   sourcePath: string
   sourceType: "directory" | "zip"
   version: string
@@ -59,12 +81,6 @@ type BuilderLinkInput = {
 }
 
 const GAME_TYPE_TARGETS = ["iii", "vc", "sa"] as const
-const GAME_TARGET_OPTIONS = GAME_TYPE_TARGETS.map((type) => ({
-  value: type,
-  label: type.toUpperCase(),
-}))
-
-type GameTypeTarget = "iii" | "vc" | "sa"
 
 type BuilderManifestFileEntry = {
   games?: GameTypeTarget[]
@@ -72,17 +88,26 @@ type BuilderManifestFileEntry = {
   installTo: string
 }
 
-type BuilderStep = "mapping" | "metadata" | "preview" | "source"
-
-const softOutlineButtonClass =
-  "cursor-pointer rounded-xl border-border/70 bg-background/70 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+const AVAILABLE_PREREQUISITES = [
+  { key: "asiloader", label: "ASILoader" },
+  { key: "modloader", label: "ModLoader" },
+  { key: "cleo", label: "CLEO" },
+  { key: "cleo_redux", label: "CLEO Redux" },
+  { key: "silentpatch", label: "SilentPatch" },
+  { key: "d3d8to9", label: "D3D8to9" },
+]
 
 function ModBuilderPage() {
   const { copy } = useI18n()
+  const preferences = useAppPreferences()
+  const { builderMappingMode, setBuilderMappingMode } = preferences
+
   const [form, setForm] = useState<BuilderForm>({
     author: "",
     links: createDefaultBuilderLinks(),
     name: "",
+    prerequisites: [],
+    customPrerequisites: [],
     sourcePath: "",
     sourceType: "directory",
     version: "",
@@ -92,7 +117,8 @@ function ModBuilderPage() {
   const [gameTargetsByPath, setGameTargetsByPath] = useState<Record<string, GameTypeTarget[]>>({})
   const [sourceDigest, setSourceDigest] = useState<ManifestSourceDigest | null>(null)
   const [isInspecting, setIsInspecting] = useState(false)
-  const [activeStep, setActiveStep] = useState<BuilderStep>("source")
+  const [isCustomPrereqSheetOpen, setIsCustomPrereqSheetOpen] = useState(false)
+  const [customPrereqForm, setCustomPrereqForm] = useState({ name: "", url: "" })
 
   const hasSource = form.sourcePath.trim().length > 0
   const sourceDisplayType =
@@ -112,6 +138,8 @@ function ModBuilderPage() {
           links: form.links,
           modName: form.name,
           modType: preview?.existingManifest?.modType || preview?.modType || "Mixed",
+          prerequisites: form.prerequisites,
+          customPrerequisites: form.customPrerequisites,
           sourceDigest,
           version: form.version,
           files: manifestEntries,
@@ -121,17 +149,14 @@ function ModBuilderPage() {
       ),
     [form, preview, manifestEntries, sourceDigest],
   )
-  const filledLinkCount = form.links.filter((link) => link.url.trim()).length
-  const extraLinkCount = getExtraLinks(form.links).filter((link) => link.url.trim()).length
+
   async function pickSourceDir() {
     const result = await open({
       directory: true,
       multiple: false,
       title: copy.builderPage.pickDirectory,
     })
-    if (!result || Array.isArray(result)) {
-      return
-    }
+    if (!result || Array.isArray(result)) return
     await inspectSource(result, "directory")
   }
 
@@ -141,9 +166,7 @@ function ModBuilderPage() {
       title: copy.builderPage.pickArchive,
       filters: [{ name: copy.builderPage.zipFiles, extensions: ["zip"] }],
     })
-    if (!result || Array.isArray(result)) {
-      return
-    }
+    if (!result || Array.isArray(result)) return
     await inspectSource(result, "zip")
   }
 
@@ -164,6 +187,8 @@ function ModBuilderPage() {
         author: initialBuilderState.author,
         links: initialBuilderState.links,
         name: initialBuilderState.name || current.name || sourceName,
+        prerequisites: initialBuilderState.prerequisites,
+        customPrerequisites: initialBuilderState.customPrerequisites,
         sourcePath: path,
         sourceType: type,
         version: initialBuilderState.version,
@@ -180,9 +205,8 @@ function ModBuilderPage() {
         })
         setSourceDigest(digest)
       } catch {
-        // Keep manifest-provided digest when local digest inspection is unavailable.
+        // Keep manifest-provided digest
       }
-      setActiveStep("metadata")
       toast.success(copy.builderPage.inspectSuccess)
     } catch (error) {
       toast.error(copy.builderPage.inspectFailed, {
@@ -194,9 +218,7 @@ function ModBuilderPage() {
   }
 
   function resetMappings() {
-    if (!preview) {
-      return
-    }
+    if (!preview) return
     setMappings(preview.files)
     setGameTargetsByPath({})
   }
@@ -229,15 +251,83 @@ function ModBuilderPage() {
     }))
   }
 
+  function addCustomPrerequisite() {
+    let { name, url } = customPrereqForm
+    if (!name.trim() || !url.trim()) {
+      toast.error(copy.builderPage.customPrerequisiteMissingFields)
+      return
+    }
+
+    url = url.trim()
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url
+    }
+
+    try {
+      const parsedUrl = new URL(url)
+      const hostname = parsedUrl.hostname.toLowerCase()
+      if (!hostname.endsWith("github.com") && !hostname.endsWith("gtamodx.com")) {
+        toast.error(copy.builderPage.customPrerequisiteUrlError)
+        return
+      }
+    } catch {
+      toast.error(copy.builderPage.customPrerequisiteInvalidUrl)
+      return
+    }
+
+    setForm((current) => ({
+      ...current,
+      customPrerequisites: [...current.customPrerequisites, { name: name.trim(), url }],
+    }))
+    setCustomPrereqForm({ name: "", url: "" })
+    setIsCustomPrereqSheetOpen(false)
+  }
+
+  function removeCustomPrerequisite(index: number) {
+    setForm((current) => {
+      const next = [...current.customPrerequisites]
+      next.splice(index, 1)
+      return { ...current, customPrerequisites: next }
+    })
+  }
+
   function handleDropToFolder(destFolder: string, payload: DragPayload) {
     setMappings((current) => moveFiles(current, payload, destFolder))
   }
 
+  function updateTargetPath(path: string, newTargetPath: string) {
+    const key = normalizeModPath(path)
+    if (!key) return
+    
+    setMappings((current) => {
+      return current.map((file) => {
+        const fileKey = normalizeModPath(file.relativePath)
+        if (fileKey === key) {
+          return {
+            ...file,
+            targetPath: newTargetPath,
+            targetFolder: inferTargetFolderFromPath(newTargetPath),
+            skipInstall: !newTargetPath
+          }
+        }
+        if (fileKey && fileKey.startsWith(`${key}/`)) {
+          const suffix = fileKey.slice(key.length).replace(/^\/+/, "")
+          const nextTarget = newTargetPath ? `${newTargetPath}/${suffix}` : ""
+          return {
+            ...file,
+            targetPath: nextTarget,
+            targetFolder: inferTargetFolderFromPath(nextTarget),
+            skipInstall: !nextTarget
+          }
+        }
+        return file
+      })
+    })
+  }
+
   function toggleGameType(path: string, type: GameTypeTarget) {
     const key = normalizeModPath(path)
-    if (!key) {
-      return
-    }
+    if (!key) return
     setGameTargetsByPath((current) => {
       const existing = current[key] ?? []
       const next = existing.includes(type)
@@ -252,9 +342,7 @@ function ModBuilderPage() {
   }
 
   async function generateManifest() {
-    if (!preview || !form.sourcePath.trim()) {
-      return
-    }
+    if (!preview || !form.sourcePath.trim()) return
 
     try {
       let savePath: string | null = null
@@ -265,18 +353,40 @@ function ModBuilderPage() {
           defaultPath: "g2m.json",
           filters: [{ name: "JSON", extensions: ["json"] }],
         })
-
-        if (!selectedPath) {
-          return
-        }
-
+        if (!selectedPath) return
         savePath = selectedPath
       }
 
+      const sourceDigest: ManifestSourceDigest = {
+        md5: preview.existingManifest?.update?.md5 || "",
+        md5Mode: preview.existingManifest?.update?.md5Mode || (form.sourceType === "zip" ? "archive" : "directory"),
+      }
+      
+      const manifestEntries: BuilderManifestFileEntry[] = mappings
+        .filter((item) => !item.skipInstall && !!item.targetPath)
+        .map((item) => ({
+          games: gameTargetsByPath[normalizeModPath(item.relativePath)!] || [],
+          installTo: item.targetPath,
+          path: item.relativePath,
+        }))
+
+      const payload = buildManifestPayload({
+        author: form.author,
+        links: form.links,
+        modName: form.name,
+        modType: preview?.existingManifest?.modType || preview?.modType || "Mixed",
+        prerequisites: form.prerequisites,
+        customPrerequisites: form.customPrerequisites,
+        sourceDigest,
+        version: form.version,
+        files: manifestEntries,
+      })
+      const content = JSON.stringify(payload, null, 2)
+      
       const generatedPath = await invokeApi<string>("generate_manifest_file", {
         sourcePath: form.sourcePath,
         sourceType: form.sourceType,
-        manifestContent: manifestPreview,
+        manifestContent: content,
         savePath,
       })
 
@@ -290,290 +400,353 @@ function ModBuilderPage() {
     }
   }
 
+  async function buildArchive() {
+    if (!preview || !form.sourcePath.trim()) return
+
+    try {
+      let outputPath = preferences.defaultBuilderOutputPath
+      if (!outputPath) {
+        const selectedPath = await save({
+          filters: [{ name: "ZIP Archive", extensions: ["zip"] }],
+          defaultPath: `${form.name.trim() || "mod"}_${form.version.trim() || "1.0.0"}.zip`,
+        })
+        if (!selectedPath) return
+        outputPath = selectedPath
+        preferences.setDefaultBuilderOutputPath(outputPath)
+      } else {
+        const selectedPath = await save({
+          filters: [{ name: "ZIP Archive", extensions: ["zip"] }],
+          defaultPath: `${outputPath}\\${form.name.trim() || "mod"}_${form.version.trim() || "1.0.0"}.zip`,
+        })
+        if (!selectedPath) return
+        outputPath = selectedPath
+        
+        const lastSlash = outputPath.lastIndexOf("\\")
+        if (lastSlash > -1) {
+          preferences.setDefaultBuilderOutputPath(outputPath.substring(0, lastSlash))
+        }
+      }
+
+      const sourceDigest: ManifestSourceDigest = {
+        md5: preview.existingManifest?.update?.md5 || "",
+        md5Mode: preview.existingManifest?.update?.md5Mode || (form.sourceType === "zip" ? "archive" : "directory"),
+      }
+      
+      const manifestEntries: BuilderManifestFileEntry[] = mappings
+        .filter((item) => !item.skipInstall && !!item.targetPath)
+        .map((item) => ({
+          games: gameTargetsByPath[normalizeModPath(item.relativePath)!] || [],
+          installTo: item.targetPath,
+          path: item.relativePath,
+        }))
+
+      const payload = buildManifestPayload({
+        author: form.author,
+        links: form.links,
+        modName: form.name,
+        modType: preview?.existingManifest?.modType || preview?.modType || "Mixed",
+        prerequisites: form.prerequisites,
+        customPrerequisites: form.customPrerequisites,
+        sourceDigest,
+        version: form.version,
+        files: manifestEntries,
+      })
+      const content = JSON.stringify(payload, null, 2)
+      
+      await invokeApi("build_mod_archive", {
+        sourcePath: form.sourcePath,
+        sourceType: form.sourceType,
+        manifestContent: content,
+        outputPath,
+      })
+
+      toast.success("Mod 压缩包构建成功！")
+    } catch (error) {
+      toast.error(`构建失败: ${formatApiErrorMessage(error)}`)
+    }
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 pb-10 pt-6 sm:px-6 lg:px-8">
-      <G2MPanel>
-        <div className="p-6 lg:p-8">
-          <div className="flex flex-col gap-6">
-            <div className="space-y-4">
-              <G2MPill className="bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                {copy.builderPage.metadataTitle}
-              </G2MPill>
-              <div className="space-y-3">
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 lg:text-4xl">
-                  {copy.routes.builderSubtitle}
-                </h1>
-                <p className="max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300 lg:text-base">
-                  {copy.builderPage.pageDescription}
-                </p>
-              </div>
-            </div>
+    <div className="mx-auto flex w-full max-w-[1700px] flex-col gap-6 pb-10">
+      <G2MPageHeroCard
+        eyebrow={copy.builderPage.metadataTitle}
+        title={copy.routes.builderSubtitle}
+        description={copy.builderPage.pageDescription}
+      />
 
-            <div className="flex flex-wrap gap-3">
-              <BuilderSummaryChip label={copy.builderPage.sourceType} value={hasSource ? sourceDisplayType : "-"} />
-              <BuilderSummaryChip label={copy.builderPage.linksTitle} value={String(filledLinkCount)} />
-              <BuilderSummaryChip label={copy.workspacePage.fileCount} value={preview ? String(preview.fileCount) : "-"} />
-              <BuilderSummaryChip label={copy.builderPage.extraLinks} value={String(extraLinkCount)} />
-            </div>
-          </div>
-        </div>
-      </G2MPanel>
-
-      <Tabs value={activeStep} onValueChange={(value) => setActiveStep(value as BuilderStep)} className="space-y-5">
-        <TabsList className="!grid !h-auto !w-full grid-cols-1 gap-2 rounded-2xl border border-black/5 bg-slate-50/80 p-2 shadow-sm dark:border-white/10 dark:bg-white/[0.03] sm:grid-cols-2 xl:grid-cols-4">
-          <TabsTrigger
-            value="source"
-            className="!h-auto !flex-none rounded-xl border-0 bg-transparent p-0 text-left data-active:bg-transparent data-active:shadow-none"
-          >
-            <BuilderFlowStep
-              step="1"
-              title={copy.builderPage.pickSourceTitle}
-              active={activeStep === "source"}
-            />
-          </TabsTrigger>
-          <TabsTrigger
-            value="metadata"
-            disabled={!hasSource}
-            className="!h-auto !flex-none rounded-xl border-0 bg-transparent p-0 text-left data-active:bg-transparent data-active:shadow-none"
-          >
-            <BuilderFlowStep
-              step="2"
-              title={copy.workspaceDialogs.modMetadata}
-              muted={!hasSource}
-              active={activeStep === "metadata"}
-            />
-          </TabsTrigger>
-          <TabsTrigger
-            value="mapping"
-            disabled={!hasSource}
-            className="!h-auto !flex-none rounded-xl border-0 bg-transparent p-0 text-left data-active:bg-transparent data-active:shadow-none"
-          >
-            <BuilderFlowStep
-              step="3"
-              title={copy.builderPage.mappingTitle}
-              muted={!hasSource}
-              active={activeStep === "mapping"}
-            />
-          </TabsTrigger>
-          <TabsTrigger
-            value="preview"
-            disabled={!hasSource}
-            className="!h-auto !flex-none rounded-xl border-0 bg-transparent p-0 text-left data-active:bg-transparent data-active:shadow-none"
-          >
-            <BuilderFlowStep
-              step="4"
-              title={copy.builderPage.manifestPreviewTitle}
-              muted={!hasSource}
-              active={activeStep === "preview"}
-            />
-          </TabsTrigger>
-        </TabsList>
-
+      <div className="space-y-6">
         <G2MPanel>
           <div className="p-5 lg:p-6">
-            {activeStep === "source" ? (
-              <div className="space-y-6">
-                <BuilderStageHeader
-                  step="1"
-                  title={copy.builderPage.sourceTitle}
-                  description={copy.builderPage.pickSourceDescription}
-                  icon={FolderOpen}
-                />
+            <BuilderSectionHeading
+              icon={FolderOpen}
+              title={copy.builderPage.sourceTitle}
+              description={copy.builderPage.pickSourceDescription}
+            />
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button className="cursor-pointer rounded-xl px-4" onClick={pickSourceDir} disabled={isInspecting}>
+                <FolderOpen className="size-4 mr-2" />
+                {copy.builderPage.pickDirectory}
+              </Button>
+              <Button
+                variant="outline"
+                className="cursor-pointer rounded-xl border-border/70 bg-background/70 px-4 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+                onClick={pickSourceZip}
+                disabled={isInspecting}
+              >
+                <HardDriveDownload className="size-4 mr-2" />
+                {copy.builderPage.pickArchive}
+              </Button>
+            </div>
 
-                <BuilderSectionCard>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-wrap gap-3">
-                      <Button className="cursor-pointer rounded-xl px-4" onClick={pickSourceDir} disabled={isInspecting}>
-                        <FolderOpen className="size-4" />
-                        {copy.builderPage.pickDirectory}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className={`${softOutlineButtonClass} px-4`}
-                        onClick={pickSourceZip}
-                        disabled={isInspecting}
-                      >
-                        <HardDriveDownload className="size-4" />
-                        {copy.builderPage.pickArchive}
-                      </Button>
-                    </div>
-
-                    <div className="space-y-3">
-
-                      {hasSource && preview ? (
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-                          <div className="mb-4 flex items-center gap-2">
-                            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-                            <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                              {copy.workspaceDialogs.importDetected}
-                            </p>
-                          </div>
-                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                            <BuilderStatCard label={copy.builderPage.sourceType} value={sourceDisplayType} />
-                            <BuilderStatCard label={copy.workspacePage.fileCount} value={String(preview.fileCount)} />
-                            <BuilderStatCard label={copy.workspacePage.size} value={formatFileSize(preview.sizeBytes)} />
-                            <BuilderStatCard
-                              label={copy.workspaceDialogs.manifestStatus}
-                              value={
-                                preview.hasG2mManifest
-                                  ? copy.workspaceDialogs.manifestDetected
-                                  : copy.workspaceDialogs.manifestMissing
-                              }
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <BuilderEmptyState>{copy.builderPage.pickSourceDescription}</BuilderEmptyState>
-                      )}
-                    </div>
-                  </div>
-                </BuilderSectionCard>
-
-                <BuilderStepActions
-                  nextLabel={copy.workspaceDialogs.modMetadata}
-                  onNext={() => setActiveStep("metadata")}
-                  nextDisabled={!hasSource}
-                />
+            {hasSource && preview && (
+              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                    {copy.workspaceDialogs.importDetected} - {sourceDisplayType} ({preview.fileCount} files, {formatFileSize(preview.sizeBytes)})
+                  </p>
+                </div>
               </div>
-            ) : null}
+            )}
+          </div>
+        </G2MPanel>
 
-            {activeStep === "metadata" && hasSource && preview ? (
-              <div className="space-y-6">
-                <BuilderStageHeader
-                  step="2"
+        {hasSource && preview && (
+          <>
+            <G2MPanel>
+              <div className="p-5 lg:p-6">
+                <BuilderSectionHeading
+                  icon={PackageCheck}
                   title={copy.workspaceDialogs.modMetadata}
                   description={copy.builderPage.pageDescription}
-                  icon={PackageCheck}
                 />
-
-                <BuilderSectionCard>
-                  <BuilderSectionHeading
-                    icon={PackageCheck}
-                    title={copy.workspaceDialogs.modMetadata}
-                    description={copy.builderPage.pageDescription}
-                  />
-                  <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                    <BuilderField label={copy.workspaceDialogs.modName}>
-                      <Input
-                        value={form.name}
-                        onChange={(event) => {
-                          const value = event.currentTarget.value
-                          setForm((current) => ({ ...current, name: value }))
-                        }}
-                        className="h-11 rounded-xl border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
-                      />
-                    </BuilderField>
-                    <BuilderField label={copy.builderPage.modVersion}>
-                      <Input
-                        value={form.version}
-                        onChange={(event) => {
-                          const value = event.currentTarget.value
-                          setForm((current) => ({ ...current, version: value }))
-                        }}
-                        placeholder={copy.builderPage.modVersionPlaceholder}
-                        className="h-11 rounded-xl border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
-                      />
-                    </BuilderField>
-                    <BuilderField label={copy.builderPage.modAuthor}>
-                      <Input
-                        value={form.author}
-                        onChange={(event) => {
-                          const value = event.currentTarget.value
-                          setForm((current) => ({ ...current, author: value }))
-                        }}
-                        placeholder={copy.builderPage.modAuthorPlaceholder}
-                        className="h-11 rounded-xl border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
-                      />
-                    </BuilderField>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <BuilderSummaryChip label={copy.builderPage.sourceType} value={sourceDisplayType} />
-                    <BuilderSummaryChip label={copy.builderPage.linksTitle} value={String(filledLinkCount)} />
-                    <BuilderSummaryChip label={copy.builderPage.extraLinks} value={String(extraLinkCount)} />
-                    <BuilderSummaryChip
-                      label={copy.builderPage.md5Mode}
-                      value={formatMd5ModeLabel(sourceDigest?.md5Mode, copy) || "-"}
+                <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  <BuilderField label={copy.workspaceDialogs.modName}>
+                    <Input
+                      value={form.name}
+                      onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
+                      className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                     />
-                  </div>
-                </BuilderSectionCard>
+                  </BuilderField>
+                  <BuilderField label={copy.builderPage.modVersion}>
+                    <Input
+                      value={form.version}
+                      onChange={(e) => setForm((c) => ({ ...c, version: e.target.value }))}
+                      placeholder={copy.builderPage.modVersionPlaceholder}
+                      className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
+                    />
+                  </BuilderField>
+                  <BuilderField label={copy.builderPage.modAuthor}>
+                    <Input
+                      value={form.author}
+                      onChange={(e) => setForm((c) => ({ ...c, author: e.target.value }))}
+                      placeholder={copy.builderPage.modAuthorPlaceholder}
+                      className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
+                    />
+                  </BuilderField>
+                </div>
 
-                <BuilderSectionCard>
+                <div className="mt-6 border-t border-border/50 pt-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <BuilderSectionHeading
+                      icon={Puzzle}
+                      title={copy.builderPage.prerequisitesTitle}
+                      description={copy.builderPage.prerequisitesDescription}
+                    />
+                    <div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-lg"
+                        onClick={() => setIsCustomPrereqSheetOpen(true)}
+                      >
+                        <Plus className="size-3 mr-1.5" />
+                        {copy.builderPage.addCustomPrerequisite}
+                      </Button>
+                    </div>
+
+                    {isCustomPrereqSheetOpen && (
+                      <div className={drawerOverlayClass}>
+                        <div className={drawerViewportClass}>
+                          <Card className={drawerPanelClass}>
+                            <CardContent className={drawerCardContentClass}>
+                              <div className={drawerHandleClass}>
+                                <div className={drawerHandleBarClass} />
+                              </div>
+
+                              <div className={drawerHeaderClass}>
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
+                                      {copy.builderPage.customPrerequisitesBadge}
+                                    </Badge>
+                                    <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+                                      {copy.builderPage.addCustomPrerequisite}
+                                    </h2>
+                                    <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                      {copy.builderPage.customPrerequisiteUrlError}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    className="cursor-pointer rounded-xl border-border/70 bg-background/70 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+                                    onClick={() => setIsCustomPrereqSheetOpen(false)}
+                                  >
+                                    {copy.workspaceDialogs.cancel}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className={drawerBodyClass}>
+                                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                                  <BuilderField label={copy.builderPage.customPrerequisiteName}>
+                                    <Input
+                                      value={customPrereqForm.name}
+                                      onChange={(e) => setCustomPrereqForm((c) => ({ ...c, name: e.target.value }))}
+                                      placeholder={copy.builderPage.customPrerequisiteNamePlaceholder}
+                                      className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+                                    />
+                                  </BuilderField>
+                                  <BuilderField label={copy.builderPage.customPrerequisiteUrl}>
+                                    <Input
+                                      value={customPrereqForm.url}
+                                      onChange={(e) => setCustomPrereqForm((c) => ({ ...c, url: e.target.value }))}
+                                      placeholder={copy.builderPage.customPrerequisiteUrlPlaceholder}
+                                      className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+                                    />
+                                  </BuilderField>
+                                </div>
+                              </div>
+
+                              <div className={drawerFooterClass}>
+                                <div className="flex flex-wrap justify-end gap-3">
+                                  <Button
+                                    variant="outline"
+                                    className="cursor-pointer rounded-xl px-4 border-border/70 bg-background/70 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+                                    onClick={() => setIsCustomPrereqSheetOpen(false)}
+                                  >
+                                    {copy.workspaceDialogs.cancel}
+                                  </Button>
+                                  <Button
+                                    className="cursor-pointer rounded-xl px-4 shadow-sm"
+                                    onClick={addCustomPrerequisite}
+                                  >
+                                    <Plus className="size-4 mr-2" />
+                                    {copy.builderPage.addCustomPrerequisite}
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-4">
+                    {AVAILABLE_PREREQUISITES.map((req) => (
+                      <label key={req.key} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/50 bg-background/50 px-3 py-2 transition-colors hover:bg-muted/50 dark:border-white/10 dark:bg-white/[0.02] dark:hover:bg-white/[0.04]">
+                        <input
+                          type="checkbox"
+                          checked={form.prerequisites.includes(req.key)}
+                          onChange={(e) => {
+                            setForm((c) => ({
+                              ...c,
+                              prerequisites: e.target.checked
+                                ? [...c.prerequisites, req.key]
+                                : c.prerequisites.filter((k) => k !== req.key),
+                            }))
+                          }}
+                          className="size-4 rounded border-slate-300 text-violet-600 focus:ring-violet-600 dark:border-slate-700 dark:bg-slate-900 dark:ring-offset-slate-950 dark:checked:bg-violet-600 dark:checked:border-violet-600"
+                        />
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{req.label}</span>
+                      </label>
+                    ))}
+                    {form.customPrerequisites.map((req, idx) => (
+                      <div key={idx} className="flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 px-3 py-2 dark:border-white/10 dark:bg-white/[0.02]">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{req.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomPrerequisite(idx)}
+                          className="ml-2 text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-6 border-t border-border/50 pt-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <BuilderSectionHeading
                       icon={Link2}
                       title={copy.builderPage.linksTitle}
                       description={copy.builderPage.extraLinksDescription}
                     />
-                    <Button type="button" variant="outline" className={softOutlineButtonClass} onClick={addExtraLink}>
-                      <Plus className="size-4" />
+                    <Button type="button" variant="outline" size="sm" onClick={addExtraLink} className="h-8 rounded-lg">
+                      <Plus className="size-3 mr-1.5" />
                       {copy.builderPage.addLink}
                     </Button>
                   </div>
-
-                  <div className="mt-5 space-y-4">
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
                     <BuilderField label={copy.builderPage.gtamodxUrl}>
                       <Input
                         value={getSpecialLinkUrl(form.links, "gtamodx")}
-                        onChange={(event) => updateSpecialLink("gtamodx", event.currentTarget.value)}
+                        onChange={(e) => updateSpecialLink("gtamodx", e.target.value)}
                         placeholder={copy.builderPage.gtamodxUrlPlaceholder}
-                        className="h-11 rounded-xl border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
+                        className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                       />
                     </BuilderField>
                     <BuilderField label={copy.builderPage.githubUrl}>
                       <Input
                         value={getSpecialLinkUrl(form.links, "github")}
-                        onChange={(event) => updateSpecialLink("github", event.currentTarget.value)}
+                        onChange={(e) => updateSpecialLink("github", e.target.value)}
                         placeholder={copy.builderPage.githubUrlPlaceholder}
-                        className="h-11 rounded-xl border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
+                        className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                       />
                     </BuilderField>
-
-                    {getExtraLinks(form.links).length > 0 ? (
-                      <div className="space-y-3">
-                        {getExtraLinks(form.links).map((link, index) => (
-                          <div
-                            key={link.id}
-                            className="rounded-2xl border border-black/5 bg-muted/20 p-4 dark:border-white/10 dark:bg-white/[0.02]"
-                          >
-                            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_auto]">
-                              <BuilderField label={`${copy.builderPage.extraLinks} ${index + 1}`}>
-                                <Input
-                                  value={link.label}
-                                  onChange={(event) => updateExtraLink(link.id, "label", event.currentTarget.value)}
-                                  placeholder={copy.builderPage.linkLabelPlaceholder}
-                                  className="h-11 rounded-xl border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
-                                />
-                              </BuilderField>
-                              <BuilderField label={copy.builderPage.linkUrlPlaceholder}>
-                                <Input
-                                  value={link.url}
-                                  onChange={(event) => updateExtraLink(link.id, "url", event.currentTarget.value)}
-                                  placeholder={copy.builderPage.linkUrlPlaceholder}
-                                  className="h-11 rounded-xl border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
-                                />
-                              </BuilderField>
-                              <div className="flex items-end">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className={`${softOutlineButtonClass} h-11 px-3 text-red-600 hover:text-red-700 dark:text-red-300 dark:hover:text-red-200`}
-                                  onClick={() => removeExtraLink(link.id)}
-                                >
-                                  <Trash2 className="size-4" />
-                                </Button>
-                              </div>
+                  </div>
+                  
+                  {getExtraLinks(form.links).length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      {getExtraLinks(form.links).map((link, index) => (
+                        <div key={link.id} className="rounded-xl border border-black/5 bg-muted/30 p-3 dark:border-white/10 dark:bg-white/[0.02]">
+                          <div className="grid gap-3 lg:grid-cols-[1fr_2fr_auto]">
+                            <BuilderField label={`${copy.builderPage.extraLinks} ${index + 1}`}>
+                              <Input
+                                value={link.label}
+                                onChange={(e) => updateExtraLink(link.id, "label", e.target.value)}
+                                placeholder={copy.builderPage.linkLabelPlaceholder}
+                                className="h-9 rounded-md bg-background"
+                              />
+                            </BuilderField>
+                            <BuilderField label={copy.builderPage.linkUrlPlaceholder}>
+                              <Input
+                                value={link.url}
+                                onChange={(e) => updateExtraLink(link.id, "url", e.target.value)}
+                                placeholder={copy.builderPage.linkUrlPlaceholder}
+                                className="h-9 rounded-md bg-background"
+                              />
+                            </BuilderField>
+                            <div className="flex items-end">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-9 px-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
+                                onClick={() => removeExtraLink(link.id)}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <BuilderEmptyState>{copy.builderPage.extraLinksDescription}</BuilderEmptyState>
-                    )}
-                  </div>
-                </BuilderSectionCard>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-                <BuilderSectionCard>
+                <div className="mt-6 border-t border-border/50 pt-6">
                   <BuilderSectionHeading
                     icon={ShieldCheck}
                     title={copy.builderPage.updateFingerprintTitle}
@@ -585,7 +758,7 @@ function ModBuilderPage() {
                         value={formatMd5ModeLabel(sourceDigest?.md5Mode, copy)}
                         readOnly
                         placeholder={copy.builderPage.md5ModePlaceholder}
-                        className="h-11 rounded-xl border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
+                        className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                       />
                     </BuilderField>
                     <BuilderField label={copy.builderPage.md5Value}>
@@ -593,59 +766,77 @@ function ModBuilderPage() {
                         value={sourceDigest?.md5 ?? ""}
                         readOnly
                         placeholder={copy.builderPage.md5ValuePlaceholder}
-                        className="h-11 rounded-xl border-border/70 bg-background font-mono text-xs shadow-none dark:border-white/10 dark:bg-white/[0.03]"
+                        className="h-10 rounded-lg border-border/70 bg-background font-mono text-xs shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                       />
                     </BuilderField>
                   </div>
-                </BuilderSectionCard>
+                </div>
+              </div>
+            </G2MPanel>
 
-                <BuilderSectionCard>
+            <G2MPanel>
+              <div className="p-5 lg:p-6">
+                <div className="flex items-start justify-between">
                   <BuilderSectionHeading
                     icon={Files}
-                    title={copy.builderPage.manifestPreviewTitle}
-                    description={copy.workspaceDialogs.modMetadata}
+                    title={copy.builderPage.mappingTitle}
+                    description={copy.workspaceDialogs.folderMappingHint}
                   />
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <BuilderStatCard label={copy.workspacePage.fileCount} value={String(manifestEntries.length)} />
-                    <BuilderStatCard
-                      label={copy.workspaceDialogs.manifestStatus}
-                      value={
-                        preview.hasG2mManifest
-                          ? copy.workspaceDialogs.manifestDetected
-                          : copy.workspaceDialogs.manifestMissing
-                      }
-                    />
-                    <BuilderStatCard label={copy.builderPage.linksTitle} value={String(filledLinkCount)} />
-                    <BuilderStatCard label={copy.builderPage.sourceType} value={sourceDisplayType} />
-                  </div>
-                </BuilderSectionCard>
-
-                <BuilderStepActions
-                  previousLabel={copy.builderPage.pickSourceTitle}
-                  onPrevious={() => setActiveStep("source")}
-                  nextLabel={copy.builderPage.mappingTitle}
-                  onNext={() => setActiveStep("mapping")}
-                />
-              </div>
-            ) : null}
-
-            {activeStep === "mapping" && hasSource && preview ? (
-              <div className="space-y-6">
-                <BuilderStageHeader
-                  step="3"
-                  title={copy.builderPage.mappingTitle}
-                  description={copy.workspaceDialogs.folderMappingHint}
-                  icon={Sparkles}
-                />
-
-                <BuilderSectionCard>
-                  <div className="flex justify-end">
-                    <Button variant="outline" className={softOutlineButtonClass} onClick={resetMappings}>
-                      <RefreshCcw className="size-4" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center rounded-lg border border-border/50 bg-background/50 p-1 dark:border-white/10 dark:bg-white/[0.02]">
+                      <button
+                        type="button"
+                        onClick={() => setBuilderMappingMode("list")}
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                          builderMappingMode === "list"
+                            ? "bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white"
+                            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                        )}
+                      >
+                        {copy.builderPage.builderModeList}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBuilderMappingMode("tree")}
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                          builderMappingMode === "tree"
+                            ? "bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white"
+                            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                        )}
+                      >
+                        {copy.builderPage.builderModeTree}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBuilderMappingMode("explorer")}
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                          builderMappingMode === "explorer"
+                            ? "bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white"
+                            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                        )}
+                      >
+                        {copy.builderPage.builderModeExplorer}
+                      </button>
+                    </div>
+                    <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={resetMappings}>
+                      <RefreshCcw className="size-3 mr-1.5" />
                       {copy.builderPage.resetMappings}
                     </Button>
                   </div>
-                  <div className="mt-5 space-y-6">
+                </div>
+                <div className="mt-5 space-y-6">
+                  {builderMappingMode === "list" ? (
+                    <ModMappingList
+                      copy={copy}
+                      gameTargetNodes={gameTargetNodes}
+                      gameTargetsByPath={gameTargetsByPath}
+                      toggleGameType={toggleGameType}
+                      updateTargetPath={updateTargetPath}
+                    />
+                  ) : builderMappingMode === "tree" ? (
                     <ModMappingWorkbench
                       copy={copy}
                       files={mappings}
@@ -654,83 +845,56 @@ function ModBuilderPage() {
                       targetDescription={copy.workspaceDialogs.folderMappingHint}
                       summaryDescription={copy.workspaceDialogs.folderMappingHint}
                       onDropToFolder={handleDropToFolder}
-                      emptyTargetLabel={copy.demo.targetPending}
+                      emptyTargetLabel={copy.builderPage.emptyMapping}
                     />
-                    <GameTargetTreeSection
+                  ) : (
+                    <ModMappingExplorer
                       copy={copy}
-                      nodes={gameTargetNodes}
-                      selectedTargets={gameTargetsByPath}
-                      onToggleGameType={toggleGameType}
+                      files={mappings}
+                      onDropToFolder={handleDropToFolder}
                     />
-                  </div>
-                </BuilderSectionCard>
-
-                <BuilderStepActions
-                  previousLabel={copy.workspaceDialogs.modMetadata}
-                  onPrevious={() => setActiveStep("metadata")}
-                  nextLabel={copy.builderPage.manifestPreviewTitle}
-                  onNext={() => setActiveStep("preview")}
-                />
+                  )}
+                </div>
               </div>
-            ) : null}
+            </G2MPanel>
 
-            {activeStep === "preview" && hasSource && preview ? (
-              <div className="space-y-6">
-                <BuilderStageHeader
-                  step="4"
-                  title={copy.builderPage.manifestPreviewTitle}
-                  description={copy.builderPage.copyManifest}
-                  icon={FileCode2}
-                />
-
-                <BuilderSectionCard>
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <BuilderSectionHeading
-                      icon={FileCode2}
-                      title={copy.builderPage.manifestPreviewTitle}
-                      description={copy.builderPage.copyManifest}
-                    />
-                    <Button variant="outline" className={softOutlineButtonClass} onClick={() => void generateManifest()}>
-                      <HardDriveDownload className="size-4" />
+            <G2MPanel>
+              <div className="p-5 lg:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <BuilderSectionHeading
+                    icon={FileCode2}
+                    title={copy.builderPage.manifestPreviewTitle}
+                    description={copy.builderPage.copyManifest}
+                  />
+                  <div className="flex items-center gap-3">
+                    <Button onClick={() => void generateManifest()} variant="secondary" className="rounded-xl px-6">
+                      <HardDriveDownload className="size-4 mr-2" />
                       {copy.builderPage.copyManifest}
                     </Button>
+                    <Button onClick={() => void buildArchive()} className="rounded-xl px-6">
+                      <PackageCheck className="size-4 mr-2" />
+                      打包构建 ZIP
+                    </Button>
                   </div>
+                </div>
 
-                  <div className="mt-5 rounded-2xl border border-slate-900/10 bg-slate-950 p-2 dark:border-white/10">
-                    <Textarea
-                      readOnly
-                      value={manifestPreview}
-                      className="h-[360px] rounded-xl border-0 bg-transparent font-mono text-xs text-slate-100 shadow-none focus-visible:ring-0"
-                    />
-                  </div>
-                </BuilderSectionCard>
-
-                <BuilderStepActions
-                  previousLabel={copy.builderPage.mappingTitle}
-                  onPrevious={() => setActiveStep("mapping")}
-                />
+                <div className="mt-5 rounded-2xl border border-slate-900/10 bg-slate-950 p-2 dark:border-white/10">
+                  <Textarea
+                    readOnly
+                    value={manifestPreview}
+                    className="h-[360px] rounded-xl border-0 bg-transparent font-mono text-xs text-slate-100 shadow-none focus-visible:ring-0"
+                  />
+                </div>
               </div>
-            ) : null}
-
-            {!hasSource && activeStep !== "source" ? (
-              <div className="space-y-6">
-                <BuilderStageHeader
-                  step="1"
-                  title={copy.builderPage.pickSourceTitle}
-                  description={copy.builderPage.pickSourceDescription}
-                  icon={FolderOpen}
-                />
-                <BuilderSectionCard>
-                  <BuilderEmptyState>{copy.builderPage.pickSourceDescription}</BuilderEmptyState>
-                </BuilderSectionCard>
-              </div>
-            ) : null}
-          </div>
-        </G2MPanel>
-      </Tabs>
+            </G2MPanel>
+          </>
+        )}
+      </div>
     </div>
   )
 }
+
+
 
 function BuilderField({
   label,
@@ -741,135 +905,10 @@ function BuilderField({
 }) {
   return (
     <div>
-      <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+      <p className="mb-1.5 text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
         {label}
       </p>
       {children}
-    </div>
-  )
-}
-
-function BuilderStageHeader({
-  step,
-  title,
-  description,
-  icon: Icon,
-}: {
-  step: string
-  title: string
-  description: string
-  icon: typeof PackageCheck
-}) {
-  return (
-    <div className="flex items-start gap-4">
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/30">
-        <Icon className="size-5" />
-      </div>
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <BuilderMiniBadge>{`步骤 ${step}`}</BuilderMiniBadge>
-          <p className="text-lg font-semibold text-slate-950 dark:text-slate-50">{title}</p>
-        </div>
-        <p className="max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
-      </div>
-    </div>
-  )
-}
-
-function BuilderFlowStep({
-  step,
-  title,
-  muted = false,
-  active = false,
-}: {
-  step: string
-  title: string
-  muted?: boolean
-  active?: boolean
-}) {
-  return (
-    <div
-      className={`h-full w-full rounded-xl border px-4 py-3 text-left transition-all ${
-        active
-          ? "border-violet-200 bg-white text-slate-900 shadow-sm dark:border-violet-400/30 dark:bg-white/[0.08] dark:text-slate-50"
-          : muted
-            ? "border-transparent bg-transparent text-slate-400 dark:text-slate-500"
-            : "border border-transparent bg-transparent text-slate-700 hover:border-black/5 hover:bg-white dark:text-slate-200 dark:hover:border-white/10 dark:hover:bg-white/[0.04]"
-      }`}
-    >
-      <div className="flex min-h-11 items-center gap-3">
-        <div
-          className={`flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-            active
-              ? "bg-violet-600 text-white dark:bg-violet-400 dark:text-slate-950"
-              : muted
-                ? "bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-slate-500"
-                : "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950"
-          }`}
-        >
-          {step}
-        </div>
-        <p className="min-w-0 truncate text-sm font-semibold">{title}</p>
-      </div>
-    </div>
-  )
-}
-
-function BuilderSectionCard({
-  children,
-}: {
-  children: ReactNode
-}) {
-  return (
-    <div className="rounded-[24px] border border-black/5 bg-background p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-      {children}
-    </div>
-  )
-}
-
-function BuilderStepActions({
-  previousLabel,
-  onPrevious,
-  nextLabel,
-  onNext,
-  nextDisabled = false,
-}: {
-  previousLabel?: string
-  onPrevious?: () => void
-  nextLabel?: string
-  onNext?: () => void
-  nextDisabled?: boolean
-}) {
-  return (
-    <div className={`flex gap-3 ${previousLabel ? "justify-between" : "justify-end"}`}>
-      {previousLabel && onPrevious ? (
-        <Button variant="outline" className={softOutlineButtonClass} onClick={onPrevious}>
-          {previousLabel}
-        </Button>
-      ) : (
-        <div />
-      )}
-      {nextLabel && onNext ? (
-        <Button onClick={onNext} disabled={nextDisabled}>
-          {nextLabel}
-          <ChevronRight className="size-4" />
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
-function BuilderSummaryChip({
-  label,
-  value,
-}: {
-  label: string
-  value: string
-}) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-slate-100/80 px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/[0.06]">
-      <span className="text-slate-500 dark:text-slate-400">{label}</span>
-      <span className="font-medium text-slate-900 dark:text-slate-100">{value}</span>
     </div>
   )
 }
@@ -886,55 +925,12 @@ function BuilderSectionHeading({
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <Icon className="size-4 text-slate-500 dark:text-slate-400" />
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+        <div className="flex size-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
+          <Icon className="size-4" />
+        </div>
+        <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</p>
       </div>
-      <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
-    </div>
-  )
-}
-
-function BuilderMiniBadge({
-  children,
-}: {
-  children: ReactNode
-}) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-black/5 bg-background/80 px-2.5 py-1 text-xs font-medium text-slate-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-400">
-      {children}
-    </span>
-  )
-}
-
-function BuilderEmptyState({
-  children,
-}: {
-  children: ReactNode
-}) {
-  return (
-    <div className="rounded-2xl border border-dashed border-black/10 bg-background/70 px-4 py-5 text-sm text-slate-500 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400">
-      {children}
-    </div>
-  )
-}
-
-function BuilderStatCard({
-  label,
-  value,
-  monospace = false,
-}: {
-  label: string
-  value: string
-  monospace?: boolean
-}) {
-  return (
-    <div className="rounded-2xl border border-black/5 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
-      <p className={`mt-2 text-sm font-semibold text-slate-950 dark:text-slate-50 ${monospace ? "font-mono" : ""}`}>
-        {value}
-      </p>
+      <p className="pl-10 text-sm text-slate-500 dark:text-slate-400">{description}</p>
     </div>
   )
 }
@@ -972,6 +968,8 @@ function buildManifestPayload(options: {
   links: BuilderLinkInput[]
   modName: string
   modType: string
+  prerequisites: string[]
+  customPrerequisites: BuilderCustomPrerequisite[]
   sourceDigest: ManifestSourceDigest | null
   version: string
 }) {
@@ -989,6 +987,8 @@ function buildManifestPayload(options: {
     author: options.author,
     type: options.modType,
     ...(links.length > 0 ? { links } : {}),
+    ...(options.prerequisites.length > 0 ? { prerequisites: options.prerequisites } : {}),
+    ...(options.customPrerequisites.length > 0 ? { customPrerequisites: options.customPrerequisites } : {}),
     ...(options.sourceDigest?.md5
       ? {
           update: {
@@ -1008,6 +1008,8 @@ function buildInitialBuilderState(preview: ModImportPreview, fallbackName: strin
       author: "",
       links: createDefaultBuilderLinks(),
       name: preview.name || fallbackName,
+      prerequisites: [] as string[],
+      customPrerequisites: [] as BuilderCustomPrerequisite[],
       sourceDigest: null as ManifestSourceDigest | null,
       version: "",
       mappings: preview.files,
@@ -1022,6 +1024,8 @@ function buildInitialBuilderState(preview: ModImportPreview, fallbackName: strin
     author: existingManifest.author,
     links: buildBuilderLinks(existingManifest.links),
     name: existingManifest.name || preview.name || fallbackName,
+    prerequisites: existingManifest.prerequisites || [],
+    customPrerequisites: existingManifest.customPrerequisites || [],
     sourceDigest: existingManifest.update,
     version: existingManifest.version,
     mappings,
@@ -1095,14 +1099,6 @@ function buildGameTargetsFromManifest(
   return targets
 }
 
-type BuilderGameTargetNode = {
-  children: BuilderGameTargetNode[]
-  fileCount: number
-  kind: "file" | "folder"
-  path: string
-  targetPath: string
-}
-
 function buildBuilderGameTargetNodes(files: ModImportFileEntry[]): BuilderGameTargetNode[] {
   return buildModFileTree(files, "source").map((node) => buildBuilderGameTargetNode(node, files))
 }
@@ -1156,137 +1152,6 @@ function inferManifestDetailTargetPath(path: string, files: ModImportFileEntry[]
 
   const uniqueCandidates = Array.from(new Set(candidates))
   return uniqueCandidates.length === 1 ? uniqueCandidates[0] : ""
-}
-
-function GameTargetTreeSection({
-  copy,
-  nodes,
-  selectedTargets,
-  onToggleGameType,
-}: {
-  copy: ReturnType<typeof useI18n>["copy"]
-  nodes: BuilderGameTargetNode[]
-  selectedTargets: Record<string, GameTypeTarget[]>
-  onToggleGameType: (path: string, type: GameTypeTarget) => void
-}) {
-  return (
-    <section className="rounded-2xl border border-black/5 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] lg:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-background/80 text-slate-700 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10">
-            <Files className="size-4" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-950 dark:text-slate-50">
-              {copy.builderPage.gameTargets}
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {copy.workspaceDialogs.folderMappingHint}
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="mt-4 space-y-2">
-        {nodes.map((node) => (
-          <GameTargetTreeNode
-            key={node.path}
-            copy={copy}
-            node={node}
-            selectedTargets={selectedTargets}
-            onToggleGameType={onToggleGameType}
-          />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function GameTargetTreeNode({
-  copy,
-  node,
-  selectedTargets,
-  onToggleGameType,
-  depth = 0,
-}: {
-  copy: ReturnType<typeof useI18n>["copy"]
-  node: BuilderGameTargetNode
-  selectedTargets: Record<string, GameTypeTarget[]>
-  onToggleGameType: (path: string, type: GameTypeTarget) => void
-  depth?: number
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const isFolder = node.kind === "folder"
-  const selectedValues = selectedTargets[node.path] ?? []
-
-  return (
-    <div>
-      <div
-        className="rounded-2xl border border-black/5 bg-background/70 px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]"
-        style={{ marginLeft: depth * 14 }}
-      >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {isFolder ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 cursor-pointer rounded-xl"
-                  onClick={() => setExpanded((current) => !current)}
-                >
-                  <ChevronRight className={`size-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
-                </Button>
-              ) : (
-                <span className="inline-flex size-7 shrink-0 items-center justify-center" />
-              )}
-              <p className="break-all text-sm font-semibold text-slate-950 dark:text-slate-50">
-                {node.path}
-              </p>
-              <span className="rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                {isFolder ? copy.builderPage.summaryFolder : copy.builderPage.summaryFile}
-              </span>
-              <span className="rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                {copy.workspacePage.fileCount} {node.fileCount}
-              </span>
-            </div>
-            <p className="mt-2 break-all pl-9 text-xs text-slate-500 dark:text-slate-400">
-              {node.targetPath || copy.workspaceDialogs.doNotInstall}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 pl-9 lg:pl-0">
-            {GAME_TARGET_OPTIONS.map((option) => {
-              const isSelected = selectedValues.includes(option.value as GameTypeTarget)
-              return (
-                <Button
-                  key={`${node.path}-${option.value}`}
-                  variant={isSelected ? "default" : "outline"}
-                  className="h-8 cursor-pointer rounded-lg px-2.5 text-xs"
-                  onClick={() => onToggleGameType(node.path, option.value as GameTypeTarget)}
-                >
-                  {option.label}
-                </Button>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-      {isFolder && expanded ? (
-        <div className="mt-2 space-y-2">
-          {node.children.map((child) => (
-            <GameTargetTreeNode
-              key={child.path}
-              copy={copy}
-              node={child}
-              selectedTargets={selectedTargets}
-              onToggleGameType={onToggleGameType}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
 }
 
 function joinManifestTargetPath(prefix: string, suffix: string): string {

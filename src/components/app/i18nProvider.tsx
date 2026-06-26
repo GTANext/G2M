@@ -97,6 +97,17 @@ type AppCopy = {
     linkUrlPlaceholder: string
     manifestPreviewTitle: string
     mappingTitle: string
+    prerequisitesTitle: string
+    prerequisitesDescription: string
+    customPrerequisitesBadge: string
+    addCustomPrerequisite: string
+    customPrerequisiteName: string
+    customPrerequisiteNamePlaceholder: string
+    customPrerequisiteUrl: string
+    customPrerequisiteUrlPlaceholder: string
+    customPrerequisiteUrlError: string
+    customPrerequisiteMissingFields: string
+    customPrerequisiteInvalidUrl: string
     md5Mode: string
     md5ModeArchive: string
     md5ModeDirectory: string
@@ -131,6 +142,20 @@ type AppCopy = {
     updateFingerprintDescription: string
     updateFingerprintTitle: string
     zipFiles: string
+    explorerTitle: string
+    explorerDescription: string
+    explorerPreset: string
+    explorerCustom: string
+    explorerGoUp: string
+    explorerEmpty: string
+    hideSourceTree: string
+    showSourceTree: string
+    builderModeList: string
+    builderModeTree: string
+    builderModeExplorer: string
+    dragToIgnore: string
+    dragToRoot: string
+    emptyMapping: string
   }
   settings: {
     appearanceDescription: string
@@ -183,6 +208,14 @@ type AppCopy = {
     viewModeLabel: string
     windowsDescription: string
     windowsStyle: string
+    builderModeTitle: string
+    builderModeDescription: string
+    builderModeList: string
+    builderModeListDescription: string
+    builderModeTree: string
+    builderModeTreeDescription: string
+    builderModeExplorer: string
+    builderModeExplorerDescription: string
   }
   workspace: {
     breadcrumbHome: string
@@ -599,6 +632,17 @@ function useI18n() {
         linkUrlPlaceholder: t("builderPage.linkUrlPlaceholder"),
         manifestPreviewTitle: t("builderPage.manifestPreviewTitle"),
         mappingTitle: t("builderPage.mappingTitle"),
+        prerequisitesTitle: t("builderPage.prerequisitesTitle"),
+        prerequisitesDescription: t("builderPage.prerequisitesDescription"),
+        customPrerequisitesBadge: t("builderPage.customPrerequisitesBadge"),
+        addCustomPrerequisite: t("builderPage.addCustomPrerequisite"),
+        customPrerequisiteName: t("builderPage.customPrerequisiteName"),
+        customPrerequisiteNamePlaceholder: t("builderPage.customPrerequisiteNamePlaceholder"),
+        customPrerequisiteUrl: t("builderPage.customPrerequisiteUrl"),
+        customPrerequisiteUrlPlaceholder: t("builderPage.customPrerequisiteUrlPlaceholder"),
+        customPrerequisiteUrlError: t("builderPage.customPrerequisiteUrlError"),
+        customPrerequisiteMissingFields: t("builderPage.customPrerequisiteMissingFields"),
+        customPrerequisiteInvalidUrl: t("builderPage.customPrerequisiteInvalidUrl"),
         md5Mode: t("builderPage.md5Mode"),
         md5ModeArchive: t("builderPage.md5ModeArchive"),
         md5ModeDirectory: t("builderPage.md5ModeDirectory"),
@@ -633,6 +677,20 @@ function useI18n() {
         updateFingerprintDescription: t("builderPage.updateFingerprintDescription"),
         updateFingerprintTitle: t("builderPage.updateFingerprintTitle"),
         zipFiles: t("builderPage.zipFiles"),
+        explorerTitle: t("builderPage.explorerTitle"),
+        explorerDescription: t("builderPage.explorerDescription"),
+        explorerPreset: t("builderPage.explorerPreset"),
+        explorerCustom: t("builderPage.explorerCustom"),
+        explorerGoUp: t("builderPage.explorerGoUp"),
+        explorerEmpty: t("builderPage.explorerEmpty"),
+        hideSourceTree: t("builderPage.hideSourceTree"),
+        showSourceTree: t("builderPage.showSourceTree"),
+        builderModeList: t("builderPage.builderModeList"),
+        builderModeTree: t("builderPage.builderModeTree"),
+        builderModeExplorer: t("builderPage.builderModeExplorer"),
+        dragToIgnore: t("builderPage.dragToIgnore"),
+        dragToRoot: t("builderPage.dragToRoot"),
+        emptyMapping: t("builderPage.emptyMapping"),
       },
       settings: {
         appearanceDescription: t("settings.appearanceDescription"),
@@ -691,6 +749,14 @@ function useI18n() {
         viewModeLabel: t("settings.viewModeLabel"),
         windowsDescription: t("settings.windowsDescription"),
         windowsStyle: t("settings.windowsStyle"),
+        builderModeTitle: t("settings.builderModeTitle"),
+        builderModeDescription: t("settings.builderModeDescription"),
+        builderModeList: t("settings.builderModeList"),
+        builderModeListDescription: t("settings.builderModeListDescription"),
+        builderModeTree: t("settings.builderModeTree"),
+        builderModeTreeDescription: t("settings.builderModeTreeDescription"),
+        builderModeExplorer: t("settings.builderModeExplorer"),
+        builderModeExplorerDescription: t("settings.builderModeExplorerDescription"),
       },
       workspace: {
         breadcrumbHome: t("workspace.breadcrumbHome"),

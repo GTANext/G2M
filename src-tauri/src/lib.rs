@@ -9,22 +9,25 @@ mod mod_repository;
 mod models;
 mod repository;
 mod storage;
+pub mod startup_checks;
 mod symlink_install;
 mod utils;
 mod workspace_package;
 
 use commands::{
-    bootstrap_app, delete_game_entry, delete_mod_entry, detect_game_directory,
-    generate_manifest_file, import_mod_directory, inspect_mod_source, inspect_mod_source_digest,
-    get_app_info, install_game_prerequisite_module, preview_mod_directory,
-    save_game_path, update_game_entry, update_mod_enabled,
+    bootstrap_app, delete_game_entry, delete_mod_entry, detect_game_directory,  
+    generate_manifest_file, build_mod_archive, get_app_info, import_mod_directory, inspect_mod_source,
+    inspect_mod_source_digest, install_game_prerequisite_module, preview_mod_directory,
+    read_game_folders, fix_misplaced_cleo_redux, save_game_path, update_game_entry, update_mod_enabled,
+    install_all_game_prerequisites, update_games_sort_order, read_image_base64,
 };
 
 pub(crate) use game_support::{canonical_exe_name, canonical_game_name};
 pub(crate) use models::{
     AppInfoPayload, BootstrapPayload, DetectedGamePayload, ExistingBuilderManifestFilePayload,
     ExistingBuilderManifestLinkPayload, ExistingBuilderManifestPayload,
-    ExistingBuilderManifestUpdatePayload, GameDirectory, GamePrerequisitePayload, LegacySettingsFile,
+    ExistingBuilderManifestUpdatePayload, ExistingBuilderManifestCustomPrerequisitePayload,
+    GameDirectory, GamePrerequisitePayload, LegacySettingsFile,
     ManifestSourceDigestPayload, ModImportFileEntryInput, ModImportFileEntryPayload,
     ModImportPreviewPayload, ModInstallFileRecord, ModInstallPlan, StoredConflictFile,
     StoredGameEntry, StoredMod,
@@ -83,6 +86,9 @@ where
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -90,16 +96,22 @@ pub fn run() {
             get_app_info,
             detect_game_directory,
             generate_manifest_file,
+            build_mod_archive,
             inspect_mod_source_digest,
             save_game_path,
             update_game_entry,
             delete_game_entry,
+            update_games_sort_order,
             delete_mod_entry,
             update_mod_enabled,
             inspect_mod_source,
             preview_mod_directory,
             import_mod_directory,
-            install_game_prerequisite_module
+            install_game_prerequisite_module,
+            install_all_game_prerequisites,
+            fix_misplaced_cleo_redux,
+            read_game_folders,
+            read_image_base64
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

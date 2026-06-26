@@ -20,6 +20,7 @@ pub(crate) struct GameWorkspacePackage {
     pub(crate) game_type: String,
     pub(crate) name: String,
     pub(crate) last_modified_at: i64,
+    pub(crate) cover_base64: Option<String>,
     pub(crate) mods: Vec<GameWorkspacePackageMod>,
 }
 
@@ -105,6 +106,35 @@ pub(crate) fn write_game_workspace_package(
         .map_err(|error| format!("failed to serialize game workspace package: {error}"))?;
     fs::write(package_path, content)
         .map_err(|error| format!("failed to write {}: {error}", package_path.display()))
+}
+
+pub(crate) fn update_game_workspace_package_info(
+    workspace_dir: &Path,
+    name: &str,
+    game_type: &str,
+    image_base64: &str,
+) -> Result<(), String> {
+    let package_path = workspace_dir.join(GAME_WORKSPACE_PACKAGE_FILE_NAME);
+    let mut package = if package_path.is_file() {
+        let content = fs::read_to_string(&package_path)
+            .map_err(|error| format!("failed to read {}: {error}", package_path.display()))?;
+        if content.trim().is_empty() {
+            GameWorkspacePackage::default()
+        } else {
+            serde_json::from_str::<GameWorkspacePackage>(&content)
+                .map_err(|error| format!("failed to parse {}: {error}", package_path.display()))?
+        }
+    } else {
+        GameWorkspacePackage::default()
+    };
+
+    package.version = GAME_WORKSPACE_PACKAGE_VERSION;
+    package.name = name.to_string();
+    package.game_type = game_type.to_string();
+    package.cover_base64 = Some(image_base64.to_string());
+    package.last_modified_at = current_timestamp();
+
+    write_game_workspace_package(&package_path, &package)
 }
 
 pub(crate) fn import_game_packages_into_database(
@@ -315,6 +345,7 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
         game_type: game.game_type.clone(),
         name: game.name.clone(),
         last_modified_at: current_timestamp(),
+        cover_base64: Some(game.image_path.clone()),
         mods: package_mods,
     };
     write_game_workspace_package(&game_workspace_package_path(Path::new(&game.path)), &package)

@@ -30,6 +30,7 @@ pub(crate) struct GameDirectory {
     pub(crate) created_at: i64,
     pub(crate) updated_at: i64,
     pub(crate) configured: bool,
+    pub(crate) sort_order: i64,
     pub(crate) prerequisites: Vec<GamePrerequisitePayload>,
 }
 
@@ -52,6 +53,7 @@ pub(crate) struct DetectedGamePayload {
     pub(crate) path: String,
     pub(crate) exe_name: String,
     pub(crate) version: String,
+    pub(crate) cover_base64: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -121,12 +123,21 @@ pub(crate) struct ExistingBuilderManifestFilePayload {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct ExistingBuilderManifestCustomPrerequisitePayload {
+    pub(crate) name: String,
+    pub(crate) url: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ExistingBuilderManifestPayload {
     pub(crate) name: String,
     pub(crate) version: String,
     pub(crate) author: String,
     pub(crate) mod_type: String,
     pub(crate) links: Vec<ExistingBuilderManifestLinkPayload>,
+    pub(crate) prerequisites: Vec<String>,
+    pub(crate) custom_prerequisites: Vec<ExistingBuilderManifestCustomPrerequisitePayload>,
     pub(crate) update: Option<ExistingBuilderManifestUpdatePayload>,
     pub(crate) files: Vec<ExistingBuilderManifestFilePayload>,
 }
@@ -177,6 +188,7 @@ pub(crate) struct StoredGameEntry {
     pub(crate) image_path: String,
     pub(crate) created_at: i64,
     pub(crate) updated_at: i64,
+    pub(crate) sort_order: i64,
 }
 
 #[derive(Debug, Deserialize)]

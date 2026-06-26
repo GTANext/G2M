@@ -1,9 +1,7 @@
 import type { ReactNode } from "react"
 import {
   AppWindowMac,
-  Database,
   Eye,
-  HardDrive,
   Languages,
   LayoutGrid,
   List,
@@ -12,22 +10,31 @@ import {
   MoonStar,
   Palette,
   SunMedium,
+  Hammer,
+  MousePointer2,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useNavigate } from "react-router-dom"
 
 import { useI18n } from "@/components/app/i18nProvider"
 import { useAppPreferences } from "@/components/app/preferencesProvider"
+import { G2MPageHeroCard } from "@/components/g2m/pageHeroCard"
 import { G2MPanel, G2MPill, G2MSubtlePanel } from "@/components/g2m/surface"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+
+const optionCardClass =
+  "h-full rounded-[24px] border border-white/70 bg-white/70 p-5 text-left shadow-[0_12px_32px_rgba(15,23,42,0.05)] ring-1 ring-black/[0.04] backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]"
 
 function SettingsPage() {
   const navigate = useNavigate()
   const {
     homeViewMode,
     setHomeViewMode,
+    builderMappingMode,
+    setBuilderMappingMode,
     setShowHomeGameDetails,
     setTitleBarStyle,
     showHomeGameDetails,
@@ -44,327 +51,300 @@ function SettingsPage() {
         ? copy.navbar.darkLabel
         : copy.settings.light
 
+  const currentTitleBarLabel =
+    titleBarStyle === "windows" ? copy.settings.windowsStyle : copy.settings.macStyle
+  const currentHomeViewLabel =
+    homeViewMode === "card" ? copy.settings.cardMode : copy.home.listView
+  const currentBuilderModeLabel =
+    builderMappingMode === "list"
+      ? copy.settings.builderModeList
+      : builderMappingMode === "tree"
+        ? copy.settings.builderModeTree
+        : copy.settings.builderModeExplorer
+
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
-      <G2MPanel>
-        <div className="flex flex-col gap-6 p-6 lg:flex-row lg:items-end lg:justify-between lg:p-7">
-          <div className="max-w-4xl">
-            <G2MPill className="bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-              {copy.common.settings}
-            </G2MPill>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-              {copy.settings.heroTitle}
-            </h1>
-            <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">
-              {copy.settings.heroDescription}
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <StatusPill label={copy.settings.theme} value={currentThemeLabel} />
-              <StatusPill
-                label={copy.settings.titleBar}
-                value={titleBarStyle === "windows" ? copy.settings.windowsStyle : copy.settings.macStyle}
-              />
-              <StatusPill
-                label={copy.settings.currentHomeView}
-                value={homeViewMode === "card" ? copy.settings.cardMode : copy.home.listView}
-              />
-              <StatusPill label={copy.common.language} value={locale} />
-              <StatusPill label={copy.settings.persistence} value={copy.settings.localPersistence} />
-            </div>
+    <div className="mx-auto max-w-[1380px] space-y-6">
+      <G2MPageHeroCard
+        eyebrow={copy.common.settings}
+        title={copy.settings.heroTitle}
+        description={copy.settings.heroDescription}
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="cursor-pointer rounded-xl border-border/70 bg-background/70 px-4 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+              onClick={() => navigate("/about")}
+            >
+              <MonitorCog className="mr-2 size-4" />
+              关于应用
+            </Button>
+            <Button
+              variant="outline"
+              className="cursor-pointer rounded-xl border-border/70 bg-background/70 px-4 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+              onClick={() => navigate(-1)}
+            >
+              {copy.common.back}
+            </Button>
           </div>
+        }
+      />
 
-          <Button
-            variant="outline"
-            className="cursor-pointer rounded-xl border-border/70 bg-background/70 px-4 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
-            onClick={() => navigate(-1)}
-          >
-            {copy.common.back}
-          </Button>
-        </div>
-      </G2MPanel>
-
-      <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
-          <G2MPanel className="p-5">
-            <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
-              {copy.settings.groupsTitle}
-            </p>
-            <div className="mt-4 space-y-3">
-              <SettingsNavCard
-                title={copy.settings.appearanceTitle}
-                description={copy.settings.appearanceDescription}
-                icon={<Palette className="size-4" />}
-              />
-              <SettingsNavCard
-                title={copy.settings.titleBar}
-                description={copy.settings.titleBarDescription}
-                icon={<MonitorCog className="size-4" />}
-              />
-              <SettingsNavCard
-                title={copy.settings.homeDisplayTitle}
-                description={copy.settings.homeDisplayDescription}
-                icon={<LayoutGrid className="size-4" />}
-              />
-              <SettingsNavCard
-                title={copy.settings.languageSectionTitle}
-                description={copy.settings.languageDescription}
-                icon={<Languages className="size-4" />}
-              />
-              <SettingsNavCard
-                title={copy.settings.dataStorageTitle}
-                description={copy.settings.dataStorageDescription}
-                icon={<Database className="size-4" />}
-              />
-            </div>
-          </G2MPanel>
-
-          <G2MSubtlePanel className="p-5">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{copy.settings.currentState}</p>
-            <div className="mt-4 space-y-3">
-              <InlineState label={copy.settings.currentTheme} value={currentThemeLabel} />
-              <InlineState
-                label={copy.settings.currentTitleBar}
-                value={titleBarStyle === "windows" ? copy.settings.windowsStyle : copy.settings.macStyle}
-              />
-              <InlineState
-                label={copy.settings.currentHomeView}
-                value={homeViewMode === "card" ? copy.settings.cardMode : copy.home.listView}
-              />
-              <InlineState
-                label={copy.settings.currentHomeDetails}
-                value={showHomeGameDetails ? copy.settings.on : copy.settings.off}
-              />
-              <InlineState label={copy.settings.currentLanguage} value={locale} />
-              <InlineState label={copy.settings.persistence} value={copy.common.localStorage} />
-            </div>
-          </G2MSubtlePanel>
-        </aside>
-
-        <div className="space-y-5">
-          <G2MPanel className="p-5 lg:p-6">
-            <SectionHeading
-              title={copy.settings.appearanceTitle}
-              description={copy.settings.themeDescription}
-              icon={<Palette className="size-5" />}
-            />
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
-              <ThemeModeCard
-                active={theme === "system"}
-                title={copy.settings.followSystem}
-                description={copy.settings.followSystemDescription(resolvedThemeMode)}
-                icon={<Monitor className="size-5" />}
-                onClick={() => setTheme("system")}
-              />
-              <ThemeModeCard
-                active={theme === "light"}
-                title={copy.settings.light}
-                description={copy.settings.lightDescription}
-                icon={<SunMedium className="size-5" />}
-                onClick={() => setTheme("light")}
-              />
-              <ThemeModeCard
-                active={theme === "dark"}
-                title={copy.navbar.darkLabel}
-                description={copy.navbar.darkTitle}
-                icon={<MoonStar className="size-5" />}
-                onClick={() => setTheme("dark")}
-              />
-            </div>
-          </G2MPanel>
-
-          <G2MPanel className="p-5 lg:p-6">
-            <SectionHeading
-              title={copy.settings.titleBar}
-              description={copy.settings.titleBarDescription}
-              icon={<MonitorCog className="size-5" />}
-            />
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <TitleBarOptionCard
-                active={titleBarStyle === "windows"}
-                title={copy.settings.windowsStyle}
-                description={copy.settings.windowsDescription}
-                icon={<Monitor className="size-5" />}
-                preview={<WindowPreview styleType="windows" />}
-                onClick={() => setTitleBarStyle("windows")}
-              />
-              <TitleBarOptionCard
-                active={titleBarStyle === "mac"}
-                title={copy.settings.macStyle}
-                description={copy.settings.macDescription}
-                icon={<AppWindowMac className="size-5" />}
-                preview={<WindowPreview styleType="mac" />}
-                onClick={() => setTitleBarStyle("mac")}
-              />
+      <Tabs defaultValue="appearance">
+        <G2MPanel className="overflow-hidden p-2">
+          <div className="rounded-[28px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.68),rgba(248,250,252,0.56))] ring-1 ring-black/[0.04] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.48),rgba(15,23,42,0.3))] dark:ring-white/[0.04]">
+            <div className="border-b border-black/5 px-4 py-4 dark:border-white/10 sm:px-5">
+              <TabsList className="!grid !h-auto !w-full grid-cols-2 gap-1 rounded-full bg-black/[0.04] p-1 dark:bg-white/[0.05] sm:grid-cols-3 xl:grid-cols-5">
+                <SettingsTabTrigger value="appearance" title={copy.settings.appearanceTitle} />
+                <SettingsTabTrigger value="title-bar" title={copy.settings.titleBar} />
+                <SettingsTabTrigger value="home" title={copy.settings.homeDisplayTitle} />
+                <SettingsTabTrigger value="builder" title={copy.navbar.builder} />
+                <SettingsTabTrigger value="language" title={copy.settings.languageSectionTitle} />
+              </TabsList>
             </div>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
-              <InfoPanel
-                label={copy.settings.buttonPosition}
-                value={titleBarStyle === "windows" ? copy.settings.right : copy.settings.left}
-              />
-              <InfoPanel
-                label={copy.settings.titleAlignment}
-                value={titleBarStyle === "windows" ? copy.settings.right : copy.settings.moreCentered}
-              />
-              <InfoPanel label={copy.settings.defaultMode} value={copy.settings.windowsStyle} />
-            </div>
-          </G2MPanel>
+            <div className="p-4 sm:p-5 lg:p-6">
+              <TabsContent value="appearance" className="mt-0">
+                <SettingsSectionShell
+                  title={copy.settings.appearanceTitle}
+                  description={copy.settings.appearanceDescription}
+                  badge={currentThemeLabel}
+                  icon={<Palette className="size-5" />}
+                >
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <SettingsChoiceCard
+                      active={theme === "system"}
+                      title={copy.settings.followSystem}
+                      description={copy.settings.followSystemDescription(resolvedThemeMode)}
+                      icon={<Monitor className="size-5" />}
+                      onClick={() => setTheme("system")}
+                    />
+                    <SettingsChoiceCard
+                      active={theme === "light"}
+                      title={copy.settings.light}
+                      description={copy.settings.lightDescription}
+                      icon={<SunMedium className="size-5" />}
+                      onClick={() => setTheme("light")}
+                    />
+                    <SettingsChoiceCard
+                      active={theme === "dark"}
+                      title={copy.navbar.darkLabel}
+                      description={copy.navbar.darkTitle}
+                      icon={<MoonStar className="size-5" />}
+                      onClick={() => setTheme("dark")}
+                    />
+                  </div>
+                </SettingsSectionShell>
+              </TabsContent>
 
-          <G2MPanel className="p-5 lg:p-6">
-            <SectionHeading
-              title={copy.settings.homeDisplayTitle}
-              description={copy.settings.homeDisplayDescription}
-              icon={<LayoutGrid className="size-5" />}
-            />
-
-            <p className="mt-5 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-              {copy.settings.viewModeLabel}
-            </p>
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <ThemeModeCard
-                active={homeViewMode === "card"}
-                title={copy.settings.cardMode}
-                description={copy.settings.cardModeDescription}
-                icon={<LayoutGrid className="size-5" />}
-                onClick={() => setHomeViewMode("card")}
-              />
-              <ThemeModeCard
-                active={homeViewMode === "list"}
-                title={copy.home.listView}
-                description={copy.home.listModeHint}
-                icon={<List className="size-5" />}
-                onClick={() => setHomeViewMode("list")}
-              />
-            </div>
-
-            <G2MSubtlePanel className="mt-4 p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="max-w-2xl">
-                  <div className="flex items-center gap-3 text-slate-900 dark:text-slate-100">
-                    <div className="flex size-10 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-                      <Eye className="size-4" />
+              <TabsContent value="title-bar" className="mt-0">
+                <SettingsSectionShell
+                  title={copy.settings.titleBar}
+                  description={copy.settings.titleBarDescription}
+                  badge={currentTitleBarLabel}
+                  icon={<MonitorCog className="size-5" />}
+                >
+                  <div className="space-y-4">
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <SettingsChoiceCard
+                        active={titleBarStyle === "windows"}
+                        title={copy.settings.windowsStyle}
+                        description={copy.settings.windowsDescription}
+                        icon={<Monitor className="size-5" />}
+                        preview={<WindowPreview styleType="windows" />}
+                        onClick={() => setTitleBarStyle("windows")}
+                      />
+                      <SettingsChoiceCard
+                        active={titleBarStyle === "mac"}
+                        title={copy.settings.macStyle}
+                        description={copy.settings.macDescription}
+                        icon={<AppWindowMac className="size-5" />}
+                        preview={<WindowPreview styleType="mac" />}
+                        onClick={() => setTitleBarStyle("mac")}
+                      />
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold">{copy.settings.moreInfoLabel}</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                        {copy.settings.moreInfoDescription}
-                      </p>
+
+                    <div className="grid gap-4 lg:grid-cols-3">
+                      <SettingsMiniStat
+                        label={copy.settings.buttonPosition}
+                        value={titleBarStyle === "windows" ? copy.settings.right : copy.settings.left}
+                      />
+                      <SettingsMiniStat
+                        label={copy.settings.titleAlignment}
+                        value={titleBarStyle === "windows" ? copy.settings.right : copy.settings.moreCentered}
+                      />
+                      <SettingsMiniStat
+                        label={copy.settings.defaultMode}
+                        value={copy.settings.windowsStyle}
+                      />
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {showHomeGameDetails ? copy.settings.on : copy.settings.off}
-                  </span>
-                  <Switch
-                    checked={showHomeGameDetails}
-                    onCheckedChange={setShowHomeGameDetails}
-                    aria-label={copy.settings.moreInfoLabel}
-                  />
-                </div>
-              </div>
-            </G2MSubtlePanel>
-          </G2MPanel>
+                </SettingsSectionShell>
+              </TabsContent>
 
-          <G2MPanel className="p-5 lg:p-6">
-            <SectionHeading
-              title={copy.settings.languageSectionTitle}
-              description={copy.settings.languageSectionDescription}
-              icon={<Languages className="size-5" />}
-            />
+              <TabsContent value="home" className="mt-0">
+                <SettingsSectionShell
+                  title={copy.settings.homeDisplayTitle}
+                  description={copy.settings.homeDisplayDescription}
+                  badge={currentHomeViewLabel}
+                  icon={<LayoutGrid className="size-5" />}
+                >
+                  <div className="space-y-4">
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <SettingsChoiceCard
+                        active={homeViewMode === "card"}
+                        title={copy.settings.cardMode}
+                        description={copy.settings.cardModeDescription}
+                        icon={<LayoutGrid className="size-5" />}
+                        onClick={() => setHomeViewMode("card")}
+                      />
+                      <SettingsChoiceCard
+                        active={homeViewMode === "list"}
+                        title={copy.home.listView}
+                        description={copy.home.listModeHint}
+                        icon={<List className="size-5" />}
+                        onClick={() => setHomeViewMode("list")}
+                      />
+                    </div>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-              {localeOptions.map((item) => (
-                <LanguageOptionCard
-                  key={item.value}
-                  active={locale === item.value}
-                  code={item.code}
-                  title={item.label}
-                  description={copy.settings.languageDescription}
-                  onClick={() => setLocale(item.value)}
-                />
-              ))}
+                    <SettingsToggleCard
+                      title={copy.settings.moreInfoLabel}
+                      description={copy.settings.moreInfoDescription}
+                      icon={<Eye className="size-5" />}
+                      checked={showHomeGameDetails}
+                      checkedLabel={showHomeGameDetails ? copy.settings.on : copy.settings.off}
+                      onCheckedChange={setShowHomeGameDetails}
+                    />
+                  </div>
+                </SettingsSectionShell>
+              </TabsContent>
+
+              <TabsContent value="builder" className="mt-0">
+                <SettingsSectionShell
+                  title={copy.settings.builderModeTitle}
+                  description={copy.settings.builderModeDescription}
+                  badge={currentBuilderModeLabel}
+                  icon={<Hammer className="size-5" />}
+                >
+                  <div className="space-y-4">
+                    <div className="grid gap-4 lg:grid-cols-3">
+                      <SettingsChoiceCard
+                        active={builderMappingMode === "list"}
+                        title={copy.settings.builderModeList}
+                        description={copy.settings.builderModeListDescription}
+                        icon={<List className="size-5" />}
+                        onClick={() => setBuilderMappingMode("list")}
+                      />
+                      <SettingsChoiceCard
+                        active={builderMappingMode === "tree"}
+                        title={copy.settings.builderModeTree}
+                        description={copy.settings.builderModeTreeDescription}
+                        icon={<List className="size-5" />}
+                        onClick={() => setBuilderMappingMode("tree")}
+                      />
+                      <SettingsChoiceCard
+                        active={builderMappingMode === "explorer"}
+                        title={copy.settings.builderModeExplorer}
+                        description={copy.settings.builderModeExplorerDescription}
+                        icon={<MousePointer2 className="size-5" />}
+                        onClick={() => setBuilderMappingMode("explorer")}
+                      />
+                    </div>
+                  </div>
+                </SettingsSectionShell>
+              </TabsContent>
+
+              <TabsContent value="language" className="mt-0">
+                <SettingsSectionShell
+                  title={copy.settings.languageSectionTitle}
+                  description={copy.settings.languageSectionDescription}
+                  badge={locale}
+                  icon={<Languages className="size-5" />}
+                >
+                  <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+                    {localeOptions.map((item) => (
+                      <SettingsLanguageCard
+                        key={item.value}
+                        active={locale === item.value}
+                        code={item.code}
+                        title={item.label}
+                        description={copy.settings.languageDescription}
+                        onClick={() => setLocale(item.value)}
+                      />
+                    ))}
+                  </div>
+                </SettingsSectionShell>
+              </TabsContent>
             </div>
-          </G2MPanel>
-
-          <G2MPanel className="p-5 lg:p-6">
-            <SectionHeading
-              title={copy.settings.dataStorageTitle}
-              description={copy.settings.dataStorageDescription}
-              icon={<HardDrive className="size-5" />}
-            />
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <StorageCard
-                title={copy.settings.databaseTitle}
-                description={copy.settings.databaseDescription}
-                path="config/database.db"
-              />
-              <StorageCard
-                title={copy.settings.storageCoversTitle}
-                description={copy.settings.storageCoversDescription}
-                path="assets/custom/"
-              />
-            </div>
-          </G2MPanel>
-        </div>
-      </div>
+          </div>
+        </G2MPanel>
+      </Tabs>
     </div>
   )
 }
 
-function LanguageOptionCard({
-  active,
-  code,
+function SettingsTabTrigger({
+  value,
+  title,
+}: {
+  value: string
+  title: string
+}) {
+  return (
+    <TabsTrigger
+      value={value}
+      className="!h-auto rounded-full border border-transparent bg-transparent px-3 py-2.5 text-sm font-medium text-slate-500 transition-all hover:text-slate-800 data-active:border-white/80 data-active:bg-white/90 data-active:text-slate-950 data-active:shadow-[0_6px_20px_rgba(15,23,42,0.08)] dark:text-slate-300 dark:hover:text-slate-100 dark:data-active:border-white/10 dark:data-active:bg-white/[0.08] dark:data-active:text-slate-50"
+    >
+      {title}
+    </TabsTrigger>
+  )
+}
+
+function SettingsSectionShell({
   title,
   description,
-  onClick,
+  badge,
+  icon,
+  children,
 }: {
-  active: boolean
-  code: string
   title: string
   description: string
-  onClick: () => void
+  badge: string
+  icon: ReactNode
+  children: ReactNode
 }) {
   const { copy } = useI18n()
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="cursor-pointer text-left transition-transform hover:-translate-y-0.5"
-    >
-      <G2MSubtlePanel
-        className={cn(
-          "h-full p-5",
-          active && "border-violet-300/60 dark:border-violet-400/30",
-        )}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex h-11 min-w-11 items-center justify-center rounded-2xl bg-slate-950 px-3 text-xs font-semibold tracking-[0.24em] text-white dark:bg-white dark:text-slate-950">
-            {code}
+    <section className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-black/[0.05] text-slate-700 dark:bg-white/[0.08] dark:text-slate-100">
+            {icon}
           </div>
-          <G2MPill
-            className={
-              active
-                ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200"
-                : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"
-            }
-          >
-            {active ? copy.common.current : copy.common.clickToSwitch}
-          </G2MPill>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
+              {copy.common.settings}
+            </p>
+            <h2 className="mt-2 text-[30px] font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+              {title}
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300">
+              {description}
+            </p>
+          </div>
         </div>
-        <h3 className="mt-5 text-xl font-semibold text-slate-950 dark:text-slate-50">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{description}</p>
-      </G2MSubtlePanel>
-    </button>
+
+        <G2MPill className="w-fit bg-black/[0.04] text-slate-600 dark:bg-white/[0.08] dark:text-slate-300">
+          {badge}
+        </G2MPill>
+      </div>
+
+      <div>{children}</div>
+    </section>
   )
 }
 
-function TitleBarOptionCard({
+function SettingsChoiceCard({
   active,
   title,
   description,
@@ -374,9 +354,9 @@ function TitleBarOptionCard({
 }: {
   active: boolean
   title: string
-  description: string
+  description: ReactNode
   icon: ReactNode
-  preview: ReactNode
+  preview?: ReactNode
   onClick: () => void
 }) {
   const { copy } = useI18n()
@@ -385,52 +365,94 @@ function TitleBarOptionCard({
     <button
       type="button"
       onClick={onClick}
-      className="cursor-pointer text-left transition-transform hover:-translate-y-0.5"
+      className={cn(
+        optionCardClass,
+        "cursor-pointer",
+        active
+          ? "border-sky-200/80 bg-sky-50/80 ring-2 ring-sky-100 dark:border-sky-400/30 dark:bg-sky-500/10 dark:ring-sky-400/15"
+          : "hover:border-black/10 dark:hover:border-white/15",
+      )}
     >
-      <G2MSubtlePanel
-        className={cn(
-          "h-full p-5",
-          active && "border-violet-300/60 dark:border-violet-400/30",
-        )}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-            {icon}
-          </div>
-          <G2MPill
-            className={
-              active
-                ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200"
-                : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"
-            }
-          >
-            {active ? copy.common.current : copy.common.clickToSwitch}
-          </G2MPill>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-black/[0.05] text-slate-700 dark:bg-white/[0.08] dark:text-slate-100">
+          {icon}
         </div>
+        <G2MPill
+          className={
+            active
+              ? "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-200"
+              : "bg-black/[0.04] text-slate-500 dark:bg-white/[0.08] dark:text-slate-300"
+          }
+        >
+          {active ? copy.common.current : copy.common.clickToSwitch}
+        </G2MPill>
+      </div>
 
-        <h2 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-          {title}
-        </h2>
-        <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-          {description}
-        </p>
-        <div className="mt-5">{preview}</div>
-      </G2MSubtlePanel>
+      <h3 className="mt-5 text-lg font-semibold text-slate-950 dark:text-slate-50">
+        {title}
+      </h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+        {description}
+      </p>
+      {preview ? <div className="mt-5">{preview}</div> : null}
     </button>
   )
 }
 
-function ThemeModeCard({
-  active,
+function SettingsToggleCard({
   title,
   description,
   icon,
+  checked,
+  checkedLabel,
+  onCheckedChange,
+}: {
+  title: string
+  description: string
+  icon: ReactNode
+  checked: boolean
+  checkedLabel: string
+  onCheckedChange: (value: boolean) => void
+}) {
+  return (
+    <G2MSubtlePanel className="rounded-[24px] border border-white/75 bg-white/65 p-5 ring-1 ring-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-black/[0.05] text-slate-700 dark:bg-white/[0.08] dark:text-slate-100">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">
+              {title}
+            </h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+              {description}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-full border border-black/5 bg-white/80 px-4 py-2 dark:border-white/10 dark:bg-white/[0.05]">
+          <span className="text-sm text-slate-500 dark:text-slate-400">
+            {checkedLabel}
+          </span>
+          <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={title} />
+        </div>
+      </div>
+    </G2MSubtlePanel>
+  )
+}
+
+function SettingsLanguageCard({
+  active,
+  title,
+  description,
+  code,
   onClick,
 }: {
   active: boolean
   title: string
   description: string
-  icon: ReactNode
+  code: string
   onClick: () => void
 }) {
   const { copy } = useI18n()
@@ -439,39 +461,43 @@ function ThemeModeCard({
     <button
       type="button"
       onClick={onClick}
-      className="cursor-pointer text-left transition-transform hover:-translate-y-0.5"
+      className={cn(
+        optionCardClass,
+        "cursor-pointer",
+        active
+          ? "border-sky-200/80 bg-sky-50/80 ring-2 ring-sky-100 dark:border-sky-400/30 dark:bg-sky-500/10 dark:ring-sky-400/15"
+          : "hover:border-black/10 dark:hover:border-white/15",
+      )}
     >
-      <G2MSubtlePanel
-        className={cn(
-          "h-full p-5",
-          active && "border-violet-300/60 dark:border-violet-400/30",
-        )}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-            {icon}
-          </div>
-          <G2MPill
-            className={
-              active
-                ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200"
-                : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"
-            }
-          >
-            {active ? copy.common.current : copy.common.clickToSwitch}
-          </G2MPill>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex h-11 min-w-11 items-center justify-center rounded-2xl bg-black/[0.05] px-3 text-xs font-semibold tracking-[0.22em] text-slate-700 dark:bg-white/[0.08] dark:text-slate-100">
+          {code}
         </div>
-        <h3 className="mt-5 text-xl font-semibold text-slate-950 dark:text-slate-50">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{description}</p>
-      </G2MSubtlePanel>
+        <G2MPill
+          className={
+            active
+              ? "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-200"
+              : "bg-black/[0.04] text-slate-500 dark:bg-white/[0.08] dark:text-slate-300"
+          }
+        >
+          {active ? copy.common.current : copy.common.clickToSwitch}
+        </G2MPill>
+      </div>
+
+      <h3 className="mt-5 text-lg font-semibold text-slate-950 dark:text-slate-50">
+        {title}
+      </h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+        {description}
+      </p>
     </button>
   )
 }
 
 function WindowPreview({ styleType }: { styleType: "windows" | "mac" }) {
   return (
-    <div className="rounded-[22px] border border-black/5 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">
-      <div className="rounded-[18px] border border-black/5 bg-slate-50/90 p-3 dark:border-white/10 dark:bg-slate-950/60">
+    <div className="rounded-[20px] border border-black/5 bg-white/70 p-3 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
+      <div className="rounded-[16px] border border-black/5 bg-slate-50/90 p-3 dark:border-white/10 dark:bg-slate-950/60">
         <div className="flex items-center justify-between">
           {styleType === "mac" ? (
             <>
@@ -499,107 +525,16 @@ function WindowPreview({ styleType }: { styleType: "windows" | "mac" }) {
   )
 }
 
-function SettingsNavCard({
-  title,
-  description,
-  icon,
-}: {
-  title: string
-  description: string
-  icon: ReactNode
-}) {
+function SettingsMiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-black/5 bg-white/70 px-4 py-4 dark:border-white/10 dark:bg-white/[0.04]">
-      <div className="flex items-start gap-3 text-slate-900 dark:text-slate-100">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">{title}</p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{description}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SectionHeading({
-  title,
-  description,
-  icon,
-}: {
-  title: string
-  description: string
-  icon: ReactNode
-}) {
-  const { copy } = useI18n()
-
-  return (
-    <div>
-      <div className="flex items-center gap-3 text-slate-900 dark:text-slate-100">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-          {icon}
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
-            {copy.common.settings}
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">{title}</h2>
-        </div>
-      </div>
-      <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300">
-        {description}
-      </p>
-    </div>
-  )
-}
-
-function StorageCard({
-  title,
-  description,
-  path,
-}: {
-  title: string
-  description: string
-  path: string
-}) {
-  return (
-    <G2MSubtlePanel className="p-5">
-      <p className="text-lg font-semibold text-slate-950 dark:text-slate-50">{title}</p>
-      <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{description}</p>
-      <div className="mt-4 rounded-2xl border border-black/5 bg-white/70 px-4 py-3 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">
-        {path}
-      </div>
-    </G2MSubtlePanel>
-  )
-}
-
-function InfoPanel({ label, value }: { label: string; value: string }) {
-  return (
-    <G2MSubtlePanel className="p-4">
+    <G2MSubtlePanel className="rounded-[20px] border border-white/75 bg-white/60 p-4 ring-1 ring-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
       <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
         {label}
       </p>
-      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+        {value}
+      </p>
     </G2MSubtlePanel>
-  )
-}
-
-function InlineState({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-black/5 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
-      <span className="text-sm text-slate-500 dark:text-slate-400">{label}</span>
-      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{value}</span>
-    </div>
-  )
-}
-
-function StatusPill({ label, value }: { label: string; value: string }) {
-  return (
-    <G2MPill className="bg-white/80 text-slate-600 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-      <span className="text-slate-400 dark:text-slate-500">{label}</span>
-      <span className="ml-2 text-slate-900 dark:text-slate-100">{value}</span>
-    </G2MPill>
   )
 }
 

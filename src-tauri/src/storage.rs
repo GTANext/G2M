@@ -13,7 +13,6 @@ use crate::{
 pub(crate) struct StoragePaths {
     pub(crate) app_dir: PathBuf,
     pub(crate) database_path: PathBuf,
-    pub(crate) custom_assets_dir: PathBuf,
 }
 
 pub(crate) fn ensure_storage(app: &AppHandle) -> Result<StoragePaths, String> {
@@ -28,9 +27,6 @@ pub(crate) fn ensure_storage(app: &AppHandle) -> Result<StoragePaths, String> {
 
     fs::create_dir_all(&config_dir)
         .map_err(|error| format!("failed to create config directory: {error}"))?;
-    let custom_assets_dir = app_dir.join("assets").join("custom");
-    fs::create_dir_all(&custom_assets_dir)
-        .map_err(|error| format!("failed to create custom assets directory: {error}"))?;
 
     let database_path = config_dir.join("database.db");
     initialize_database(&database_path)?;
@@ -40,7 +36,6 @@ pub(crate) fn ensure_storage(app: &AppHandle) -> Result<StoragePaths, String> {
     Ok(StoragePaths {
         app_dir,
         database_path,
-        custom_assets_dir,
     })
 }
 

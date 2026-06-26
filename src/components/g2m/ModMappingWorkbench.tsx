@@ -1,28 +1,22 @@
 import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
-import { FolderTree, RefreshCcw, Sparkles } from "lucide-react"
+import { FolderTree } from "lucide-react"
 
 import type { AppCopy } from "@/components/app/i18nProvider"
 import {
   type DragPayload,
   normalizePath,
+  TARGET_FOLDER_PRESETS,
+  DraggableTree,
   ROOT_INSTALL_TARGET,
   SKIP_INSTALL_TARGET,
-  TARGET_FOLDER_PRESETS,
-  TargetPresetDropZone,
+  TreeDragOverlay,
 } from "@/components/g2m/draggableTree"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import type { ModImportFileEntry, ModMappingSummary } from "@/lib/g2m"
-import { buildModMappingSummaries } from "@/lib/g2m"
+import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, closestCenter, useDroppable, useDndContext } from "@dnd-kit/core"
+import { Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import type { ModImportFileEntry } from "@/lib/g2m"
 
 type SummaryTargetState = {
   options?: Array<{ label: string; value: string }>
@@ -48,22 +42,14 @@ type ModMappingWorkbenchProps = {
 
 const EMPTY_TARGET_FOLDERS: string[] = []
 
-function ModMappingWorkbench({
+function ModMappingWorkbenchInner({
   copy,
   files,
-  headerTitle,
-  headerDescription,
-  headerBadges,
   initialTargetFolders = EMPTY_TARGET_FOLDERS,
   targetDescription,
-  summaryDescription,
-  onDropToFolder,
-  onResetMappings,
   emptyTargetLabel,
-  getSummaryTargetState,
 }: ModMappingWorkbenchProps) {
   const [customTargetFolders, setCustomTargetFolders] = useState<string[]>([])
-  const summaries = useMemo(() => buildModMappingSummaries(files), [files])
   const normalizedInitialTargetFolders = useMemo(
     () => buildTargetFolderList(initialTargetFolders),
     [initialTargetFolders],
@@ -82,174 +68,152 @@ function ModMappingWorkbench({
       ),
     [customTargetFolders, files, normalizedInitialTargetFolders],
   )
-  const visibleTargetFolders = useMemo(
-    () => buildTargetFolderList(TARGET_FOLDER_PRESETS, normalizedInitialTargetFolders),
-    [normalizedInitialTargetFolders],
-  )
-  const hasTargetOptions = useMemo(
-    () =>
-      summaries.some(
-        (summary) => (getSummaryTargetState?.(summary.id)?.options?.length ?? 0) > 0,
-      ),
-    [getSummaryTargetState, summaries],
-  )
 
   useEffect(() => {
     setCustomTargetFolders((current) => (current.length > 0 ? [] : current))
   }, [initialTargetFoldersKey])
 
-  function folderFileCount(folder: string): number {
-    const normalizedFolder = normalizePath(folder).toLowerCase()
-    return files.filter((file) =>
-      file.targetPath.toLowerCase().startsWith(`${normalizedFolder}/`),
-    ).length
-  }
+  const { active } = useDndContext()
+  const activePayload = active?.data.current as DragPayload | undefined
 
-  function handleCreateFolder(folder: string) {
-    const normalizedFolder = normalizePath(folder.trim())
-    if (!normalizedFolder) {
-      return
-    }
-    setCustomTargetFolders((current) =>
-      current.some((item) => item.toLowerCase() === normalizedFolder.toLowerCase())
-        ? current
-        : [...current, normalizedFolder],
-    )
-  }
+  const { isOver: isOverSkip, setNodeRef: dropRefSkip } = useDroppable({
+    id: "drop::skip-install",
+    data: { acceptsDrop: true, folderPath: SKIP_INSTALL_TARGET },
+  })
+  const canDropSkip = !!activePayload
+
+  const { isOver: isOverRoot, setNodeRef: dropRefRoot } = useDroppable({
+    id: "drop::root-install",
+    data: { acceptsDrop: true, folderPath: ROOT_INSTALL_TARGET },
+  })
+  const canDropRoot = !!activePayload
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-black/5 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.04] lg:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-                <Sparkles className="size-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-base font-semibold text-slate-950 dark:text-slate-50">
-                  {headerTitle ?? copy.builderPage.mappingTitle}
-                </p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {headerDescription ?? copy.workspacePage.detailHint}
-                </p>
-              </div>
-            </div>
-            {headerBadges ? <div className="flex flex-wrap gap-2">{headerBadges}</div> : null}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <WorkbenchPanel
+          title={copy.builderPage.sourceTreeTitle || "源文件 (Source)"}
+          description={copy.builderPage.pickSourceDescription || "拖拽文件或文件夹到右侧"}
+          icon={<FolderTree className="size-4" />}
+          headerAction={
             <Badge
               variant="secondary"
               className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
             >
               {copy.workspacePage.fileCount} {files.length}
             </Badge>
+          }
+        >
+          <div className="h-[460px] overflow-hidden rounded-xl border border-black/5 bg-slate-50/50 p-2 dark:border-white/10 dark:bg-black/20">
+            <div className="h-full overflow-y-auto pr-2">
+              <DraggableTree
+                files={files}
+                mode="source"
+                emptyLabel={"No files"}
+                className="pb-8"
+                showFullPath={false}
+                defaultExpandedDepth={2}
+              />
+            </div>
+          </div>
+        </WorkbenchPanel>
+
+        <WorkbenchPanel
+          title={copy.workspacePage.targetFolders || "游戏目录 (Target)"}
+          description={targetDescription ?? copy.workspaceDialogs.installPath}
+          icon={<FolderTree className="size-4" />}
+          headerAction={
             <Badge
               variant="secondary"
               className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
             >
               {copy.workspacePage.targetFolders} {targetFolders.length}
             </Badge>
-            <Badge
-              variant="secondary"
-              className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
-            >
-              {copy.builderPage.mappingTitle} {summaries.length}
-            </Badge>
-            {onResetMappings ? (
-              <Button
-                variant="outline"
-                className="cursor-pointer rounded-xl"
-                onClick={onResetMappings}
+          }
+        >
+          <div className="flex h-[460px] flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto pr-2 pb-4">
+              <div
+                className={cn(
+                  "rounded-xl border border-dashed border-red-500/30 bg-red-50/50 p-4 transition-colors dark:border-red-400/20 dark:bg-red-500/5 mb-4",
+                  isOverSkip && canDropSkip && "border-red-500/50 bg-red-100/80 dark:border-red-400/40 dark:bg-red-500/20 shadow-[0_0_0_2px_rgba(239,68,68,0.2)]"
+                )}
+                ref={dropRefSkip}
               >
-                <RefreshCcw className="size-4" />
-                {copy.builderPage.resetMappings}
-              </Button>
-            ) : null}
+                <div className="flex items-center gap-3 text-red-900 dark:text-red-200">
+                  <div className="flex size-10 items-center justify-center rounded-2xl bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400">
+                    <Trash2 className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-all text-sm font-semibold">{copy.workspaceDialogs.doNotInstall}</p>
+                    <p className="mt-1 text-xs text-red-500/80 dark:text-red-400/80">
+                      {copy.builderPage.dragToIgnore || "拖拽到此处以忽略文件"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className={cn(
+                  "min-h-[280px] rounded-xl border border-black/5 bg-slate-50/50 p-2 dark:border-white/10 dark:bg-black/20 transition-colors",
+                  isOverRoot && canDropRoot && "border-violet-300 bg-violet-50/70 dark:border-violet-400/40 dark:bg-violet-500/10 shadow-[0_0_0_2px_rgba(139,92,246,0.2)]"
+                )}
+                ref={dropRefRoot}
+              >
+                <div className="mb-2 flex items-center justify-between px-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span>{copy.workspaceDialogs.installToRoot}</span>
+                  <span>{copy.builderPage.dragToRoot || "可直接拖拽至此面板空白处"}</span>
+                </div>
+                <DraggableTree
+                  files={files}
+                  mode="target"
+                  emptyLabel={emptyTargetLabel || "未分配任何文件"}
+                  showFullPath={false}
+                  defaultExpandedDepth={2}
+                  includePresets={true}
+                />
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
-
-      <WorkbenchPanel
-        title={copy.workspacePage.targetFolders}
-        description={targetDescription ?? copy.workspaceDialogs.installPath}
-        icon={<FolderTree className="size-4" />}
-        headerAction={
-          <Badge
-            variant="secondary"
-            className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
-          >
-            {copy.workspacePage.targetFolders} {targetFolders.length}
-          </Badge>
-        }
-      >
-        <TargetPresetDropZone
-          folders={visibleTargetFolders}
-          fileCount={folderFileCount}
-          fileCountLabel={copy.workspacePage.fileCount}
-          onDropToFolder={onDropToFolder}
-          onCreateFolder={handleCreateFolder}
-          createFolderLabel={copy.workspaceDialogs.addTargetFolder}
-          customFolderLabel={copy.workspaceDialogs.customTargetFolder}
-          customFolderPlaceholder={copy.workspaceDialogs.customTargetFolderPlaceholder}
-        />
-      </WorkbenchPanel>
-
-      <WorkbenchPanel
-        title={copy.builderPage.mappingTitle}
-        description={summaryDescription ?? copy.workspacePage.detailHint}
-        icon={<Sparkles className="size-4" />}
-        headerAction={
-          <Badge
-            variant="secondary"
-            className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
-          >
-            {copy.workspacePage.fileCount} {files.length}
-          </Badge>
-        }
-      >
-        <div className="overflow-hidden rounded-xl border border-black/5 dark:border-white/10">
-          <Table>
-            <TableHeader className="bg-slate-50/90 dark:bg-white/[0.03]">
-              <TableRow className="hover:bg-transparent">
-                <TableHead>{copy.builderPage.sourceTreeTitle}</TableHead>
-                <TableHead className="w-[220px]">{copy.workspaceDialogs.targetPath}</TableHead>
-                <TableHead>{copy.workspaceDialogs.installPath}</TableHead>
-                <TableHead className="w-[120px]">{copy.builderPage.sourceType}</TableHead>
-                <TableHead className="w-[120px]">{copy.workspacePage.fileCount}</TableHead>
-                {hasTargetOptions ? (
-                  <TableHead className="w-[240px]">{copy.builderPage.gameTargets}</TableHead>
-                ) : null}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {summaries.length > 0 ? (
-                summaries.map((summary) => (
-                  <MappingTableRow
-                    key={`mapping-row-${summary.id}`}
-                    copy={copy}
-                    summary={summary}
-                    targetFolders={targetFolders}
-                    onMoveToFolder={onDropToFolder}
-                    targetState={getSummaryTargetState?.(summary.id)}
-                  />
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={hasTargetOptions ? 6 : 5}
-                    className="py-8 text-center text-sm text-slate-500 dark:text-slate-400"
-                  >
-                    {emptyTargetLabel}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </WorkbenchPanel>
+        </WorkbenchPanel>
+      </div>
     </div>
+  )
+}
+
+function ModMappingWorkbench(props: ModMappingWorkbenchProps) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  )
+  const [activePayload, setActivePayload] = useState<DragPayload | null>(null)
+
+  function handleDragStart(event: any) {
+    setActivePayload(event.active.data.current as DragPayload)
+  }
+
+  function handleDragEnd(event: any) {
+    setActivePayload(null)
+    const { active, over } = event
+    if (!over) return
+
+    const payload = active.data.current as DragPayload
+    const overData = over.data.current
+    if (overData && overData.acceptsDrop && overData.folderPath !== undefined) {
+      props.onDropToFolder(overData.folderPath, payload)
+    }
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <ModMappingWorkbenchInner {...props} />
+      <DragOverlay dropAnimation={null}>
+        {activePayload ? <TreeDragOverlay payload={activePayload} /> : null}
+      </DragOverlay>
+    </DndContext>
   )
 }
 
@@ -302,113 +266,10 @@ function WorkbenchPanel({
         </div>
         {headerAction}
       </div>
-      <div className="mt-4 max-h-[460px] overflow-y-auto pr-1">
+      <div className="mt-4 max-h-[460px] pr-1">
         {children}
       </div>
     </section>
-  )
-}
-
-function MappingTableRow({
-  copy,
-  summary,
-  targetFolders,
-  onMoveToFolder,
-  targetState,
-}: {
-  copy: AppCopy
-  summary: ModMappingSummary
-  targetFolders: string[]
-  onMoveToFolder: (targetFolder: string, payload: DragPayload) => void
-  targetState?: SummaryTargetState
-}) {
-  const targetSelectValue = !summary.targetPath
-    ? SKIP_INSTALL_TARGET
-    : summary.targetFolder || ROOT_INSTALL_TARGET
-  const payload: DragPayload = {
-    kind: summary.kind,
-    mode: summary.targetPath ? "target" : "source",
-    path: summary.targetPath || summary.sourcePath,
-  }
-
-  return (
-    <TableRow>
-      <TableCell className="whitespace-normal align-top">
-        <div className="space-y-1">
-          <p className="break-all font-medium text-slate-950 dark:text-slate-50">
-            {summary.sourcePath}
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {summary.kind === "folder" ? copy.builderPage.summaryFolder : copy.builderPage.summaryFile}
-          </p>
-        </div>
-      </TableCell>
-      <TableCell className="align-top">
-        <select
-          value={targetSelectValue}
-          onChange={(event) => onMoveToFolder(event.currentTarget.value, payload)}
-          className="h-9 w-full min-w-0 rounded-lg border border-black/10 bg-background/80 px-3 text-sm text-slate-800 outline-none transition-colors [color-scheme:light] focus:border-violet-400 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:[color-scheme:dark] dark:focus:border-violet-300"
-          aria-label={copy.workspaceDialogs.targetPath}
-        >
-          <option
-            value={ROOT_INSTALL_TARGET}
-            className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100"
-          >
-            {copy.workspaceDialogs.installToRoot}
-          </option>
-          {targetFolders.map((folder) => (
-            <option
-              key={`${summary.id}-${folder}`}
-              value={folder}
-              className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100"
-            >
-              {folder}
-            </option>
-          ))}
-          <option
-            value={SKIP_INSTALL_TARGET}
-            className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100"
-          >
-            {copy.workspaceDialogs.doNotInstall}
-          </option>
-        </select>
-      </TableCell>
-      <TableCell className="whitespace-normal align-top">
-        <p className="break-all font-medium text-slate-800 dark:text-slate-200">
-          {summary.targetPath || copy.workspaceDialogs.doNotInstall}
-        </p>
-      </TableCell>
-      <TableCell className="align-top">
-        <Badge
-          variant="secondary"
-          className="rounded-full bg-background/80 px-2.5 py-1 text-xs dark:bg-white/10"
-        >
-          {summary.kind === "folder" ? copy.builderPage.summaryFolder : copy.builderPage.summaryFile}
-        </Badge>
-      </TableCell>
-      <TableCell className="align-top text-sm font-medium text-slate-700 dark:text-slate-300">
-        {summary.fileCount}
-      </TableCell>
-      {targetState?.options?.length ? (
-        <TableCell className="whitespace-normal align-top">
-          <div className="flex flex-wrap gap-2">
-            {targetState.options.map((option) => {
-              const isSelected = targetState.selectedValues?.includes(option.value) ?? false
-              return (
-                <Button
-                  key={`${summary.id}-${option.value}`}
-                  variant={isSelected ? "default" : "outline"}
-                  className="h-8 cursor-pointer rounded-lg px-2.5 text-xs"
-                  onClick={() => targetState.onToggle?.(option.value)}
-                >
-                  {option.label}
-                </Button>
-              )
-            })}
-          </div>
-        </TableCell>
-      ) : null}
-    </TableRow>
   )
 }
 

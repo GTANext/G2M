@@ -36,7 +36,8 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
                 version TEXT NOT NULL DEFAULT '',
                 image_path TEXT NOT NULL DEFAULT '',
                 created_at INTEGER NOT NULL DEFAULT 0,
-                updated_at INTEGER NOT NULL DEFAULT 0
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                sort_order INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS files (
@@ -54,6 +55,7 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
     ensure_table_column(&connection, "games", "image_path", "TEXT NOT NULL DEFAULT ''")?;
     ensure_table_column(&connection, "games", "created_at", "INTEGER NOT NULL DEFAULT 0")?;
     ensure_table_column(&connection, "games", "updated_at", "INTEGER NOT NULL DEFAULT 0")?;
+    ensure_table_column(&connection, "games", "sort_order", "INTEGER NOT NULL DEFAULT 0")?;
     ensure_table_column(&connection, "mods", "game_id", "TEXT NOT NULL DEFAULT ''")?;
     ensure_table_column(&connection, "mods", "version", "TEXT NOT NULL DEFAULT ''")?;
     ensure_table_column(
@@ -139,6 +141,7 @@ pub(crate) fn load_game_directories(database_path: &Path) -> Result<Vec<GameDire
             image_path: game.image_path,
             created_at: game.created_at,
             updated_at: game.updated_at,
+            sort_order: game.sort_order,
             prerequisites: Vec::new(),
         })
         .collect())
@@ -151,9 +154,9 @@ pub(crate) fn load_stored_games(database_path: &Path) -> Result<Vec<StoredGameEn
         .prepare(
             "
             SELECT id, game_type, name, path, exe_name, version
-                 , image_path, created_at, updated_at
+                 , image_path, created_at, updated_at, sort_order
             FROM games
-            ORDER BY name COLLATE NOCASE ASC
+            ORDER BY sort_order ASC, created_at DESC, name COLLATE NOCASE ASC
             ",
         )
         .map_err(|error| format!("failed to prepare game query: {error}"))?;
@@ -170,6 +173,7 @@ pub(crate) fn load_stored_games(database_path: &Path) -> Result<Vec<StoredGameEn
                 image_path: row.get(6)?,
                 created_at: row.get(7)?,
                 updated_at: row.get(8)?,
+                sort_order: row.get(9)?,
             })
         })
         .map_err(|error| format!("failed to query games: {error}"))?;
@@ -185,8 +189,8 @@ pub(crate) fn insert_game_entry(database_path: &Path, game: &StoredGameEntry) ->
     connection
         .execute(
             "
-            INSERT INTO games (id, game_type, name, path, exe_name, version, image_path, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            INSERT INTO games (id, game_type, name, path, exe_name, version, image_path, created_at, updated_at, sort_order)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             ",
             params![
                 game.id,
@@ -197,7 +201,8 @@ pub(crate) fn insert_game_entry(database_path: &Path, game: &StoredGameEntry) ->
                 game.version,
                 game.image_path,
                 game.created_at,
-                game.updated_at
+                game.updated_at,
+                game.sort_order
             ],
         )
         .map_err(|error| format!("failed to insert game entry: {error}"))?;
@@ -251,7 +256,7 @@ pub(crate) fn load_stored_game_by_id(
     connection
         .query_row(
             "
-            SELECT id, game_type, name, path, exe_name, version, image_path, created_at, updated_at
+            SELECT id, game_type, name, path, exe_name, version, image_path, created_at, updated_at, sort_order
             FROM games
             WHERE id = ?1
             LIMIT 1
@@ -268,6 +273,7 @@ pub(crate) fn load_stored_game_by_id(
                     image_path: row.get(6)?,
                     created_at: row.get(7)?,
                     updated_at: row.get(8)?,
+                    sort_order: row.get(9)?,
                 })
             },
         )
@@ -321,6 +327,7 @@ fn read_legacy_settings_file(settings_path: &Path) -> Result<Vec<StoredGameEntry
             image_path: String::new(),
             created_at: current_timestamp(),
             updated_at: current_timestamp(),
+            sort_order: 0,
         });
     }
 
@@ -348,8 +355,8 @@ fn insert_missing_game_entries(database_path: &Path, games: &[StoredGameEntry]) 
         connection
             .execute(
                 "
-                INSERT INTO games (id, game_type, name, path, exe_name, version, image_path, created_at, updated_at)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                INSERT INTO games (id, game_type, name, path, exe_name, version, image_path, created_at, updated_at, sort_order)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
                 ",
                 params![
                     game.id,
@@ -360,7 +367,8 @@ fn insert_missing_game_entries(database_path: &Path, games: &[StoredGameEntry]) 
                     game.version,
                     game.image_path,
                     game.created_at,
-                    game.updated_at
+                    game.updated_at,
+                    game.sort_order
                 ],
             )
             .map_err(|error| format!("failed to migrate legacy game entry: {error}"))?;

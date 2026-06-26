@@ -1,15 +1,20 @@
 import {
   ChevronRight,
+  File,
+  FileArchive,
+  FileAudio,
   FileCode2,
-  FolderTree,
+  FileImage,
+  FileJson,
+  FileText,
+  FileVideo,
+  Folder,
+  FolderOpen,
   GripVertical,
-  Plus,
 } from "lucide-react"
 import { useCallback, useMemo, useState } from "react"
-import { useDrag, useDrop } from "react-dnd"
+import { useDraggable, useDroppable, useDndContext } from "@dnd-kit/core"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   buildModFileTree,
   inferTargetFolderFromPath,
@@ -26,12 +31,6 @@ export type DragPayload = {
   mode: TreeMode
   path: string
 }
-
-type TreeDragItem = {
-  payload: DragPayload
-}
-
-const TREE_ITEM_TYPE = "g2m-tree-item"
 
 export type TargetFolderPreset = "modloader" | "plugins" | "scripts" | "cleo"
 
@@ -59,26 +58,67 @@ export type DraggableTreeProps = {
   files: ModImportFileEntry[]
   mode: TreeMode
   emptyLabel: string
-  onDragStart?: (payload: DragPayload) => void
-  onDragEnd?: () => void
-  onDropToFolder: (targetFolder: string, payload: DragPayload) => void
   className?: string
   showFullPath?: boolean
   defaultExpandedDepth?: number
+}
+
+export function getFileIcon(filename: string) {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  switch (ext) {
+    case 'json':
+    case 'xml':
+      return <FileJson className="size-4 shrink-0 text-amber-500 dark:text-amber-400" />
+    case 'txt':
+    case 'md':
+    case 'ini':
+    case 'cfg':
+    case 'ide':
+      return <FileText className="size-4 shrink-0 text-slate-500 dark:text-slate-400" />
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'bmp':
+    case 'txd':
+      return <FileImage className="size-4 shrink-0 text-blue-500 dark:text-blue-400" />
+    case 'wav':
+    case 'mp3':
+    case 'ogg':
+      return <FileAudio className="size-4 shrink-0 text-purple-500 dark:text-purple-400" />
+    case 'mp4':
+    case 'avi':
+    case 'mpg':
+      return <FileVideo className="size-4 shrink-0 text-rose-500 dark:text-rose-400" />
+    case 'zip':
+    case 'rar':
+    case '7z':
+      return <FileArchive className="size-4 shrink-0 text-red-500 dark:text-red-400" />
+    case 'cs':
+    case 'cs4':
+    case 'asi':
+    case 'dll':
+    case 'lua':
+      return <FileCode2 className="size-4 shrink-0 text-emerald-500 dark:text-emerald-400" />
+    case 'dff':
+    case 'col':
+    case 'ifp':
+      return <File className="size-4 shrink-0 text-indigo-500 dark:text-indigo-400" />
+    default:
+      return <File className="size-4 shrink-0 text-slate-400 dark:text-slate-500" />
+  }
 }
 
 export function DraggableTree({
   files,
   mode,
   emptyLabel,
-  onDragStart,
-  onDragEnd,
-  onDropToFolder,
   className,
   showFullPath = true,
   defaultExpandedDepth = 1,
-}: DraggableTreeProps) {
-  const tree = useMemo(() => buildModFileTree(files, mode), [files, mode])
+  includePresets = false,
+}: DraggableTreeProps & { includePresets?: boolean }) {
+  const tree = useMemo(() => buildModFileTree(files, mode, includePresets), [files, mode, includePresets])
 
   if (tree.length === 0) {
     return (
@@ -94,16 +134,13 @@ export function DraggableTree({
   }
 
   return (
-    <div className={cn("space-y-1", className)}>
+    <div className={cn("space-y-0", className)}>
       {tree.map((node) => (
         <DraggableTreeNode
           key={node.key}
           node={node}
           depth={0}
           mode={mode}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          onDropToFolder={onDropToFolder}
           showFullPath={showFullPath}
           defaultExpandedDepth={defaultExpandedDepth}
         />
@@ -116,9 +153,6 @@ type DraggableTreeNodeProps = {
   node: ModFileTreeNode
   depth: number
   mode: TreeMode
-  onDragStart?: (payload: DragPayload) => void
-  onDragEnd?: () => void
-  onDropToFolder: (targetFolder: string, payload: DragPayload) => void
   showFullPath?: boolean
   defaultExpandedDepth: number
 }
@@ -127,15 +161,13 @@ function DraggableTreeNode({
   node,
   depth,
   mode,
-  onDragStart,
-  onDragEnd,
-  onDropToFolder,
   showFullPath = true,
   defaultExpandedDepth,
 }: DraggableTreeNodeProps) {
   const isFolder = node.kind === "folder"
-  const [isExpanded, setIsExpanded] = useState(depth < defaultExpandedDepth)
+  const [isExpanded, setIsExpanded] = useState(depth < defaultExpandedDepth || node.isPresetFolder)
   const dragPath = buildTargetDragPath(node.fullPath, mode, node.file)
+  
   const payload = useMemo<DragPayload>(
     () => ({
       kind: isFolder ? "folder" : "file",
@@ -144,131 +176,115 @@ function DraggableTreeNode({
     }),
     [dragPath, isFolder, mode],
   )
-  const [{ isDragging }, dragRef] = useDrag(
-    () => ({
-      type: TREE_ITEM_TYPE,
-      item: () => {
-        onDragStart?.(payload)
-        return { payload }
-      },
-      end: () => {
-        onDragEnd?.()
-      },
-      collect: (monitor) => ({
-        isDragging: monitor.isDragging(),
-      }),
-    }),
-    [onDragEnd, onDragStart, payload],
-  )
-  const [{ isOver, canDrop }, dropRef] = useDrop(
-    () => ({
-      accept: TREE_ITEM_TYPE,
-      canDrop: (item: TreeDragItem) =>
-        mode === "target" && isFolder && canDropToFolder(item.payload, dragPath),
-      drop: (item: TreeDragItem, monitor) => {
-        if (monitor.didDrop() || mode !== "target" || !isFolder) {
-          return
-        }
-        onDropToFolder(dragPath, item.payload)
-      },
-      collect: (monitor) => ({
-        isOver: monitor.isOver({ shallow: true }),
-        canDrop: monitor.canDrop(),
-      }),
-    }),
-    [dragPath, isFolder, mode, onDropToFolder],
-  )
-  const attachDropRef = useCallback(
+
+  const draggableId = `drag::${mode}::${dragPath}`
+  const { attributes, listeners, setNodeRef: setDragNodeRef, isDragging } = useDraggable({
+    id: draggableId,
+    data: payload,
+  })
+
+  const { active } = useDndContext()
+  const activePayload = active?.data.current as DragPayload | undefined
+  const destFolder = isFolder ? dragPath : getDirName(dragPath)
+  const canDrop = activePayload && mode === "target" && canDropToFolder(activePayload, destFolder)
+
+  // Use the destFolder as the droppable ID, but prefix it so it's unique across the app just in case
+  const droppableId = `drop::target::${destFolder}::from::${dragPath}`
+  
+  const { isOver, setNodeRef: setDropNodeRef } = useDroppable({
+    id: droppableId,
+    data: {
+      acceptsDrop: canDrop,
+      folderPath: destFolder,
+    },
+    disabled: mode !== "target" || !canDrop,
+  })
+
+  const attachRefs = useCallback(
     (element: HTMLDivElement | null) => {
-      if (mode === "target" && isFolder && element) {
-        dropRef(element)
+      if (mode === "target" && element) {
+        setDropNodeRef(element)
       }
     },
-    [dropRef, isFolder, mode],
-  )
-  const attachDragRef = useCallback(
-    (element: HTMLDivElement | null) => {
-      if (element) {
-        dragRef(element)
-      }
-    },
-    [dragRef],
+    [mode, setDropNodeRef],
   )
 
   return (
     <div>
       <div
-        ref={attachDropRef}
+        ref={attachRefs}
         className={cn(
-          "flex items-start gap-2 rounded-2xl px-3 py-2.5 text-sm text-slate-700 ring-1 ring-black/5 transition-colors dark:text-slate-200 dark:ring-white/10",
+          "group flex items-center gap-1.5 py-1 pr-2 rounded-md text-[13px] transition-all select-none cursor-pointer",
           isFolder
-            ? "bg-slate-50/90 hover:bg-slate-100 dark:bg-white/[0.05] dark:hover:bg-white/[0.08]"
-            : "bg-background/80 hover:bg-slate-50 dark:bg-white/[0.02] dark:hover:bg-white/[0.05]",
+            ? "hover:bg-slate-100/80 dark:hover:bg-white/[0.08]"
+            : "hover:bg-slate-50/80 dark:hover:bg-white/[0.04]",
           isDragging &&
-            "border-violet-300 bg-violet-50/70 dark:border-violet-400/40 dark:bg-violet-500/10",
+            "opacity-50 bg-violet-50/50 dark:bg-violet-500/10",
           isOver &&
             canDrop &&
-            "border-violet-400 bg-violet-50/80 dark:border-violet-300/60 dark:bg-violet-500/15",
+            "bg-violet-100/80 dark:bg-violet-500/20 ring-1 ring-inset ring-violet-400/40",
         )}
-        style={{ marginLeft: depth * 14 }}
+        style={{ paddingLeft: `${depth * 20 + 8}px` }}
+        onClick={(event) => {
+          if (isFolder) {
+            event.stopPropagation()
+            setIsExpanded((current) => !current)
+          }
+        }}
       >
         <div
-          ref={attachDragRef}
-          className="mt-0.5 flex size-5 shrink-0 items-center justify-center text-slate-400 dark:text-slate-500"
+          ref={setDragNodeRef}
+          {...listeners}
+          {...attributes}
+          className="flex size-4 shrink-0 items-center justify-center text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity hover:text-slate-500 dark:hover:text-slate-400"
+          onClick={(e) => e.stopPropagation()}
         >
-          <GripVertical className="size-4 cursor-grab" />
+          <GripVertical className="size-3.5 cursor-grab active:cursor-grabbing" />
         </div>
         {isFolder ? (
           <>
-            <button
-              type="button"
-              className="mt-0.5 flex size-4 shrink-0 items-center justify-center"
-              onClick={(event) => {
-                event.stopPropagation()
-                setIsExpanded((current) => !current)
-              }}
-            >
+            <div className="flex size-4 shrink-0 items-center justify-center">
               <ChevronRight
                 className={cn(
-                  "size-4 text-slate-400 transition-transform dark:text-slate-500",
+                  "size-3.5 text-slate-400 transition-transform dark:text-slate-500",
                   isExpanded && "rotate-90",
                 )}
               />
-            </button>
-            <FolderTree className="mt-0.5 size-4 shrink-0 text-violet-600 dark:text-violet-300" />
+            </div>
+            {isExpanded ? (
+              <FolderOpen className="size-4 shrink-0 text-amber-500 dark:text-amber-400" fill="currentColor" fillOpacity={0.4} />
+            ) : (
+              <Folder className="size-4 shrink-0 text-amber-500 dark:text-amber-400" fill="currentColor" fillOpacity={0.4} />
+            )}
           </>
         ) : (
           <>
             <span className="size-4 shrink-0" />
-            <FileCode2 className="mt-0.5 size-4 shrink-0 text-slate-500 dark:text-slate-400" />
+            {getFileIcon(node.name)}
           </>
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 ml-0.5">
           <div className="flex items-center justify-between gap-3">
-            <p className="break-all font-medium">{node.name}</p>
-            <span className="shrink-0 rounded-full bg-background/90 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-              {node.fileCount}
-            </span>
-          </div>
-          {showFullPath && !isFolder && node.file ? (
-            <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">
-              {node.file.targetPath}
+            <p className={cn("truncate", isFolder ? "font-medium text-slate-700 dark:text-slate-200" : "text-slate-600 dark:text-slate-300")}>
+              {node.name}
             </p>
-          ) : null}
+            {isFolder && (node.fileCount > 0 || !node.isPresetFolder) && (
+              <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
+                {node.fileCount}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
       {isFolder && isExpanded && node.children.length > 0 ? (
-        <div className="mt-1 space-y-1">
+        <div className="space-y-0">
           {node.children.map((child) => (
             <DraggableTreeNode
               key={child.key}
               node={child}
               depth={depth + 1}
               mode={mode}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDropToFolder={onDropToFolder}
               showFullPath={showFullPath}
               defaultExpandedDepth={defaultExpandedDepth}
             />
@@ -279,92 +295,18 @@ function DraggableTreeNode({
   )
 }
 
-export type TargetPresetDropZoneProps = {
-  folders?: string[]
-  fileCount: (folder: string) => number
-  fileCountLabel: string
-  onDropToFolder: (targetFolder: string, payload: DragPayload) => void
-  onCreateFolder?: (folder: string) => void
-  createFolderLabel?: string
-  customFolderLabel?: string
-  customFolderPlaceholder?: string
-}
-
-export function TargetPresetDropZone({
-  folders = TARGET_FOLDER_PRESETS,
-  fileCount,
-  fileCountLabel,
-  onDropToFolder,
-  onCreateFolder,
-  createFolderLabel = "Add Folder",
-  customFolderLabel = "Custom Folder",
-  customFolderPlaceholder = "mods/custom",
-}: TargetPresetDropZoneProps) {
-  const [customFolderInput, setCustomFolderInput] = useState("")
-  const resolvedFolders = useMemo(
-    () => Array.from(new Set(folders.map((folder) => normalizePath(folder)).filter(Boolean))),
-    [folders],
-  )
-
-  function submitCustomFolder() {
-    const nextFolder = normalizePath(customFolderInput.trim())
-    if (!nextFolder) {
-      return
-    }
-    onCreateFolder?.(nextFolder)
-    setCustomFolderInput("")
-  }
-
+export function TreeDragOverlay({ payload }: { payload: DragPayload }) {
+  const isFolder = payload.kind === "folder"
+  const name = getBaseName(payload.path)
+  
   return (
-    <div className="space-y-3">
-      {onCreateFolder ? (
-        <div className="flex flex-col gap-2 rounded-xl border border-dashed border-black/10 bg-background/70 p-3 dark:border-white/10 dark:bg-white/[0.03] lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {customFolderLabel}
-            </p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              {createFolderLabel}
-            </p>
-          </div>
-          <div className="flex gap-2 lg:w-[420px]">
-            <Input
-              value={customFolderInput}
-              onChange={(event) => setCustomFolderInput(event.currentTarget.value)}
-              placeholder={customFolderPlaceholder}
-              className="h-10 rounded-xl border-border/70 bg-background/70 text-sm shadow-none dark:border-white/10 dark:bg-white/[0.04]"
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault()
-                  submitCustomFolder()
-                }
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              className="cursor-pointer rounded-xl"
-              onClick={submitCustomFolder}
-              disabled={!normalizePath(customFolderInput)}
-            >
-              <Plus className="size-4" />
-              {customFolderLabel}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {resolvedFolders.map((folder) => (
-          <TargetFolderCard
-            key={`target-preset-${folder}`}
-            folder={folder}
-            fileCount={fileCount(folder)}
-            fileCountLabel={fileCountLabel}
-            onDropToFolder={onDropToFolder}
-          />
-        ))}
-      </div>
+    <div className="flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-2 text-[13px] text-slate-700 shadow-xl ring-1 ring-black/10 dark:bg-slate-800/95 dark:text-slate-200 dark:ring-white/20 backdrop-blur-md">
+      {isFolder ? (
+        <Folder className="size-4 shrink-0 text-amber-500 dark:text-amber-400" fill="currentColor" fillOpacity={0.4} />
+      ) : (
+        getFileIcon(name)
+      )}
+      <p className="truncate font-medium">{name}</p>
     </div>
   )
 }
@@ -377,6 +319,13 @@ export function getBaseName(path: string): string {
   const normalized = normalizePath(path)
   const segments = normalized.split("/").filter(Boolean)
   return segments[segments.length - 1] ?? normalized
+}
+
+export function getDirName(path: string): string {
+  const normalized = normalizePath(path)
+  const segments = normalized.split("/").filter(Boolean)
+  segments.pop()
+  return segments.length > 0 ? segments.join("/") : ROOT_INSTALL_TARGET
 }
 
 export function joinPath(...segments: string[]): string {
@@ -397,7 +346,6 @@ export function buildMovedTargetPath(
       if (payload.kind === "file") {
         return normalizePath(file.relativePath) === normalizedSource ? "" : null
       }
-
       return normalizePath(file.relativePath).startsWith(`${normalizedSource}/`) ? "" : null
     }
 
@@ -405,15 +353,11 @@ export function buildMovedTargetPath(
     if (payload.kind === "file") {
       return normalizePath(file.targetPath) === normalizedTarget ? "" : null
     }
-
     return normalizePath(file.targetPath).startsWith(`${normalizedTarget}/`) ? "" : null
   }
 
   const normalizedDest = dest === ROOT_INSTALL_TARGET ? "" : normalizePath(dest)
 
-  if (dest !== ROOT_INSTALL_TARGET && !normalizedDest) {
-    return null
-  }
   if (payload.mode === "source") {
     if (payload.kind === "file") {
       if (normalizePath(file.relativePath) !== normalizePath(payload.path)) {
@@ -432,6 +376,7 @@ export function buildMovedTargetPath(
     return joinPath(normalizedDest, getBaseName(normalizedSourceDir), suffix)
   }
 
+  // target to target
   if (payload.kind === "file") {
     if (normalizePath(file.targetPath) !== normalizePath(payload.path)) {
       return null
@@ -471,13 +416,17 @@ export function moveFiles(
 
   return files.map((file) => {
     const nextPath = buildMovedTargetPath(file, payload, dest)
-    if (nextPath === null || nextPath === file.targetPath) {
+    if (nextPath === null) {
       return file
     }
+    
+    // Always update targetFolder when updating targetPath
+    const newTargetFolder = dest === SKIP_INSTALL_TARGET ? file.targetFolder : inferTargetFolderFromPath(nextPath)
+    
     return {
       ...file,
       targetPath: nextPath,
-      targetFolder: inferTargetFolderFromPath(nextPath),
+      targetFolder: newTargetFolder,
       skipInstall: !nextPath,
     }
   })
@@ -500,64 +449,4 @@ export function canDropToFolder(payload: DragPayload, destination: string): bool
   }
 
   return true
-}
-
-function TargetFolderCard({
-  folder,
-  fileCount,
-  fileCountLabel,
-  onDropToFolder,
-}: {
-  folder: string
-  fileCount: number
-  fileCountLabel: string
-  onDropToFolder: (targetFolder: string, payload: DragPayload) => void
-}) {
-  const [{ isOver, canDrop }, dropRef] = useDrop(
-    () => ({
-      accept: TREE_ITEM_TYPE,
-      canDrop: (item: TreeDragItem) => canDropToFolder(item.payload, folder),
-      drop: (item: TreeDragItem) => {
-        onDropToFolder(folder, item.payload)
-      },
-      collect: (monitor) => ({
-        isOver: monitor.isOver({ shallow: true }),
-        canDrop: monitor.canDrop(),
-      }),
-    }),
-    [folder, onDropToFolder],
-  )
-  const attachDropRef = useCallback(
-    (element: HTMLDivElement | null) => {
-      if (!element) {
-        return
-      }
-      dropRef(element)
-    },
-    [dropRef],
-  )
-
-  return (
-    <div
-      ref={attachDropRef}
-      className={cn(
-        "rounded-2xl border border-black/5 bg-white/70 p-4 transition-colors dark:border-white/10 dark:bg-white/[0.04]",
-        isOver &&
-          canDrop &&
-          "border-violet-300 bg-violet-50/70 dark:border-violet-400/40 dark:bg-violet-500/10",
-      )}
-    >
-      <div className="flex items-center gap-3 text-slate-900 dark:text-slate-100">
-        <div className="flex size-10 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-          <FolderTree className="size-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="break-all text-sm font-semibold">{folder}</p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {fileCountLabel} {fileCount}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
 }

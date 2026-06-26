@@ -1,6 +1,4 @@
 import { lazy, Suspense, type ReactNode, useEffect, useState } from "react"
-import { DndProvider } from "react-dnd"
-import { HTML5Backend } from "react-dnd-html5-backend"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { ShieldAlert, X } from "lucide-react"
 import { useI18n } from "@/components/app/i18nProvider"
@@ -19,6 +17,9 @@ const HomePage = lazy(() =>
 )
 const SettingsPage = lazy(() =>
   import("@/pages/settings").then((module) => ({ default: module.SettingsPage })),
+)
+const AboutPage = lazy(() =>
+  import("@/pages/about").then((module) => ({ default: module.AboutPage })),
 )
 const ModBuilderPage = lazy(() =>
   import("@/pages/builder").then((module) => ({ default: module.ModBuilderPage })),
@@ -97,7 +98,7 @@ function AppShell({
               className="cursor-pointer rounded-full px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-700 transition-colors hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
               onClick={() => void openUrl("https://github.com/GTANext/G2M")}
             >
-              G2M
+              GitHub
             </button>
 
             {appInfo?.version ? (
@@ -207,12 +208,11 @@ function SettingsRoute({
   appInfo?: AppInfoPayload | null
 }) {
   const { copy } = useI18n()
-  const navbarSubtitle = copy.routes.settingsSubtitle
 
   return (
     <AppShell
       appInfo={appInfo}
-      subtitle={navbarSubtitle}
+      subtitle={copy.routes.settingsSubtitle}
       showAdminAlert={workspace.bootstrap?.isElevated === false}
     >
       <Suspense fallback={<RouteLoader />}>
@@ -268,6 +268,29 @@ function GameWorkspaceRoute({
   )
 }
 
+function AboutRoute({
+  workspace,
+  appInfo,
+}: {
+  workspace: ReturnType<typeof useG2mWorkspace>
+  appInfo?: AppInfoPayload | null
+}) {
+  const { copy } = useI18n()
+  const navbarSubtitle = (copy.routes as any).aboutSubtitle || "About"
+
+  return (
+    <AppShell
+      appInfo={appInfo}
+      subtitle={navbarSubtitle}
+      showAdminAlert={workspace.bootstrap?.isElevated === false}
+    >
+      <Suspense fallback={<RouteLoader />}>
+        <AboutPage />
+      </Suspense>
+    </AppShell>
+  )
+}
+
 function App() {
   const workspace = useG2mWorkspace()
   const [appInfo, setAppInfo] = useState<AppInfoPayload | null>(null)
@@ -293,22 +316,21 @@ function App() {
   }, [])
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <>
-        <Routes>
-          <Route path="/" element={<HomeRoute workspace={workspace} appInfo={appInfo} />} />
-          <Route path="/builder" element={<BuilderRoute workspace={workspace} appInfo={appInfo} />} />
-          <Route path="/settings" element={<SettingsRoute workspace={workspace} appInfo={appInfo} />} />
-          <Route path="/game/:gameId" element={<GameWorkspaceRoute workspace={workspace} appInfo={appInfo} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<HomeRoute workspace={workspace} appInfo={appInfo} />} />
+        <Route path="/builder" element={<BuilderRoute workspace={workspace} appInfo={appInfo} />} />
+        <Route path="/settings" element={<SettingsRoute workspace={workspace} appInfo={appInfo} />} />
+        <Route path="/about" element={<AboutRoute workspace={workspace} appInfo={appInfo} />} />
+        <Route path="/game/:gameId" element={<GameWorkspaceRoute workspace={workspace} appInfo={appInfo} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
-        <Suspense fallback={null}>
-          <WorkspaceDialogs workspace={workspace} />
-        </Suspense>
-        <Toaster closeButton position="top-right" richColors />
-      </>
-    </DndProvider>
+      <Suspense fallback={null}>
+        <WorkspaceDialogs workspace={workspace} />
+      </Suspense>
+      <Toaster closeButton position="top-right" richColors />
+    </>
   )
 }
 

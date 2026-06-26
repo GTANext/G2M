@@ -12,6 +12,7 @@
     "core:window:allow-close",
     "dialog:default",
     "opener:allow-open-path",
-    "opener:default"
+    "opener:default",
+    "fs:default"
   ]
 }

@@ -14,6 +14,7 @@ export type Game = {
   imagePath: string
   createdAt: number
   updatedAt: number
+  sortOrder: number
   status: "ready" | "pending"
   prerequisites: GamePrerequisite[]
 }
@@ -46,6 +47,16 @@ export type ModImportFileEntry = {
   skipInstall?: boolean
 }
 
+export type GameTypeTarget = "iii" | "vc" | "sa"
+
+export type BuilderGameTargetNode = {
+  children: BuilderGameTargetNode[]
+  fileCount: number
+  kind: "file" | "folder"
+  path: string
+  targetPath: string
+}
+
 export type ExistingBuilderManifestFile = {
   path: string
   installTo: string
@@ -63,12 +74,19 @@ export type ExistingBuilderManifestUpdate = {
   md5Mode: string
 }
 
+export type BuilderCustomPrerequisite = {
+  name: string
+  url: string
+}
+
 export type ExistingBuilderManifest = {
   name: string
   version: string
   author: string
   modType: string
   links: ExistingBuilderManifestLink[]
+  prerequisites: string[]
+  customPrerequisites: BuilderCustomPrerequisite[]
   update: ExistingBuilderManifestUpdate | null
   files: ExistingBuilderManifestFile[]
 }
@@ -119,15 +137,17 @@ export type BackendGame = {
   createdAt: number
   updatedAt: number
   configured: boolean
+  sortOrder: number
   prerequisites: GamePrerequisite[]
 }
 
-export type DetectedGame = {
-  gameType: "sa" | "vc" | "iii"
+export interface DetectedGame {
+  gameType: "sa" | "vc" | "iii" | string
   name: string
   path: string
   exeName: string
   version: string
+  coverBase64: string | null
 }
 
 export type BackendMod = {
@@ -174,6 +194,7 @@ export type ModFileTreeNode = {
   fileCount: number
   children: ModFileTreeNode[]
   file: ModImportFileEntry | null
+  isPresetFolder?: boolean
 }
 
 export type BootstrapPayload = {
@@ -251,6 +272,7 @@ export function buildGamesFromBackend(
     imagePath: game.imagePath,
     createdAt: game.createdAt,
     updatedAt: game.updatedAt,
+    sortOrder: game.sortOrder,
     status: game.configured ? "ready" : "pending",
     prerequisites: game.prerequisites ?? [],
   }))
@@ -297,10 +319,17 @@ export function resolveGameImageSrc(imagePath: string, gameType: Game["gameType"
     return getDefaultGameImagePath(gameType)
   }
 
-  if (normalized.startsWith("/")) {
+  // If it's a URL or base64, return it as-is
+  if (normalized.startsWith("http://") || normalized.startsWith("https://") || normalized.startsWith("data:image/")) {
     return normalized
   }
 
+  // Handle absolute paths by using convertFileSrc, which resolves Tauri's asset:// protocol
+  if (/^[A-Za-z]:\\|^\//.test(normalized)) {
+    return convertFileSrc(normalized)
+  }
+
+  // Handle relative paths (though unexpected in most cases, fallback)
   return convertFileSrc(normalized)
 }
 
@@ -340,10 +369,31 @@ export function formatFileSize(sizeBytes: number): string {
 export function buildModFileTree(
   files: ModImportFileEntry[],
   mode: "source" | "target" = "target",
+  includePresets: boolean = false,
 ): ModFileTreeNode[] {
   const root = new Map<string, ModFileTreeNode>()
 
+  if (mode === "target" && includePresets) {
+    const PRESETS = ["modloader", "CLEO", "scripts", "plugins", "models", "data", "audio", "text", "anim", "movies"]
+    for (const preset of PRESETS) {
+      root.set(preset, {
+        key: preset,
+        kind: "folder",
+        name: preset,
+        fullPath: preset,
+        fileCount: 0,
+        file: null,
+        children: [],
+        isPresetFolder: true,
+      })
+    }
+  }
+
   for (const file of files) {
+    if (mode === "target" && file.skipInstall) {
+      continue
+    }
+
     const fullPath = mode === "target" ? file.targetPath : file.relativePath
     const segments = fullPath.split("/").filter(Boolean)
     if (segments.length === 0) {
@@ -555,6 +605,49 @@ function inferFolderSummaryTargetPath(folderPath: string, files: ModImportFileEn
 export function inferTargetFolderFromPath(targetPath: string): string {
   const normalized = normalizeModPath(targetPath)
   return normalized.split("/").filter(Boolean)[0] ?? ""
+}
+
+export type BuilderManifestFileEntry = {
+  games?: string[]
+  path: string
+  installTo: string
+}
+
+export function buildManifestPayload(input: {
+  author: string
+  links: { kind: string; label: string; url: string }[]
+  modName: string
+  modType: string
+  prerequisites: string[]
+  customPrerequisites: BuilderCustomPrerequisite[]
+  sourceDigest: ManifestSourceDigest
+  version: string
+  files: BuilderManifestFileEntry[]
+}) {
+  const { author, links, modName, modType, sourceDigest, version, prerequisites, customPrerequisites, files } = input
+  
+  return {
+    name: modName.trim(),
+    version: version.trim(),
+    author: author.trim(),
+    type: modType.trim(),
+    links: links.map((link) => ({
+      kind: link.kind,
+      label: link.label,
+      url: link.url,
+    })),
+    prerequisites,
+    customPrerequisites,
+    update: {
+      md5: sourceDigest.md5,
+      md5Mode: sourceDigest.md5Mode,
+    },
+    files: files.map((file) => ({
+      path: file.path,
+      installTo: file.installTo,
+      games: file.games,
+    })),
+  }
 }
 
 export function inferImportSourceType(selectedPath: string): ImportSourceType {

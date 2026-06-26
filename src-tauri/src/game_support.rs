@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::{random_suffix, StoredGameEntry};
+use crate::StoredGameEntry;
 
 pub(crate) fn detect_game_installation(
     game_path: &Path,
@@ -50,6 +50,7 @@ pub(crate) fn detect_game_installation(
         image_path: String::new(),
         created_at: 0,
         updated_at: 0,
+        sort_order: 0,
     })
 }
 
@@ -93,17 +94,7 @@ pub(crate) fn canonical_exe_name(id: &str) -> &'static str {
     }
 }
 
-pub(crate) fn store_game_cover_image(
-    custom_assets_dir: &Path,
-    game_type: &str,
-    source_path: Option<&str>,
-) -> Result<String, String> {
-    let normalized_source = source_path.map(str::trim).filter(|value| !value.is_empty());
-
-    let Some(source_path) = normalized_source else {
-        return Ok(String::new());
-    };
-
+pub(crate) fn read_image_as_base64(source_path: &str) -> Result<String, String> {
     let source = Path::new(source_path);
     if !source.exists() || !source.is_file() {
         return Err("选择的游戏封面文件不存在".to_string());
@@ -115,33 +106,22 @@ pub(crate) fn store_game_cover_image(
         .map(|value| value.to_lowercase())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "jpg".to_string());
-    let file_name = format!("{game_type}-{}.{}", random_suffix(), extension);
-    let target_path = custom_assets_dir.join(file_name);
 
-    fs::copy(source, &target_path)
-        .map_err(|error| format!("failed to copy game cover image: {error}"))?;
+    let mime_type = match extension.as_str() {
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        _ => "image/jpeg",
+    };
 
-    Ok(target_path.to_string_lossy().to_string())
+    use base64::{engine::general_purpose, Engine as _};
+    let data = fs::read(source).map_err(|error| format!("failed to read image file: {error}"))?;
+    let b64 = general_purpose::STANDARD.encode(&data);
+
+    Ok(format!("data:{};base64,{}", mime_type, b64))
 }
 
-pub(crate) fn cleanup_custom_game_cover(custom_assets_dir: &Path, image_path: &str) -> Result<(), String> {
-    let normalized_path = image_path.trim();
-    if normalized_path.is_empty() {
-        return Ok(());
-    }
-
-    let image = Path::new(normalized_path);
-    if !image.exists() {
-        return Ok(());
-    }
-
-    if !image.starts_with(custom_assets_dir) {
-        return Ok(());
-    }
-
-    fs::remove_file(image).map_err(|error| format!("failed to remove old game cover image: {error}"))?;
-    Ok(())
-}
+// Cleaned up custom game cover logic
 
 fn build_game_id(game_type: &str) -> String {
     let timestamp = SystemTime::now()

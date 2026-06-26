@@ -1,5 +1,4 @@
-import type { ReactNode } from "react"
-import { AlertTriangle, Boxes, CheckCircle2, ChevronRight, FolderOpen, HardDriveDownload, Layers3, MapPinned, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react"
+import { AlertTriangle, Boxes, CheckCircle2, ChevronRight, FolderOpen, HardDriveDownload, Layers3, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
@@ -54,7 +53,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
   const { gameId = "" } = useParams()
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false)
   const [isPrerequisiteDrawerOpen, setIsPrerequisiteDrawerOpen] = useState(false)
-  const [selectedPrerequisiteKeys, setSelectedPrerequisiteKeys] = useState<string[]>([])
+  const [localSelectedPrerequisiteKeys, setLocalSelectedPrerequisiteKeys] = useState<string[]>([])
   const { copy } = useI18n()
 
   useEffect(() => {
@@ -73,6 +72,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
       navigate("/", { replace: true })
     }
   }, [gameId, navigate, workspace.bootstrapping, workspace.games])
+
   const activeGame = workspace.activeGame
   const enabledActiveGameMods = useMemo(
     () => workspace.activeGameMods.filter((mod) => mod.enabled),
@@ -94,8 +94,12 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
     [missingLoadedModPrerequisites],
   )
 
+  const misplacedCleoRedux = useMemo(() => {
+    return activeGame?.prerequisites.find((item) => item.key === "cleo_redux_misplaced" && item.detected)
+  }, [activeGame?.prerequisites])
+
   useEffect(() => {
-    setSelectedPrerequisiteKeys(
+    setLocalSelectedPrerequisiteKeys(
       installableMissingPrerequisites.map((item) => item.key),
     )
   }, [installableMissingPrerequisites])
@@ -117,7 +121,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
   async function handleInstallSelectedPrerequisites() {
     const keysToInstall = installableMissingPrerequisites
       .map((item) => item.key)
-      .filter((key) => selectedPrerequisiteKeys.includes(key))
+      .filter((key) => localSelectedPrerequisiteKeys.includes(key))
 
     for (const key of keysToInstall) {
       await workspace.installGamePrerequisite(key)
@@ -268,6 +272,29 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
             </Alert>
           )}
 
+          {misplacedCleoRedux && misplacedCleoRedux.detectedPath && (
+            <Alert className="border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="flex gap-3">
+                  <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-600 dark:text-rose-300" />
+                  <div>
+                    <AlertTitle>发现位置错误的 CLEO Redux 核心组件</AlertTitle>
+                    <AlertDescription>
+                      检测到 plugins 目录下存在 cleo_redux.asi，这会导致 js/ts 脚本加载失败。请将其移动到游戏根目录下。
+                    </AlertDescription>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="cursor-pointer rounded-xl border-rose-300 bg-white/90 text-rose-900 backdrop-blur hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100 dark:hover:bg-rose-500/15"
+                  onClick={() => void workspace.fixMisplacedPrerequisite(misplacedCleoRedux.detectedPath!)}
+                >
+                  一键修复
+                </Button>
+              </div>
+            </Alert>
+          )}
+
           {missingLoadedModPrerequisites.length > 0 && (
             <Alert className="border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -345,10 +372,10 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
         open={isPrerequisiteDrawerOpen}
         onOpenChange={setIsPrerequisiteDrawerOpen}
         items={missingLoadedModPrerequisites}
-        selectedKeys={selectedPrerequisiteKeys}
+        selectedKeys={localSelectedPrerequisiteKeys}
         installing={isInstallingMissingPrerequisites}
         onToggleKey={(key, checked) =>
-          setSelectedPrerequisiteKeys((current) =>
+          setLocalSelectedPrerequisiteKeys((current) =>
             checked
               ? Array.from(new Set([...current, key]))
               : current.filter((item) => item !== key),
@@ -369,126 +396,53 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
 
   return (
     <div className="space-y-4">
+      {/* Panel 1: Game Profile & Quick Actions */}
       <G2MPanel>
-        <div className="p-5">
-          <SectionHeading
-            eyebrow={copy.workspace.breadcrumbWorkspace}
-            title={copy.workspacePage.gameInfo}
-            description={copy.workspacePage.sidebarDescription}
-          />
+        <div className="p-5 lg:p-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.workspacePage.gameInfo}</h3>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-full hover:bg-muted dark:hover:bg-white/10"
+                onClick={() => workspace.openEditGameDialog(activeGame.id)}
+                title={copy.workspacePage.editGameProfile}
+              >
+                <Pencil className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-full hover:bg-muted dark:hover:bg-white/10"
+                onClick={() => void workspace.openGameDirectory()}
+                title={copy.workspacePage.openGameDirectory}
+              >
+                <FolderOpen className="size-4" />
+              </Button>
+            </div>
+          </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <DetailCardLight label={copy.workspace.currentGame} value={activeGame.shortName} />
             <DetailCardLight label="EXE" value={activeGame.exeName} />
-            <DetailCardLight label={copy.workspacePage.addedAt} value={formatGameTimestamp(activeGame.createdAt)} />
-            <DetailCardLight label={copy.workspacePage.updatedAt} value={formatGameTimestamp(activeGame.updatedAt)} />
           </div>
 
-          <div className="mt-5 space-y-3">
-            <InfoStrip
-              label={copy.workspacePage.directory}
-              value={activeGame.gamePath}
-              icon={<MapPinned className="size-4 text-violet-600" />}
-            />
-            <InfoStrip
-              label={copy.workspacePage.modWarehouse}
-              value={`${activeGame.gamePath}\\G2M\\mods`}
-              icon={<Boxes className="size-4 text-violet-600" />}
-            />
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-sm dark:bg-white/[0.02]">
+              <span className="text-slate-500 dark:text-slate-400">{copy.workspacePage.addedAt}</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">{formatGameTimestamp(activeGame.createdAt)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-sm dark:bg-white/[0.02]">
+              <span className="text-slate-500 dark:text-slate-400">{copy.workspacePage.updatedAt}</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">{formatGameTimestamp(activeGame.updatedAt)}</span>
+            </div>
           </div>
-        </div>
-      </G2MPanel>
 
-      <G2MPanel>
-        <div className="p-5">
-          <SectionHeading
-            eyebrow={copy.workspacePage.prerequisitesTitle}
-            title={copy.workspacePage.prerequisitesTitle}
-            description={copy.workspacePage.prerequisitesDescription}
-          />
-
-          <div className="mt-5 space-y-3">
-            {activeGame.prerequisites.map((item) => (
-              <div
-                key={item.key}
-                className="rounded-2xl border border-black/5 bg-background/80 p-4 dark:border-white/10 dark:bg-white/[0.03]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-950 dark:text-slate-50">{item.label}</p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {item.scanScope === "scriptsPlugins"
-                        ? copy.workspacePage.prerequisiteScriptsPlugins
-                        : copy.workspacePage.prerequisiteRoot}
-                    </p>
-                    {item.detectedPath ? (
-                      <p className="mt-2 break-all text-xs text-slate-500 dark:text-slate-400">
-                        {item.detectedPath}
-                      </p>
-                    ) : !item.canInstall ? (
-                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                        {copy.workspacePage.prerequisiteBuiltinMissing}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <Badge
-                      variant="outline"
-                      className={
-                        item.detected
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-                          : "border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"
-                      }
-                    >
-                      {item.detected
-                        ? copy.workspacePage.prerequisiteDetected
-                        : copy.workspacePage.prerequisiteMissing}
-                    </Badge>
-                    {!item.detected && item.canInstall ? (
-                      <Button
-                        size="sm"
-                        className="h-8 rounded-lg px-3"
-                        disabled={workspace.installingPrerequisiteKey === item.key}
-                        onClick={() => void workspace.installGamePrerequisite(item.key)}
-                      >
-                        {copy.workspacePage.installPrerequisite}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </G2MPanel>
-
-      <G2MPanel>
-        <div className="p-5">
-          <SectionHeading
-            eyebrow={copy.workspacePage.actions}
-            title={copy.workspacePage.actions}
-            description={copy.workspacePage.quickActionsDescription}
-          />
-          <div className="mt-5 grid gap-2">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button
               variant="outline"
-              className={`justify-start ${softOutlineButtonClass}`}
-              onClick={() => void workspace.openGameDirectory()}
-            >
-              <FolderOpen className="size-4" />
-              {copy.workspacePage.openGameDirectory}
-            </Button>
-            <Button
-              variant="outline"
-              className={`justify-start ${softOutlineButtonClass}`}
-              onClick={() => workspace.openEditGameDialog(activeGame.id)}
-            >
-              <Pencil className="size-4" />
-              {copy.workspacePage.editGameProfile}
-            </Button>
-            <Button
-              variant="outline"
-              className={`justify-start ${softOutlineButtonClass}`}
+              className={`flex-1 justify-center ${softOutlineButtonClass}`}
               onClick={() => void workspace.refreshWorkspace()}
             >
               <RefreshCw className="size-4" />
@@ -496,7 +450,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
             </Button>
             <Button
               variant="outline"
-              className={`justify-start ${softOutlineButtonClass}`}
+              className={`flex-1 justify-center text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 ${softOutlineButtonClass}`}
               onClick={() => workspace.openDeleteGameDialog(activeGame.id)}
             >
               <Trash2 className="size-4" />
@@ -506,25 +460,91 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
         </div>
       </G2MPanel>
 
+      {/* Panel 2: Prerequisites */}
       <G2MPanel>
-        <div className="p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{copy.workspacePage.gameSwitch}</p>
-              <h3 className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.home.configuredTitle}</h3>
+        <div className="p-5 lg:p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.workspacePage.prerequisitesTitle}</h3>
+              <G2MPill className="bg-background/80 px-2 py-0.5 text-xs text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+                {activeGame.prerequisites.length}
+              </G2MPill>
             </div>
-            <G2MPill className="bg-background/80 px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-              {copy.home.configuredCount(workspace.games.length)}
+            {activeGame.prerequisites.some(item => !item.detected && item.key !== "cleo_redux_misplaced") && (
+              <Button
+                size="sm"
+                variant="outline"
+                className={`h-7 rounded-lg px-2.5 text-xs font-medium ${softOutlineButtonClass}`}
+                disabled={workspace.installingPrerequisiteKey === "all"}
+                onClick={() => void workspace.installAllGamePrerequisites()}
+              >
+                一键补齐
+              </Button>
+            )}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {activeGame.prerequisites.map((item) => (
+              <div
+                key={item.key}
+                className="group relative flex items-center justify-between rounded-xl border border-black/5 bg-background/50 p-3 hover:bg-muted/50 dark:border-white/5 dark:bg-white/[0.02] dark:hover:bg-white/[0.04]"
+              >
+                <div className="min-w-0 pr-3">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {item.label}
+                    </p>
+                    {item.detected ? (
+                      <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500 dark:text-emerald-400" />
+                    ) : null}
+                  </div>
+                  {item.detectedPath ? (
+                    <p className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500" title={item.detectedPath}>
+                      {item.detectedPath.split(/[\\/]/).pop()}
+                    </p>
+                  ) : null}
+                </div>
+
+                {!item.detected && item.canInstall ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 shrink-0 rounded-lg px-2 text-xs font-medium"
+                    disabled={workspace.installingPrerequisiteKey === item.key}
+                    onClick={() => void workspace.installGamePrerequisite(item.key)}
+                  >
+                    {copy.workspacePage.installPrerequisite}
+                  </Button>
+                ) : !item.detected ? (
+                  <Badge variant="outline" className="shrink-0 border-slate-200 bg-slate-50 text-[10px] text-slate-500 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400">
+                    {copy.workspacePage.prerequisiteMissing}
+                  </Badge>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      </G2MPanel>
+
+      {/* Panel 3: Switch Game */}
+      <G2MPanel>
+        <div className="p-5 lg:p-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.home.configuredTitle}</h3>
+            <G2MPill className="bg-background/80 px-2 py-0.5 text-xs text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+              {workspace.games.length}
             </G2MPill>
           </div>
-          <div className="space-y-2">
+          
+          <div className="mt-4 space-y-2">
             {workspace.games.map((game) => (
               <GameSwitchRow key={game.id} game={game} />
             ))}
           </div>
+          
           <Button
             variant="outline"
-            className="mt-3 w-full cursor-pointer rounded-2xl"
+            className="mt-3 w-full cursor-pointer rounded-xl border-dashed"
             onClick={workspace.startAddGame}
           >
             <Plus className="size-4" />
@@ -896,43 +916,7 @@ function EmptyModsState({ workspace }: { workspace: WorkspaceState }) {
   )
 }
 
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string
-  title: string
-  description: string
-}) {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{eyebrow}</p>
-      <h3 className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{description}</p>
-    </div>
-  )
-}
 
-function InfoStrip({
-  label,
-  value,
-  icon,
-}: {
-  label: string
-  value: string
-  icon: ReactNode
-}) {
-  return (
-    <div className="rounded-2xl bg-muted/70 p-4 ring-1 ring-black/5 dark:bg-white/[0.04] dark:ring-white/10">
-      <div className="flex items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
-        {icon}
-        {label}
-      </div>
-      <p className="mt-2 break-all text-sm leading-6 text-slate-600 dark:text-slate-300">{value}</p>
-    </div>
-  )
-}
 
 function WorkbenchStatCard({
   label,
@@ -978,13 +962,13 @@ function GameSwitchRow({
       type="button"
       onClick={() => navigate(`/game/${game.id}`)}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all",
+        "flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-left transition-all",
         isCurrent
           ? "bg-slate-900 text-white ring-1 ring-slate-900 dark:bg-white/10 dark:ring-white/20"
-          : "bg-background/90 text-slate-700 ring-1 ring-black/5 hover:ring-black/10 dark:bg-white/5 dark:text-slate-200 dark:ring-white/10 dark:hover:ring-white/20",
+          : "bg-background/90 text-slate-700 ring-1 ring-black/5 hover:bg-muted/80 dark:bg-white/5 dark:text-slate-200 dark:ring-white/10 dark:hover:bg-white/10",
       )}
     >
-      <div className="size-14 overflow-hidden rounded-2xl bg-slate-200 dark:bg-white/10">
+      <div className="size-10 shrink-0 overflow-hidden rounded-lg bg-slate-200 dark:bg-white/10">
         <img
           src={resolveGameImageSrc(game.imagePath, game.gameType)}
           alt={game.name}
@@ -992,14 +976,17 @@ function GameSwitchRow({
         />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{game.name}</p>
-        <p className={cn("mt-1 text-xs", isCurrent ? "text-slate-300" : "text-slate-500 dark:text-slate-400")}>
-          {game.shortName} · {game.version}
+        <p className="truncate text-sm font-semibold">{game.shortName}</p>
+        <p className={cn("mt-0.5 truncate text-[10px]", isCurrent ? "text-slate-300" : "text-slate-500 dark:text-slate-400")}>
+          {game.version}
         </p>
       </div>
       <Badge
         variant={isCurrent ? "secondary" : "outline"}
-        className={isCurrent ? "rounded-full bg-white/10 px-3 py-1 text-white dark:bg-white/10" : "rounded-full bg-background/80 px-3 py-1"}
+        className={cn(
+          "shrink-0 text-[10px]",
+          isCurrent ? "rounded-full bg-white/10 px-2 py-0.5 text-white dark:bg-white/10" : "rounded-full bg-background/80 px-2 py-0.5"
+        )}
       >
         {game.status === "ready" ? copy.workspacePage.gameStatusReady : copy.workspacePage.gameStatusPending}
       </Badge>
@@ -1259,15 +1246,19 @@ function getMissingLoadedModPrerequisites(
 }
 
 function getRequiredPrerequisiteKeysByModType(modType: ModType): string[] {
+  // asiloader and modloader are mandatory for all mod types
+  const baseKeys = ["asiloader", "modloader"]
+  
   const prerequisiteKeysByModType: Record<ModType, string[]> = {
-    ModLoader: ["modloader"],
-    CLEO: ["cleo", "asiloader"],
-    "CLEO Redux": ["asiloader"],
-    ASI: ["asiloader"],
+    ModLoader: [],
+    CLEO: ["cleo"],
+    "CLEO Redux": ["cleo_redux"],
+    ASI: [],
     Mixed: [],
   }
 
-  return prerequisiteKeysByModType[modType] ?? []
+  const specificKeys = prerequisiteKeysByModType[modType] ?? []
+  return Array.from(new Set([...baseKeys, ...specificKeys]))
 }
 
 export { GameWorkspacePage }
