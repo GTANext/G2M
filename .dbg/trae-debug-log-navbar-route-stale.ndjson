@@ -1,4 +1,0 @@
-{"sessionId": "navbar-route-stale", "runId": "pre-fix", "hypothesisId": "A", "location": "App.tsx:SettingsRoute", "msg": "[DEBUG] SettingsRoute rendered", "data": {"hash": "#/settings", "pathname": "/settings"}, "ts": 1781800332419}
-{"sessionId": "navbar-route-stale", "runId": "pre-fix", "hypothesisId": "A", "location": "App.tsx:App", "msg": "[DEBUG] Router location changed", "data": {"hash": "#/settings", "key": "36l3fbte", "pathname": "/settings", "search": ""}, "ts": 1781800332422}
-{"sessionId": "navbar-route-stale", "runId": "pre-fix", "hypothesisId": "A", "location": "App.tsx:SettingsRoute", "msg": "[DEBUG] SettingsRoute rendered", "data": {"hash": "#/settings", "pathname": "/settings"}, "ts": 1781800333038}
-{"sessionId": "navbar-route-stale", "runId": "pre-fix", "hypothesisId": "A", "location": "App.tsx:App", "msg": "[DEBUG] Router location changed", "data": {"hash": "#/settings", "key": "uh7uh582", "pathname": "/settings", "search": ""}, "ts": 1781800333041}
