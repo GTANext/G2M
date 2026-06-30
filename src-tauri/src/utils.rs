@@ -12,6 +12,7 @@ use windows_sys::Win32::{
 };
 
 pub(crate) const GAME_DIR_PATH_VARIABLE: &str = "${GAME_DIR}";
+pub(crate) const GAME_WORKSPACE_DIR_NAME: &str = ".g2m";
 pub(crate) const GAME_WORKSPACE_PACKAGE_FILE_NAME: &str = "package.json";
 pub(crate) const GAME_WORKSPACE_PACKAGE_VERSION: u32 = 1;
 

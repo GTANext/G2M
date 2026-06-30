@@ -111,6 +111,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
     })
   )
   const [activePayload, setActivePayload] = useState<DragPayload | null>(null)
+  const currentDropPath = currentRelativePath || ROOT_INSTALL_TARGET
 
   function handleDragStart(event: any) {
     setActivePayload(event.active.data.current as DragPayload)
@@ -119,9 +120,12 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
   function handleDragEnd(event: any) {
     setActivePayload(null)
     const { active, over } = event
-    if (!over) return
-
     const payload = active.data.current as DragPayload
+    if (!over) {
+      onDropToFolder(currentDropPath, payload)
+      return
+    }
+
     const overData = over.data.current
     if (overData && overData.acceptsDrop && overData.folderPath !== undefined) {
       onDropToFolder(overData.folderPath, payload)
@@ -132,7 +136,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
     const result = await open({
       directory: true,
       multiple: false,
-      title: "选择目标参考目录 (Select Target Directory)",
+      title: copy.builderPage.explorerTitle,
     })
     if (result && !Array.isArray(result)) {
       setTargetRootPath(normalizePath(result))
@@ -141,7 +145,6 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
   }
 
   // Droppable for the current directory background
-  const currentDropPath = currentRelativePath || ROOT_INSTALL_TARGET
   const { isOver: isOverCurrent, setNodeRef: dropRefCurrent } = useDroppable({
     id: `drop::target::${currentDropPath}::explorer-bg`,
     data: { acceptsDrop: !!activePayload, folderPath: currentDropPath },
@@ -170,7 +173,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
                 className="cursor-pointer hover:text-violet-600 dark:hover:text-violet-400"
                 onClick={() => setCurrentRelativePath("")}
               >
-                {targetRootPath ? getBaseName(targetRootPath) : "Game Root"}
+                {targetRootPath ? getBaseName(targetRootPath) : copy.builderPage.explorerRootLabel}
               </span>
               {currentRelativePath.split("/").filter(Boolean).map((part, index, arr) => (
                 <div key={index} className="flex items-center">
@@ -285,7 +288,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
                 <DraggableTree
                   files={files}
                   mode="source"
-                  emptyLabel="No files"
+                  emptyLabel={copy.builderPage.sourceTreeEmpty}
                   showFullPath={false}
                   defaultExpandedDepth={2}
                 />

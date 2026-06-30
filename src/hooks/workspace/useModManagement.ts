@@ -13,6 +13,11 @@ import {
 } from "@/lib/g2m"
 import { createDefaultImportModForm, type WorkspaceState } from "./types"
 
+function toImportDisplayName(selectedPath: string): string {
+  const rawName = selectedPath.split(/[\\/]/).pop()?.trim() || ""
+  return rawName.replace(/\.(zip|rar|7z)$/i, "")
+}
+
 export function useModManagement(state: WorkspaceState, activeGame: Game | null, applyBootstrap: (payload: BootstrapPayload) => void) {
   const { copy } = useI18n()
 
@@ -102,7 +107,7 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
     let toastId: string | number | undefined
 
     try {
-      const modName = selectedPath.split(/[\\/]/).pop() || ""
+      const modName = toImportDisplayName(selectedPath)
       const sourceType = inferImportSourceType(selectedPath)
       state.setImportModForm({
         dir: selectedPath,

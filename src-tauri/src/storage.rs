@@ -7,7 +7,7 @@ use tauri::AppHandle;
 
 use crate::{
     ensure_game_workspace_package_path, initialize_database, migrate_legacy_settings_to_database,
-    GameDirectory, GAME_WORKSPACE_PACKAGE_FILE_NAME,
+    GameDirectory, GAME_WORKSPACE_DIR_NAME, GAME_WORKSPACE_PACKAGE_FILE_NAME,
 };
 
 pub(crate) struct StoragePaths {
@@ -55,7 +55,7 @@ pub(crate) fn ensure_game_workspaces(games: &[GameDirectory]) -> Result<(), Stri
 }
 
 pub(crate) fn ensure_game_workspace(game_path: &Path) -> Result<(), String> {
-    let workspace_dir = game_path.join("G2M");
+    let workspace_dir = game_path.join(GAME_WORKSPACE_DIR_NAME);
     let mods_dir = workspace_dir.join("mods");
 
     fs::create_dir_all(&mods_dir).map_err(|error| {
@@ -70,5 +70,7 @@ pub(crate) fn ensure_game_workspace(game_path: &Path) -> Result<(), String> {
 }
 
 pub(crate) fn game_workspace_package_path(game_path: &Path) -> PathBuf {
-    game_path.join("G2M").join(GAME_WORKSPACE_PACKAGE_FILE_NAME)
+    game_path
+        .join(GAME_WORKSPACE_DIR_NAME)
+        .join(GAME_WORKSPACE_PACKAGE_FILE_NAME)
 }

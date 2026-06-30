@@ -27,7 +27,10 @@ use crate::{
         load_stored_games, update_game_entry_in_database, update_mod_enabled_in_database,
     },
     storage::{ensure_game_workspace, ensure_game_workspaces, ensure_storage},
-    symlink_install::{create_mod_symlinks, remove_mod_symlinks, remove_path_if_exists},
+    symlink_install::{
+        cleanup_legacy_mod_root_symlinks, create_mod_symlinks, remove_mod_symlinks,
+        remove_path_if_exists,
+    },
     utils::{current_timestamp, is_process_elevated, paths_equal},
     workspace_package::{import_game_packages_into_database, sync_game_packages},
     wrap_command, BootstrapPayload, CommandResponse, DetectedGamePayload,
@@ -60,13 +63,26 @@ fn bootstrap_app_payload(app: &AppHandle) -> Result<BootstrapPayload, String> {
         .map(detect_game_prerequisites)
         .collect::<Vec<_>>();
     sync_game_packages(&paths.database_path, &games)?;
+    let mods = load_mods(&paths.database_path)?;
+
+    for mod_entry in mods.iter().filter(|mod_entry| mod_entry.enabled) {
+        let Some(install_plan) = load_mod_install_plan(&paths.database_path, &mod_entry.id)? else {
+            continue;
+        };
+
+        let _ = cleanup_legacy_mod_root_symlinks(
+            Path::new(&install_plan.game_path),
+            Path::new(&install_plan.source_dir),
+            &install_plan.files,
+        );
+    }
 
     Ok(BootstrapPayload {
         data_dir: paths.app_dir.to_string_lossy().to_string(),
         database_path: paths.database_path.to_string_lossy().to_string(),
         is_elevated: is_process_elevated(),
         games,
-        mods: load_mods(&paths.database_path)?,
+        mods,
     })
 }
 
@@ -499,7 +515,9 @@ pub(crate) fn import_mod_directory(
         let paths = ensure_storage(&app)?;
         let (game, source) = resolve_import_source(&paths.database_path, &gameId, &modPath)?;
 
-        let workspace_mods_dir = Path::new(&game.path).join("G2M").join("mods");
+        let workspace_mods_dir = Path::new(&game.path)
+            .join(crate::GAME_WORKSPACE_DIR_NAME)
+            .join("mods");
         fs::create_dir_all(&workspace_mods_dir)
             .map_err(|error| format!("failed to create workspace mods directory: {error}"))?;
 

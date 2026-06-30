@@ -156,6 +156,8 @@ type AppCopy = {
     dragToIgnore: string
     dragToRoot: string
     emptyMapping: string
+    sourceTreeEmpty: string
+    explorerRootLabel: string
   }
   settings: {
     appearanceDescription: string
@@ -691,6 +693,8 @@ function useI18n() {
         dragToIgnore: t("builderPage.dragToIgnore"),
         dragToRoot: t("builderPage.dragToRoot"),
         emptyMapping: t("builderPage.emptyMapping"),
+        sourceTreeEmpty: t("builderPage.sourceTreeEmpty"),
+        explorerRootLabel: t("builderPage.explorerRootLabel"),
       },
       settings: {
         appearanceDescription: t("settings.appearanceDescription"),

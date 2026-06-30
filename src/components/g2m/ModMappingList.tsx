@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { GameTypeTarget, BuilderGameTargetNode } from "@/lib/g2m"
 
 const PREDEFINED_LOCATIONS = [
-  { value: "skip", label: "不安装 (Do not install)" },
-  { value: "/", label: "游戏根目录 (Game Root)" },
+  { value: "skip", label: "skip" },
+  { value: "/", label: "/" },
   { value: "modloader", label: "modloader" },
   { value: "CLEO", label: "CLEO" },
   { value: "scripts", label: "scripts" },
@@ -50,7 +50,7 @@ function TargetFolderSelect({
   return (
     <Select value={displayValue} onValueChange={(v) => onChange(v === "skip" ? "" : v)}>
       <SelectTrigger className="h-8 w-[180px] rounded-lg border-black/10 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.02]">
-        <SelectValue placeholder="Select target..." />
+        <SelectValue placeholder={copy.workspaceDialogs.installPath} />
       </SelectTrigger>
       <SelectContent>
         {options.map((opt) => (
@@ -69,13 +69,15 @@ function GameTargetTreeNode({
   selectedTargets,
   onToggleGameType,
   onUpdateTargetPath,
+  showGameTargets,
   depth = 0,
 }: {
   copy: ReturnType<typeof useI18n>["copy"]
   node: BuilderGameTargetNode
   selectedTargets: Record<string, GameTypeTarget[]>
-  onToggleGameType: (path: string, type: GameTypeTarget) => void
+  onToggleGameType?: (path: string, type: GameTypeTarget) => void
   onUpdateTargetPath: (path: string, newTargetPath: string) => void
+  showGameTargets?: boolean
   depth?: number
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -110,29 +112,31 @@ function GameTargetTreeNode({
 
         <div className="flex shrink-0 flex-wrap items-center gap-4 pl-8 lg:w-auto lg:pl-0">
           <div className="flex items-center gap-2 w-[240px] justify-end">
-            <span className="shrink-0 text-xs font-medium text-slate-500">{copy.builderPage.summaryFile.replace("安装文件到", "安装到") || "安装到"}</span>
+            <span className="shrink-0 text-xs font-medium text-slate-500">{copy.workspaceDialogs.installPath}</span>
             <TargetFolderSelect value={node.targetPath} onChange={(val) => onUpdateTargetPath(node.path, val)} copy={copy} />
           </div>
 
-          <div className="flex w-[140px] justify-end gap-1">
-            {GAME_TARGET_OPTIONS.map((option) => {
-              const isSelected = selectedValues.includes(option.value as GameTypeTarget)
-              return (
-                <button
-                  key={`${node.path}-${option.value}`}
-                  type="button"
-                  className={`flex h-8 items-center justify-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
-                    isSelected
-                      ? "bg-violet-600 text-white dark:bg-violet-500"
-                      : "bg-muted text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-white/10"
-                  }`}
-                  onClick={() => onToggleGameType(node.path, option.value as GameTypeTarget)}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
+          {showGameTargets ? (
+            <div className="flex w-[140px] justify-end gap-1">
+              {GAME_TARGET_OPTIONS.map((option) => {
+                const isSelected = selectedValues.includes(option.value as GameTypeTarget)
+                return (
+                  <button
+                    key={`${node.path}-${option.value}`}
+                    type="button"
+                    className={`flex h-8 items-center justify-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
+                      isSelected
+                        ? "bg-violet-600 text-white dark:bg-violet-500"
+                        : "bg-muted text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-white/10"
+                    }`}
+                    onClick={() => onToggleGameType?.(node.path, option.value as GameTypeTarget)}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -144,6 +148,7 @@ function GameTargetTreeNode({
               copy={copy}
               node={child}
               selectedTargets={selectedTargets}
+              showGameTargets={showGameTargets}
               onToggleGameType={onToggleGameType}
               onUpdateTargetPath={onUpdateTargetPath}
               depth={depth + 1}
@@ -161,12 +166,14 @@ export function ModMappingList({
   gameTargetsByPath,
   toggleGameType,
   updateTargetPath,
+  showGameTargets = true,
 }: {
   copy: ReturnType<typeof useI18n>["copy"]
   gameTargetNodes: BuilderGameTargetNode[]
   gameTargetsByPath: Record<string, GameTypeTarget[]>
-  toggleGameType: (path: string, type: GameTypeTarget) => void
+  toggleGameType?: (path: string, type: GameTypeTarget) => void
   updateTargetPath: (path: string, newTargetPath: string) => void
+  showGameTargets?: boolean
 }) {
   return (
     <div className="space-y-1">
@@ -176,6 +183,7 @@ export function ModMappingList({
           copy={copy}
           node={node}
           selectedTargets={gameTargetsByPath}
+          showGameTargets={showGameTargets}
           onToggleGameType={toggleGameType}
           onUpdateTargetPath={updateTargetPath}
         />

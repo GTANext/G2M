@@ -125,4 +125,10 @@ function useAppPreferences() {
   return context
 }
 
-export { AppPreferencesProvider, type HomeViewMode, type TitleBarStyle, useAppPreferences }
+export {
+  AppPreferencesProvider,
+  type BuilderMappingMode,
+  type HomeViewMode,
+  type TitleBarStyle,
+  useAppPreferences,
+}

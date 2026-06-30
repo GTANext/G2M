@@ -8,6 +8,8 @@ use crate::{
     resolve_game_target_path, ModInstallFileRecord,
 };
 
+const RESERVED_INSTALL_ROOTS: &[&str] = &["modloader", "cleo", "plugins", "scripts"];
+
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::symlink as create_directory_symlink;
 #[cfg(target_family = "unix")]
@@ -24,6 +26,8 @@ pub(crate) fn create_mod_symlinks(
     files: &[ModInstallFileRecord],
     overwrite_targets: &[String],
 ) -> Result<(), String> {
+    cleanup_legacy_mod_root_symlinks(game_path, mod_source_dir, files)?;
+
     let overwrite_targets = overwrite_targets
         .iter()
         .map(|target_path| normalize_import_target_path(target_path))
@@ -133,6 +137,23 @@ pub(crate) fn remove_mod_symlinks(
         }
     }
 
+    cleanup_legacy_mod_root_symlinks(game_path, mod_source_dir, files)?;
+
+    Ok(())
+}
+
+pub(crate) fn cleanup_legacy_mod_root_symlinks(
+    game_path: &Path,
+    mod_source_dir: &Path,
+    files: &[ModInstallFileRecord],
+) -> Result<(), String> {
+    let legacy_targets =
+        collect_legacy_mod_root_symlink_targets(game_path, mod_source_dir, files);
+
+    for (target_path, expected_source_path) in legacy_targets {
+        remove_legacy_directory_symlink_if_matches(&target_path, &expected_source_path)?;
+    }
+
     Ok(())
 }
 
@@ -201,6 +222,13 @@ fn build_directory_symlink_candidates(
 
     let mut candidates = Vec::new();
     for (folder_name, records) in groups {
+        if RESERVED_INSTALL_ROOTS
+            .iter()
+            .any(|reserved| folder_name.eq_ignore_ascii_case(reserved))
+        {
+            continue;
+        }
+
         let source_folder = mod_source_dir.join(&folder_name);
         if !source_folder.is_dir() {
             continue;
@@ -259,6 +287,46 @@ fn build_directory_symlink_candidates(
     }
 
     Ok(candidates)
+}
+
+fn collect_legacy_mod_root_symlink_targets(
+    game_path: &Path,
+    mod_source_dir: &Path,
+    files: &[ModInstallFileRecord],
+) -> Vec<(PathBuf, PathBuf)> {
+    let mut targets = std::collections::BTreeMap::<PathBuf, PathBuf>::new();
+
+    for file in files {
+        let normalized_target_path = normalize_import_target_path(&file.target_path);
+        let segments = normalized_target_path
+            .split('/')
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>();
+        if segments.len() < 2 {
+            continue;
+        }
+
+        let install_root = segments[0];
+        let wrapper_dir = segments[1];
+        if !RESERVED_INSTALL_ROOTS
+            .iter()
+            .any(|reserved| install_root.eq_ignore_ascii_case(reserved))
+        {
+            continue;
+        }
+        if !wrapper_dir.starts_with("[G2M] ") {
+            continue;
+        }
+
+        let expected_source_path = mod_source_dir.join(install_root);
+        let legacy_target_path = resolve_game_target_path(
+            game_path,
+            &format!("{install_root}/{wrapper_dir}/{install_root}"),
+        );
+        targets.insert(legacy_target_path, expected_source_path);
+    }
+
+    targets.into_iter().collect()
 }
 
 fn collect_directory_file_entries(directory: &Path) -> Result<std::collections::HashSet<String>, String> {
@@ -466,6 +534,37 @@ fn remove_file_symlink_if_matches(source_path: &Path, target_path: &Path) -> Res
     Ok(true)
 }
 
+fn remove_legacy_directory_symlink_if_matches(
+    target_path: &Path,
+    expected_source_path: &Path,
+) -> Result<(), String> {
+    let metadata = match fs::symlink_metadata(target_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect legacy target path before cleanup: {error}"
+            ));
+        }
+    };
+
+    if !metadata.file_type().is_symlink() {
+        return Ok(());
+    }
+
+    if target_path.exists() {
+        let current_target = resolve_link_target(target_path)?;
+        let expected_target = normalize_existing_path(expected_source_path);
+        if !paths_equal(&current_target, &expected_target) {
+            return Ok(());
+        }
+    }
+
+    remove_symlink_path(target_path, true)
+        .map_err(|error| format!("failed to remove legacy directory symlink: {error}"))?;
+    Ok(())
+}
+
 fn backup_existing_target(target_path: &Path, backup_path: &Path) -> Result<(), String> {
     if let Some(parent_dir) = backup_path.parent() {
         fs::create_dir_all(parent_dir)
@@ -529,7 +628,7 @@ fn restore_target_from_backup(target_path: &Path, backup_path: &Path) -> Result<
 
 fn resolve_backup_target_path(game_path: &Path, mod_id: &str, target_path: &str) -> PathBuf {
     let mut resolved = game_path
-        .join("G2M")
+        .join(crate::GAME_WORKSPACE_DIR_NAME)
         .join("backups")
         .join(mod_id);
 

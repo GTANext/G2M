@@ -578,9 +578,15 @@ fn insert_package_file_record(
 fn collect_relative_file_paths(base_dir: &Path, current_dir: &Path) -> Result<HashSet<String>, String> {
     let mut entries = HashSet::new();
 
-    for entry in fs::read_dir(current_dir)
-        .map_err(|error| format!("failed to read package source directory: {error}"))?
-    {
+    let read_dir = match fs::read_dir(current_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(entries),
+        Err(error) => {
+            return Err(format!("failed to read package source directory: {error}"));
+        }
+    };
+
+    for entry in read_dir {
         let entry = entry.map_err(|error| format!("failed to read package source entry: {error}"))?;
         let path = entry.path();
         if path.is_dir() {

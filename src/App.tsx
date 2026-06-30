@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode, useEffect, useState } from "react"
+import { lazy, Suspense, type ReactNode, useEffect, useRef, useState } from "react"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { ShieldAlert, X } from "lucide-react"
 import { useI18n } from "@/components/app/i18nProvider"
@@ -294,6 +294,7 @@ function AboutRoute({
 function App() {
   const workspace = useG2mWorkspace()
   const [appInfo, setAppInfo] = useState<AppInfoPayload | null>(null)
+  const hasClosedSplashscreenRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -314,6 +315,17 @@ function App() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (workspace.bootstrapping || hasClosedSplashscreenRef.current) {
+      return
+    }
+
+    hasClosedSplashscreenRef.current = true
+    void invokeApi<void>("close_splashscreen").catch(() => {
+      // Ignore startup handoff errors so the UI can continue rendering.
+    })
+  }, [workspace.bootstrapping])
 
   return (
     <>

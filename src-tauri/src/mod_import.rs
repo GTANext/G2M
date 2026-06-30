@@ -521,7 +521,7 @@ fn scan_imported_mod_directory(
     mod_dir: &Path,
     mod_name_override: Option<&str>,
     game_type: Option<&str>,
-    _original_source_is_zip: bool,
+    original_source_is_zip: bool,
     _original_source_zip_path: Option<&Path>,
 ) -> Result<ImportedModSummary, String> {
     let mut files = Vec::new();
@@ -575,9 +575,8 @@ fn scan_imported_mod_directory(
         .map(str::to_string)
         .or_else(|| {
             mod_name_override
-                .map(str::trim)
+                .map(|value| normalize_import_mod_name(value, original_source_is_zip))
                 .filter(|value| !value.is_empty())
-                .map(str::to_string)
         })
         .or_else(|| {
             mod_dir
@@ -1083,6 +1082,25 @@ fn wrap_modloader_targets(files: &mut [ImportedModFile], mod_name: &str) {
             }
         }
     }
+}
+
+fn normalize_import_mod_name(value: &str, original_source_is_zip: bool) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    if !original_source_is_zip {
+        return trimmed.to_string();
+    }
+
+    Path::new(trimmed)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .map(str::trim)
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(trimmed)
+        .to_string()
 }
 
 fn infer_target_folder_from_target_path(target_path: &str) -> String {

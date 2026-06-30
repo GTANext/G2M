@@ -12,12 +12,29 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "GTAMODX Manager",
         "width": 1280,
         "height": 720,
         "minWidth": 1200,
         "minHeight": 760,
-        "decorations": false
+        "decorations": false,
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "G2M",
+        "url": "splashscreen.html",
+        "width": 420,
+        "height": 320,
+        "resizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "shadow": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "center": true,
+        "skipTaskbar": true
       }
     ],
     "security": {

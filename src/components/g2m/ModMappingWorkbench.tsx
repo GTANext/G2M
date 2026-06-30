@@ -109,7 +109,7 @@ function ModMappingWorkbenchInner({
               <DraggableTree
                 files={files}
                 mode="source"
-                emptyLabel={"No files"}
+                emptyLabel={copy.builderPage.sourceTreeEmpty}
                 className="pb-8"
                 showFullPath={false}
                 defaultExpandedDepth={2}
@@ -198,9 +198,12 @@ function ModMappingWorkbench(props: ModMappingWorkbenchProps) {
   function handleDragEnd(event: any) {
     setActivePayload(null)
     const { active, over } = event
-    if (!over) return
-
     const payload = active.data.current as DragPayload
+    if (!over) {
+      props.onDropToFolder(ROOT_INSTALL_TARGET, payload)
+      return
+    }
+
     const overData = over.data.current
     if (overData && overData.acceptsDrop && overData.folderPath !== undefined) {
       props.onDropToFolder(overData.folderPath, payload)

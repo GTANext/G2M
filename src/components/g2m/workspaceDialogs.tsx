@@ -1,6 +1,10 @@
 import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, CircleHelp, Files, FolderOpen, HardDriveDownload, ImagePlus, MapPinned, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
 import { useI18n } from "@/components/app/i18nProvider"
+import { useAppPreferences } from "@/components/app/preferencesProvider"
+import { FileMappingModeSwitch } from "@/components/g2m/FileMappingModeSwitch"
+import { ModMappingExplorer } from "@/components/g2m/ModMappingExplorer"
+import { ModMappingList } from "@/components/g2m/ModMappingList"
 import { ModMappingWorkbench } from "@/components/g2m/ModMappingWorkbench"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +13,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { UseG2mWorkspaceResult } from "@/hooks/useG2MWorkspace"
 import {
+  buildMappingTargetNodes,
   formatFileSize,
+  inferTargetFolderFromPath,
+  normalizeModPath,
   resolveGameImageSrc,
   type GamePrerequisite,
   type ModConflictItem,
@@ -590,7 +597,9 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
 
 function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
   const { copy } = useI18n()
+  const { builderMappingMode, setBuilderMappingMode } = useAppPreferences()
   const importFiles = workspace.importModMappings
+  const importGameTargetNodes = buildMappingTargetNodes(importFiles)
   const [expandedConflictGroups, setExpandedConflictGroups] = useState<Record<string, boolean>>({})
 
   if (!workspace.isImportModDialogOpen) {
@@ -615,6 +624,42 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
   function handleDropToFolder(destinationFolder: string, payload: DragPayload) {
     const nextMappings = moveFiles(workspace.importModMappings, payload, destinationFolder)
     workspace.setImportModMappings(nextMappings)
+  }
+
+  function handleUpdateTargetPath(path: string, newTargetPath: string) {
+    const key = normalizeModPath(path)
+    if (!key) {
+      return
+    }
+
+    workspace.setImportModMappings(
+      importFiles.map((file) => {
+        const fileKey = normalizeModPath(file.relativePath)
+
+        if (fileKey === key) {
+          return {
+            ...file,
+            targetPath: newTargetPath,
+            targetFolder: inferTargetFolderFromPath(newTargetPath),
+            skipInstall: !newTargetPath.trim(),
+          }
+        }
+
+        if (fileKey && fileKey.startsWith(`${key}/`)) {
+          const suffix = fileKey.slice(key.length).replace(/^\/+/, "")
+          const nextTargetPath = newTargetPath ? `${newTargetPath}/${suffix}` : ""
+
+          return {
+            ...file,
+            targetPath: nextTargetPath,
+            targetFolder: inferTargetFolderFromPath(nextTargetPath),
+            skipInstall: !nextTargetPath.trim(),
+          }
+        }
+
+        return file
+      }),
+    )
   }
 
   return (
@@ -807,13 +852,9 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                   </div>
 
                   <DialogTipCard title={copy.workspacePage.filePreview} className="mt-4">
-                    <ModMappingWorkbench
-                      copy={copy}
-                      files={importFiles}
-                      headerTitle={copy.workspacePage.filePreview}
-                      headerDescription={copy.workspaceDialogs.folderMappingHint}
-                      headerBadges={
-                        <>
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Badge className="rounded-full bg-slate-950 px-3 py-1 text-white dark:bg-white dark:text-slate-950">
                             {preview.name || workspace.importModForm.name || copy.workspaceDialogs.modName}
                           </Badge>
@@ -831,15 +872,54 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                               ? copy.workspaceDialogs.importSourceZip
                               : copy.workspaceDialogs.importSourceDirectory}
                           </Badge>
-                        </>
-                      }
-                      initialTargetFolders={preview.targetFolders}
-                      targetDescription={copy.workspaceDialogs.folderMappingHint}
-                      summaryDescription={copy.workspaceDialogs.folderMappingHint}
-                      onDropToFolder={handleDropToFolder}
-                      onResetMappings={handleResetMappings}
-                      emptyTargetLabel={copy.demo.targetPending}
-                    />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <FileMappingModeSwitch
+                            copy={copy}
+                            mode={builderMappingMode}
+                            onChange={setBuilderMappingMode}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-lg"
+                            onClick={handleResetMappings}
+                          >
+                            <RotateCcw className="mr-1.5 size-3" />
+                            {copy.builderPage.resetMappings}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {builderMappingMode === "list" ? (
+                        <ModMappingList
+                          copy={copy}
+                          gameTargetNodes={importGameTargetNodes}
+                          gameTargetsByPath={{}}
+                          updateTargetPath={handleUpdateTargetPath}
+                          showGameTargets={false}
+                        />
+                      ) : builderMappingMode === "tree" ? (
+                        <ModMappingWorkbench
+                          copy={copy}
+                          files={importFiles}
+                          headerTitle={copy.workspacePage.filePreview}
+                          headerDescription={copy.workspaceDialogs.folderMappingHint}
+                          initialTargetFolders={preview.targetFolders}
+                          targetDescription={copy.workspaceDialogs.folderMappingHint}
+                          summaryDescription={copy.workspaceDialogs.folderMappingHint}
+                          onDropToFolder={handleDropToFolder}
+                          onResetMappings={handleResetMappings}
+                          emptyTargetLabel={copy.demo.targetPending}
+                        />
+                      ) : (
+                        <ModMappingExplorer
+                          copy={copy}
+                          files={importFiles}
+                          onDropToFolder={handleDropToFolder}
+                        />
+                      )}
+                    </div>
                   </DialogTipCard>
 
                   {hasConflicts ? (

@@ -155,7 +155,10 @@ pub(crate) fn delete_mod_by_id(database_path: &Path, mod_id: &str) -> Result<(),
         .execute("DELETE FROM mods WHERE id = ?1", params![mod_id])
         .map_err(|error| format!("failed to delete mod record: {error}"))?;
     if let Some(game_path) = game_path {
-        let backup_root = Path::new(&game_path).join("G2M").join("backups").join(mod_id);
+        let backup_root = Path::new(&game_path)
+            .join(crate::GAME_WORKSPACE_DIR_NAME)
+            .join("backups")
+            .join(mod_id);
         let _ = remove_path_if_exists(&backup_root);
     }
     Ok(())

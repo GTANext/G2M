@@ -1,4 +1,11 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use serde::Serialize;
+use tauri::{
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager,
+};
 
 mod commands;
 mod game_prerequisites;
@@ -42,11 +49,23 @@ pub(crate) use utils::{
     build_game_scoped_storage_path, build_mod_id, current_timestamp,
     format_symlink_creation_error, infer_target_folder_from_target_path, normalize_import_target_path,
     paths_equal, random_suffix, resolve_game_scoped_path, resolve_game_target_path,
+    GAME_WORKSPACE_DIR_NAME,
     system_time_to_timestamp, GAME_WORKSPACE_PACKAGE_FILE_NAME, GAME_WORKSPACE_PACKAGE_VERSION,
 };
 pub(crate) use workspace_package::ensure_game_workspace_package_path;
 
 type CommandResponse<T> = Result<ApiResponse<T>, String>;
+
+const MAIN_WINDOW_LABEL: &str = "main";
+const SPLASHSCREEN_WINDOW_LABEL: &str = "splashscreen";
+const TRAY_SHOW_ID: &str = "tray_show";
+const TRAY_HIDE_ID: &str = "tray_hide";
+const TRAY_QUIT_ID: &str = "tray_quit";
+
+#[derive(Default)]
+struct AppState {
+    is_quitting: AtomicBool,
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,15 +102,122 @@ where
     operation().map(ok_response).map_err(error_response)
 }
 
+fn show_main_window(app: &AppHandle) -> Result<(), String> {
+    let main_window = app
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    let _ = main_window.unminimize();
+    main_window
+        .show()
+        .map_err(|error| format!("failed to show main window: {error}"))?;
+    main_window
+        .set_focus()
+        .map_err(|error| format!("failed to focus main window: {error}"))?;
+    Ok(())
+}
+
+fn hide_main_window(app: &AppHandle) -> Result<(), String> {
+    let main_window = app
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    main_window
+        .hide()
+        .map_err(|error| format!("failed to hide main window: {error}"))
+}
+
+fn reveal_main_window_after_startup(app: &AppHandle) -> Result<(), String> {
+    if let Some(splashscreen_window) = app.get_webview_window(SPLASHSCREEN_WINDOW_LABEL) {
+        let _ = splashscreen_window.close();
+    }
+
+    show_main_window(app)
+}
+
+fn setup_system_tray(app: &tauri::App) -> tauri::Result<()> {
+    let show_item = MenuItem::with_id(app, TRAY_SHOW_ID, "显示主窗口", true, None::<&str>)?;
+    let hide_item = MenuItem::with_id(app, TRAY_HIDE_ID, "隐藏到托盘", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let quit_item = MenuItem::with_id(app, TRAY_QUIT_ID, "退出 G2M", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show_item, &hide_item, &separator, &quit_item])?;
+
+    let mut tray = TrayIconBuilder::new()
+        .menu(&menu)
+        .menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            TRAY_SHOW_ID => {
+                let _ = show_main_window(app);
+            }
+            TRAY_HIDE_ID => {
+                let _ = hide_main_window(app);
+            }
+            TRAY_QUIT_ID => {
+                app.state::<AppState>()
+                    .is_quitting
+                    .store(true, Ordering::Relaxed);
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let _ = show_main_window(&tray.app_handle());
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon().cloned() {
+        tray = tray.icon(icon);
+    }
+
+    tray.build(app)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn close_splashscreen(app: AppHandle) -> Result<(), String> {
+    reveal_main_window_after_startup(&app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(AppState::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            setup_system_tray(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() != MAIN_WINDOW_LABEL {
+                return;
+            }
+
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window
+                    .state::<AppState>()
+                    .is_quitting
+                    .load(Ordering::Relaxed)
+                {
+                    return;
+                }
+
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            close_splashscreen,
             bootstrap_app,
             get_app_info,
             detect_game_directory,

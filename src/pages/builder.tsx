@@ -19,6 +19,7 @@ import { toast } from "sonner"
 
 import { useI18n } from "@/components/app/i18nProvider"
 import { useAppPreferences } from "@/components/app/preferencesProvider"
+import { FileMappingModeSwitch } from "@/components/g2m/FileMappingModeSwitch"
 import { ModMappingWorkbench } from "@/components/g2m/ModMappingWorkbench"
 import { ModMappingExplorer } from "@/components/g2m/ModMappingExplorer"
 import { ModMappingList } from "@/components/g2m/ModMappingList"
@@ -41,11 +42,10 @@ import {
 } from "@/components/g2m/workspaceDialogs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
 
 import { formatApiErrorMessage, invokeApi } from "@/lib/api"
 import {
-  buildModFileTree,
+  buildMappingTargetNodes,
   buildModMappingSummaries,
   inferTargetFolderFromPath,
   type ExistingBuilderManifestLink,
@@ -54,11 +54,9 @@ import {
   normalizeModPath,
   type ExistingBuilderManifest,
   type ModImportFileEntry,
-  type ModFileTreeNode,
   type ModImportPreview,
   type ModMappingSummary,
   type GameTypeTarget,
-  type BuilderGameTargetNode,
   type BuilderCustomPrerequisite,
 } from "@/lib/g2m"
 
@@ -124,30 +122,41 @@ function ModBuilderPage() {
   const sourceDisplayType =
     form.sourceType === "zip" ? copy.workspaceDialogs.importSourceZip : copy.workspaceDialogs.importSourceDirectory
   const mappingSummaries = useMemo(() => buildModMappingSummaries(mappings), [mappings])
-  const gameTargetNodes = useMemo(() => buildBuilderGameTargetNodes(mappings), [mappings])
+  const gameTargetNodes = useMemo(() => buildMappingTargetNodes(mappings), [mappings])
   const manifestEntries = useMemo(
     () => buildManifestEntries(mappingSummaries, mappings, gameTargetsByPath),
     [gameTargetsByPath, mappingSummaries, mappings],
   )
+  const manifestSourceDigest = useMemo<ManifestSourceDigest | null>(() => {
+    if (sourceDigest?.md5) {
+      return sourceDigest
+    }
+
+    if (preview?.existingManifest?.update?.md5) {
+      return preview.existingManifest.update
+    }
+
+    return null
+  }, [preview?.existingManifest?.update, sourceDigest])
+  const manifestPayload = useMemo(
+    () =>
+      buildManifestPayload({
+        author: form.author,
+        links: form.links,
+        modName: form.name,
+        modType: preview?.existingManifest?.modType || preview?.modType || "Mixed",
+        prerequisites: form.prerequisites,
+        customPrerequisites: form.customPrerequisites,
+        sourceDigest: manifestSourceDigest,
+        version: form.version,
+        files: manifestEntries,
+      }),
+    [form, manifestEntries, manifestSourceDigest, preview],
+  )
 
   const manifestPreview = useMemo(
-    () =>
-      JSON.stringify(
-        buildManifestPayload({
-          author: form.author,
-          links: form.links,
-          modName: form.name,
-          modType: preview?.existingManifest?.modType || preview?.modType || "Mixed",
-          prerequisites: form.prerequisites,
-          customPrerequisites: form.customPrerequisites,
-          sourceDigest,
-          version: form.version,
-          files: manifestEntries,
-        }),
-        null,
-        2,
-      ),
-    [form, preview, manifestEntries, sourceDigest],
+    () => JSON.stringify(manifestPayload, null, 2),
+    [manifestPayload],
   )
 
   async function pickSourceDir() {
@@ -357,31 +366,7 @@ function ModBuilderPage() {
         savePath = selectedPath
       }
 
-      const sourceDigest: ManifestSourceDigest = {
-        md5: preview.existingManifest?.update?.md5 || "",
-        md5Mode: preview.existingManifest?.update?.md5Mode || (form.sourceType === "zip" ? "archive" : "directory"),
-      }
-      
-      const manifestEntries: BuilderManifestFileEntry[] = mappings
-        .filter((item) => !item.skipInstall && !!item.targetPath)
-        .map((item) => ({
-          games: gameTargetsByPath[normalizeModPath(item.relativePath)!] || [],
-          installTo: item.targetPath,
-          path: item.relativePath,
-        }))
-
-      const payload = buildManifestPayload({
-        author: form.author,
-        links: form.links,
-        modName: form.name,
-        modType: preview?.existingManifest?.modType || preview?.modType || "Mixed",
-        prerequisites: form.prerequisites,
-        customPrerequisites: form.customPrerequisites,
-        sourceDigest,
-        version: form.version,
-        files: manifestEntries,
-      })
-      const content = JSON.stringify(payload, null, 2)
+      const content = JSON.stringify(manifestPayload, null, 2)
       
       const generatedPath = await invokeApi<string>("generate_manifest_file", {
         sourcePath: form.sourcePath,
@@ -427,31 +412,7 @@ function ModBuilderPage() {
         }
       }
 
-      const sourceDigest: ManifestSourceDigest = {
-        md5: preview.existingManifest?.update?.md5 || "",
-        md5Mode: preview.existingManifest?.update?.md5Mode || (form.sourceType === "zip" ? "archive" : "directory"),
-      }
-      
-      const manifestEntries: BuilderManifestFileEntry[] = mappings
-        .filter((item) => !item.skipInstall && !!item.targetPath)
-        .map((item) => ({
-          games: gameTargetsByPath[normalizeModPath(item.relativePath)!] || [],
-          installTo: item.targetPath,
-          path: item.relativePath,
-        }))
-
-      const payload = buildManifestPayload({
-        author: form.author,
-        links: form.links,
-        modName: form.name,
-        modType: preview?.existingManifest?.modType || preview?.modType || "Mixed",
-        prerequisites: form.prerequisites,
-        customPrerequisites: form.customPrerequisites,
-        sourceDigest,
-        version: form.version,
-        files: manifestEntries,
-      })
-      const content = JSON.stringify(payload, null, 2)
+      const content = JSON.stringify(manifestPayload, null, 2)
       
       await invokeApi("build_mod_archive", {
         sourcePath: form.sourcePath,
@@ -783,44 +744,11 @@ function ModBuilderPage() {
                     description={copy.workspaceDialogs.folderMappingHint}
                   />
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center rounded-lg border border-border/50 bg-background/50 p-1 dark:border-white/10 dark:bg-white/[0.02]">
-                      <button
-                        type="button"
-                        onClick={() => setBuilderMappingMode("list")}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                          builderMappingMode === "list"
-                            ? "bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white"
-                            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                        )}
-                      >
-                        {copy.builderPage.builderModeList}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBuilderMappingMode("tree")}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                          builderMappingMode === "tree"
-                            ? "bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white"
-                            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                        )}
-                      >
-                        {copy.builderPage.builderModeTree}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBuilderMappingMode("explorer")}
-                        className={cn(
-                          "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                          builderMappingMode === "explorer"
-                            ? "bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-white"
-                            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                        )}
-                      >
-                        {copy.builderPage.builderModeExplorer}
-                      </button>
-                    </div>
+                    <FileMappingModeSwitch
+                      copy={copy}
+                      mode={builderMappingMode}
+                      onChange={setBuilderMappingMode}
+                    />
                     <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={resetMappings}>
                       <RefreshCcw className="size-3 mr-1.5" />
                       {copy.builderPage.resetMappings}
@@ -1097,23 +1025,6 @@ function buildGameTargetsFromManifest(
   }
 
   return targets
-}
-
-function buildBuilderGameTargetNodes(files: ModImportFileEntry[]): BuilderGameTargetNode[] {
-  return buildModFileTree(files, "source").map((node) => buildBuilderGameTargetNode(node, files))
-}
-
-function buildBuilderGameTargetNode(
-  node: ModFileTreeNode,
-  files: ModImportFileEntry[],
-): BuilderGameTargetNode {
-  return {
-    children: node.children.map((child) => buildBuilderGameTargetNode(child, files)),
-    fileCount: node.fileCount,
-    kind: node.kind,
-    path: normalizeModPath(node.fullPath),
-    targetPath: inferManifestDetailTargetPath(node.fullPath, files),
-  }
 }
 
 function inferManifestDetailTargetPath(path: string, files: ModImportFileEntry[]): string {

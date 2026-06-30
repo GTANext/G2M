@@ -432,6 +432,14 @@ export function buildModFileTree(
   return sortTreeNodes(Array.from(root.values()))
 }
 
+export function buildMappingTargetNodes(
+  files: ModImportFileEntry[],
+): BuilderGameTargetNode[] {
+  return buildModFileTree(files, "source").map((node) =>
+    buildMappingTargetNode(node, files),
+  )
+}
+
 export function buildModMappingSummaries(files: ModImportFileEntry[]): ModMappingSummary[] {
   const folderGroups = new Map<string, ModImportFileEntry[]>()
   const summaries: ModMappingSummary[] = []
@@ -600,6 +608,68 @@ function inferFolderSummaryTargetPath(folderPath: string, files: ModImportFileEn
   }
 
   return normalizeModPath(files[0]?.targetFolder || folderPath)
+}
+
+function buildMappingTargetNode(
+  node: ModFileTreeNode,
+  files: ModImportFileEntry[],
+): BuilderGameTargetNode {
+  return {
+    children: node.children.map((child) => buildMappingTargetNode(child, files)),
+    fileCount: node.fileCount,
+    kind: node.kind,
+    path: normalizeModPath(node.fullPath),
+    targetPath: inferMappingNodeTargetPath(node.fullPath, files),
+  }
+}
+
+function inferMappingNodeTargetPath(
+  path: string,
+  files: ModImportFileEntry[],
+): string {
+  const normalizedPath = normalizeModPath(path)
+  if (!normalizedPath) {
+    return ""
+  }
+
+  const exactFile = files.find(
+    (file) => normalizeModPath(file.relativePath) === normalizedPath,
+  )
+  if (exactFile) {
+    return normalizeModPath(exactFile.targetPath)
+  }
+
+  const sourcePrefix = `${normalizedPath}/`
+  const candidates = files
+    .map((file) => {
+      const normalizedRelativePath = normalizeModPath(file.relativePath)
+      const normalizedTargetPath = normalizeModPath(file.targetPath)
+      if (
+        !normalizedRelativePath.startsWith(sourcePrefix) ||
+        !normalizedTargetPath
+      ) {
+        return ""
+      }
+
+      const remainder = normalizedRelativePath.slice(sourcePrefix.length)
+      if (!remainder) {
+        return normalizedTargetPath
+      }
+
+      const suffix = `/${remainder}`
+      if (!normalizedTargetPath.endsWith(suffix)) {
+        return ""
+      }
+
+      return normalizedTargetPath.slice(
+        0,
+        normalizedTargetPath.length - suffix.length,
+      )
+    })
+    .filter(Boolean)
+
+  const uniqueCandidates = Array.from(new Set(candidates))
+  return uniqueCandidates.length === 1 ? uniqueCandidates[0] : ""
 }
 
 export function inferTargetFolderFromPath(targetPath: string): string {
