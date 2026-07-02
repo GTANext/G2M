@@ -5,7 +5,6 @@ import {
   House,
   Maximize2,
   Minimize2,
-  MonitorCog,
   MoonStar,
   Settings2,
   Square,
@@ -17,6 +16,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import { useI18n } from "@/components/app/i18nProvider";
+import { ModxAuthDialog } from "@/components/app/modxAuthDialog";
 import { useAppPreferences } from "@/components/app/preferencesProvider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -30,8 +30,8 @@ function Navbar({ subtitle, title }: NavbarProps) {
   const appWindow = useMemo(() => getCurrentWindow(), []);
   const [isMaximized, setIsMaximized] = useState(false);
   const location = useLocation();
-  const { resolvedTheme, setTheme, theme = "system" } = useTheme();
-  const { copy, localeOptions, locale } = useI18n();
+  const { resolvedTheme, setTheme } = useTheme();
+  const { copy } = useI18n();
   const { titleBarStyle } = useAppPreferences();
 
   useEffect(() => {
@@ -58,40 +58,27 @@ function Navbar({ subtitle, title }: NavbarProps) {
   }
 
   function handleCycleTheme() {
-    const nextTheme =
-      theme === "system" ? "light" : theme === "light" ? "dark" : "system";
-
+    const nextTheme = resolvedThemeMode === "dark" ? "light" : "dark";
     setTheme(nextTheme);
   }
 
   const resolvedThemeMode = resolvedTheme === "dark" ? "dark" : "light";
   const themeMeta =
-    theme === "light"
+    resolvedThemeMode === "dark"
       ? {
-          icon: SunMedium,
-          label: copy.navbar.lightLabel,
-          title: copy.navbar.lightTitle,
+          icon: MoonStar,
+          title: copy.navbar.darkTitle,
         }
-      : theme === "dark"
-        ? {
-            icon: MoonStar,
-            label: copy.navbar.darkLabel,
-            title: copy.navbar.darkTitle,
-          }
-        : {
-            icon: MonitorCog,
-            label: copy.navbar.systemLabel(resolvedThemeMode),
-            title: copy.navbar.systemTitle(resolvedThemeMode),
-          };
+      : {
+          icon: SunMedium,
+          title: copy.navbar.lightTitle,
+        };
 
   const ThemeIcon = themeMeta.icon;
   const isMacStyle = titleBarStyle === "mac";
   const isHomeRoute = location.pathname === "/";
   const isBuilderRoute = location.pathname === "/builder";
   const isSettingsRoute = location.pathname === "/settings";
-  const currentLocaleLabel =
-    localeOptions.find((item) => item.value === locale)?.label ?? locale;
-
   return (
     <header className="sticky top-0 z-50 px-4 pt-4 lg:px-6">
       <div className="mx-auto max-w-[1700px]">
@@ -178,74 +165,76 @@ function Navbar({ subtitle, title }: NavbarProps) {
 
           <div
             className={cn(
-              "relative z-10 flex items-center gap-1 pl-3",
+              "relative z-10 flex items-center gap-2 pl-3",
               isMacStyle && "pl-4",
             )}
           >
-            <div className="hidden items-center rounded-full border border-black/5 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-black/5 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:ring-white/10 xl:flex">
-              {currentLocaleLabel}
+            <div className="hidden items-center gap-1 rounded-full border border-black/5 bg-white/62 p-1 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.03] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04] md:flex">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "cursor-pointer rounded-full px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
+                  isHomeRoute &&
+                    "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
+                  isMacStyle && "h-9 px-3",
+                )}
+              >
+                <NavLink to="/" title={copy.navbar.openHome}>
+                  <House className="size-4" />
+                  <span>{copy.navbar.home}</span>
+                </NavLink>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "cursor-pointer rounded-full px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
+                  isBuilderRoute &&
+                    "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
+                  isMacStyle && "h-9 px-3",
+                )}
+              >
+                <NavLink to="/builder" title={copy.navbar.openBuilder}>
+                  <FileCode2 className="size-4" />
+                  <span>{copy.navbar.builder}</span>
+                </NavLink>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "cursor-pointer rounded-full px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
+                  isSettingsRoute &&
+                    "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
+                  isMacStyle && "h-9 px-3",
+                )}
+              >
+                <NavLink to="/settings" title={copy.navbar.openSettings}>
+                  <Settings2 className="size-4" />
+                  <span>{copy.navbar.settings}</span>
+                </NavLink>
+              </Button>
             </div>
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "cursor-pointer rounded-xl px-3 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
-                isHomeRoute &&
-                  "bg-muted text-slate-900 dark:bg-white/10 dark:text-slate-100",
-                isMacStyle && "h-9 rounded-full px-3",
-              )}
-            >
-              <NavLink to="/" title={copy.navbar.openHome}>
-                <House className="size-4" />
-                <span>{copy.navbar.home}</span>
-              </NavLink>
-            </Button>
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "cursor-pointer rounded-xl px-3 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
-                isBuilderRoute &&
-                  "bg-muted text-slate-900 dark:bg-white/10 dark:text-slate-100",
-                isMacStyle && "h-9 rounded-full px-3",
-              )}
-            >
-              <NavLink to="/builder" title={copy.navbar.openBuilder}>
-                <FileCode2 className="size-4" />
-                <span>{copy.navbar.builder}</span>
-              </NavLink>
-            </Button>
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "cursor-pointer rounded-xl px-3 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
-                isSettingsRoute &&
-                  "bg-muted text-slate-900 dark:bg-white/10 dark:text-slate-100",
-                isMacStyle && "h-9 rounded-full px-3",
-              )}
-            >
-              <NavLink to="/settings" title={copy.navbar.openSettings}>
-                <Settings2 className="size-4" />
-                <span>{copy.navbar.settings}</span>
-              </NavLink>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "cursor-pointer rounded-xl px-3 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
-                isMacStyle && "h-9 rounded-full px-3",
-              )}
-              onClick={handleCycleTheme}
-              title={themeMeta.title}
-            >
-              <ThemeIcon className="size-4" />
-              <span>{themeMeta.label}</span>
-            </Button>
+
+            <div className="flex items-center gap-2 rounded-full border border-black/5 bg-white/62 p-1 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.03] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className={cn(
+                  "cursor-pointer rounded-full text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
+                  isMacStyle && "size-9",
+                )}
+                onClick={handleCycleTheme}
+                title={themeMeta.title}
+              >
+                <ThemeIcon className="size-4" />
+              </Button>
+              <ModxAuthDialog />
+            </div>
 
             {!isMacStyle && (
               <div className="ml-1 flex items-center gap-1">
