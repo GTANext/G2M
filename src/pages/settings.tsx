@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { useI18n } from "@/components/app/i18nProvider"
 import { useAppPreferences } from "@/components/app/preferencesProvider"
@@ -41,33 +42,34 @@ function SettingsPage() {
     titleBarStyle,
   } = useAppPreferences()
   const { resolvedTheme, setTheme, theme = "system" } = useTheme()
-  const { copy, locale, localeOptions, setLocale } = useI18n()
+  const { locale, localeOptions, setLocale } = useI18n()
+  const { t } = useTranslation()
   const resolvedThemeMode = resolvedTheme === "dark" ? "dark" : "light"
 
   const currentThemeLabel =
     theme === "system"
-      ? `${copy.settings.followSystem} · ${resolvedThemeMode === "dark" ? copy.navbar.darkLabel : copy.settings.light}`
+      ? `${t("settings.followSystem")} · ${resolvedThemeMode === "dark" ? t("navbar.darkLabel") : t("settings.light")}`
       : theme === "dark"
-        ? copy.navbar.darkLabel
-        : copy.settings.light
+        ? t("navbar.darkLabel")
+        : t("settings.light")
 
   const currentTitleBarLabel =
-    titleBarStyle === "windows" ? copy.settings.windowsStyle : copy.settings.macStyle
+    titleBarStyle === "windows" ? t("settings.windowsStyle") : t("settings.macStyle")
   const currentHomeViewLabel =
-    homeViewMode === "card" ? copy.settings.cardMode : copy.home.listView
+    homeViewMode === "card" ? t("settings.cardMode") : t("home.listView")
   const currentBuilderModeLabel =
     builderMappingMode === "list"
-      ? copy.settings.builderModeList
+      ? t("settings.builderModeList")
       : builderMappingMode === "tree"
-        ? copy.settings.builderModeTree
-        : copy.settings.builderModeExplorer
+        ? t("settings.builderModeTree")
+        : t("settings.builderModeExplorer")
 
   return (
     <div className="mx-auto max-w-[1380px] space-y-6">
       <G2MPageHeroCard
-        eyebrow={copy.common.settings}
-        title={copy.settings.heroTitle}
-        description={copy.settings.heroDescription}
+        eyebrow={t("common.settings")}
+        title={t("settings.heroTitle")}
+        description={t("settings.heroDescription")}
         actions={
           <div className="flex gap-2">
             <Button
@@ -83,7 +85,7 @@ function SettingsPage() {
               className="cursor-pointer rounded-xl border-border/70 bg-background/70 px-4 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
               onClick={() => navigate(-1)}
             >
-              {copy.common.back}
+              {t("common.back")}
             </Button>
           </div>
         }
@@ -94,41 +96,41 @@ function SettingsPage() {
           <div className="rounded-[28px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.68),rgba(248,250,252,0.56))] ring-1 ring-black/[0.04] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.48),rgba(15,23,42,0.3))] dark:ring-white/[0.04]">
             <div className="border-b border-black/5 px-4 py-4 dark:border-white/10 sm:px-5">
               <TabsList className="!grid !h-auto !w-full grid-cols-2 gap-1 rounded-full bg-black/[0.04] p-1 dark:bg-white/[0.05] sm:grid-cols-3 xl:grid-cols-5">
-                <SettingsTabTrigger value="appearance" title={copy.settings.appearanceTitle} />
-                <SettingsTabTrigger value="title-bar" title={copy.settings.titleBar} />
-                <SettingsTabTrigger value="home" title={copy.settings.homeDisplayTitle} />
-                <SettingsTabTrigger value="builder" title={copy.navbar.builder} />
-                <SettingsTabTrigger value="language" title={copy.settings.languageSectionTitle} />
+                <SettingsTabTrigger value="appearance" title={t("settings.appearanceTitle")} />
+                <SettingsTabTrigger value="title-bar" title={t("settings.titleBar")} />
+                <SettingsTabTrigger value="home" title={t("settings.homeDisplayTitle")} />
+                <SettingsTabTrigger value="builder" title={t("navbar.builder")} />
+                <SettingsTabTrigger value="language" title={t("settings.languageSectionTitle")} />
               </TabsList>
             </div>
 
             <div className="p-4 sm:p-5 lg:p-6">
               <TabsContent value="appearance" className="mt-0">
                 <SettingsSectionShell
-                  title={copy.settings.appearanceTitle}
-                  description={copy.settings.appearanceDescription}
+                  title={t("settings.appearanceTitle")}
+                  description={t("settings.appearanceDescription")}
                   badge={currentThemeLabel}
                   icon={<Palette className="size-5" />}
                 >
                   <div className="grid gap-4 lg:grid-cols-3">
                     <SettingsChoiceCard
                       active={theme === "system"}
-                      title={copy.settings.followSystem}
-                      description={copy.settings.followSystemDescription(resolvedThemeMode)}
+                      title={t("settings.followSystem")}
+                      description={t("settings.followSystemDescription", { mode: resolvedThemeMode })}
                       icon={<Monitor className="size-5" />}
                       onClick={() => setTheme("system")}
                     />
                     <SettingsChoiceCard
                       active={theme === "light"}
-                      title={copy.settings.light}
-                      description={copy.settings.lightDescription}
+                      title={t("settings.light")}
+                      description={t("settings.lightDescription")}
                       icon={<SunMedium className="size-5" />}
                       onClick={() => setTheme("light")}
                     />
                     <SettingsChoiceCard
                       active={theme === "dark"}
-                      title={copy.navbar.darkLabel}
-                      description={copy.navbar.darkTitle}
+                      title={t("navbar.darkLabel")}
+                      description={t("navbar.darkTitle")}
                       icon={<MoonStar className="size-5" />}
                       onClick={() => setTheme("dark")}
                     />
@@ -138,8 +140,8 @@ function SettingsPage() {
 
               <TabsContent value="title-bar" className="mt-0">
                 <SettingsSectionShell
-                  title={copy.settings.titleBar}
-                  description={copy.settings.titleBarDescription}
+                  title={t("settings.titleBar")}
+                  description={t("settings.titleBarDescription")}
                   badge={currentTitleBarLabel}
                   icon={<MonitorCog className="size-5" />}
                 >
@@ -147,16 +149,16 @@ function SettingsPage() {
                     <div className="grid gap-4 lg:grid-cols-2">
                       <SettingsChoiceCard
                         active={titleBarStyle === "windows"}
-                        title={copy.settings.windowsStyle}
-                        description={copy.settings.windowsDescription}
+                        title={t("settings.windowsStyle")}
+                        description={t("settings.windowsDescription")}
                         icon={<Monitor className="size-5" />}
                         preview={<WindowPreview styleType="windows" />}
                         onClick={() => setTitleBarStyle("windows")}
                       />
                       <SettingsChoiceCard
                         active={titleBarStyle === "mac"}
-                        title={copy.settings.macStyle}
-                        description={copy.settings.macDescription}
+                        title={t("settings.macStyle")}
+                        description={t("settings.macDescription")}
                         icon={<AppWindowMac className="size-5" />}
                         preview={<WindowPreview styleType="mac" />}
                         onClick={() => setTitleBarStyle("mac")}
@@ -165,16 +167,16 @@ function SettingsPage() {
 
                     <div className="grid gap-4 lg:grid-cols-3">
                       <SettingsMiniStat
-                        label={copy.settings.buttonPosition}
-                        value={titleBarStyle === "windows" ? copy.settings.right : copy.settings.left}
+                        label={t("settings.buttonPosition")}
+                        value={titleBarStyle === "windows" ? t("settings.right") : t("settings.left")}
                       />
                       <SettingsMiniStat
-                        label={copy.settings.titleAlignment}
-                        value={titleBarStyle === "windows" ? copy.settings.right : copy.settings.moreCentered}
+                        label={t("settings.titleAlignment")}
+                        value={titleBarStyle === "windows" ? t("settings.right") : t("settings.moreCentered")}
                       />
                       <SettingsMiniStat
-                        label={copy.settings.defaultMode}
-                        value={copy.settings.windowsStyle}
+                        label={t("settings.defaultMode")}
+                        value={t("settings.windowsStyle")}
                       />
                     </div>
                   </div>
@@ -183,8 +185,8 @@ function SettingsPage() {
 
               <TabsContent value="home" className="mt-0">
                 <SettingsSectionShell
-                  title={copy.settings.homeDisplayTitle}
-                  description={copy.settings.homeDisplayDescription}
+                  title={t("settings.homeDisplayTitle")}
+                  description={t("settings.homeDisplayDescription")}
                   badge={currentHomeViewLabel}
                   icon={<LayoutGrid className="size-5" />}
                 >
@@ -192,26 +194,26 @@ function SettingsPage() {
                     <div className="grid gap-4 lg:grid-cols-2">
                       <SettingsChoiceCard
                         active={homeViewMode === "card"}
-                        title={copy.settings.cardMode}
-                        description={copy.settings.cardModeDescription}
+                        title={t("settings.cardMode")}
+                        description={t("settings.cardModeDescription")}
                         icon={<LayoutGrid className="size-5" />}
                         onClick={() => setHomeViewMode("card")}
                       />
                       <SettingsChoiceCard
                         active={homeViewMode === "list"}
-                        title={copy.home.listView}
-                        description={copy.home.listModeHint}
+                        title={t("home.listView")}
+                        description={t("home.listModeHint")}
                         icon={<List className="size-5" />}
                         onClick={() => setHomeViewMode("list")}
                       />
                     </div>
 
                     <SettingsToggleCard
-                      title={copy.settings.moreInfoLabel}
-                      description={copy.settings.moreInfoDescription}
+                      title={t("settings.moreInfoLabel")}
+                      description={t("settings.moreInfoDescription")}
                       icon={<Eye className="size-5" />}
                       checked={showHomeGameDetails}
-                      checkedLabel={showHomeGameDetails ? copy.settings.on : copy.settings.off}
+                      checkedLabel={showHomeGameDetails ? t("settings.on") : t("settings.off")}
                       onCheckedChange={setShowHomeGameDetails}
                     />
                   </div>
@@ -220,8 +222,8 @@ function SettingsPage() {
 
               <TabsContent value="builder" className="mt-0">
                 <SettingsSectionShell
-                  title={copy.settings.builderModeTitle}
-                  description={copy.settings.builderModeDescription}
+                  title={t("settings.builderModeTitle")}
+                  description={t("settings.builderModeDescription")}
                   badge={currentBuilderModeLabel}
                   icon={<Hammer className="size-5" />}
                 >
@@ -229,22 +231,22 @@ function SettingsPage() {
                     <div className="grid gap-4 lg:grid-cols-3">
                       <SettingsChoiceCard
                         active={builderMappingMode === "list"}
-                        title={copy.settings.builderModeList}
-                        description={copy.settings.builderModeListDescription}
+                        title={t("settings.builderModeList")}
+                        description={t("settings.builderModeListDescription")}
                         icon={<List className="size-5" />}
                         onClick={() => setBuilderMappingMode("list")}
                       />
                       <SettingsChoiceCard
                         active={builderMappingMode === "tree"}
-                        title={copy.settings.builderModeTree}
-                        description={copy.settings.builderModeTreeDescription}
+                        title={t("settings.builderModeTree")}
+                        description={t("settings.builderModeTreeDescription")}
                         icon={<List className="size-5" />}
                         onClick={() => setBuilderMappingMode("tree")}
                       />
                       <SettingsChoiceCard
                         active={builderMappingMode === "explorer"}
-                        title={copy.settings.builderModeExplorer}
-                        description={copy.settings.builderModeExplorerDescription}
+                        title={t("settings.builderModeExplorer")}
+                        description={t("settings.builderModeExplorerDescription")}
                         icon={<MousePointer2 className="size-5" />}
                         onClick={() => setBuilderMappingMode("explorer")}
                       />
@@ -255,8 +257,8 @@ function SettingsPage() {
 
               <TabsContent value="language" className="mt-0">
                 <SettingsSectionShell
-                  title={copy.settings.languageSectionTitle}
-                  description={copy.settings.languageSectionDescription}
+                  title={t("settings.languageSectionTitle")}
+                  description={t("settings.languageSectionDescription")}
                   badge={locale}
                   icon={<Languages className="size-5" />}
                 >
@@ -267,7 +269,7 @@ function SettingsPage() {
                         active={locale === item.value}
                         code={item.code}
                         title={item.label}
-                        description={copy.settings.languageDescription}
+                        description={t("settings.languageDescription")}
                         onClick={() => setLocale(item.value)}
                       />
                     ))}
@@ -312,7 +314,7 @@ function SettingsSectionShell({
   icon: ReactNode
   children: ReactNode
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <section className="space-y-6">
@@ -323,7 +325,7 @@ function SettingsSectionShell({
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
-              {copy.common.settings}
+              {t("common.settings")}
             </p>
             <h2 className="mt-2 text-[30px] font-semibold tracking-tight text-slate-950 dark:text-slate-50">
               {title}
@@ -359,7 +361,7 @@ function SettingsChoiceCard({
   preview?: ReactNode
   onClick: () => void
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <button
@@ -384,7 +386,7 @@ function SettingsChoiceCard({
               : "bg-black/[0.04] text-slate-500 dark:bg-white/[0.08] dark:text-slate-300"
           }
         >
-          {active ? copy.common.current : copy.common.clickToSwitch}
+          {active ? t("common.current") : t("common.clickToSwitch")}
         </G2MPill>
       </div>
 
@@ -455,7 +457,7 @@ function SettingsLanguageCard({
   code: string
   onClick: () => void
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <button
@@ -480,7 +482,7 @@ function SettingsLanguageCard({
               : "bg-black/[0.04] text-slate-500 dark:bg-white/[0.08] dark:text-slate-300"
           }
         >
-          {active ? copy.common.current : copy.common.clickToSwitch}
+          {active ? t("common.current") : t("common.clickToSwitch")}
         </G2MPill>
       </div>
 

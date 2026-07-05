@@ -17,7 +17,7 @@ import {
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import { useI18n } from "@/components/app/i18nProvider"
+import { useTranslation } from "react-i18next"
 import { useAppPreferences } from "@/components/app/preferencesProvider"
 import { FileMappingModeSwitch } from "@/components/g2m/FileMappingModeSwitch"
 import { ModMappingWorkbench } from "@/components/g2m/ModMappingWorkbench"
@@ -96,7 +96,7 @@ const AVAILABLE_PREREQUISITES = [
 ]
 
 function ModBuilderPage() {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const preferences = useAppPreferences()
   const { builderMappingMode, setBuilderMappingMode } = preferences
 
@@ -120,7 +120,7 @@ function ModBuilderPage() {
 
   const hasSource = form.sourcePath.trim().length > 0
   const sourceDisplayType =
-    form.sourceType === "zip" ? copy.workspaceDialogs.importSourceZip : copy.workspaceDialogs.importSourceDirectory
+    form.sourceType === "zip" ? t("workspaceDialogs.importSourceZip") : t("workspaceDialogs.importSourceDirectory")
   const mappingSummaries = useMemo(() => buildModMappingSummaries(mappings), [mappings])
   const gameTargetNodes = useMemo(() => buildMappingTargetNodes(mappings), [mappings])
   const manifestEntries = useMemo(
@@ -163,7 +163,7 @@ function ModBuilderPage() {
     const result = await open({
       directory: true,
       multiple: false,
-      title: copy.builderPage.pickDirectory,
+      title: t("builderPage.pickDirectory"),
     })
     if (!result || Array.isArray(result)) return
     await inspectSource(result, "directory")
@@ -172,8 +172,8 @@ function ModBuilderPage() {
   async function pickSourceZip() {
     const result = await open({
       multiple: false,
-      title: copy.builderPage.pickArchive,
-      filters: [{ name: copy.builderPage.zipFiles, extensions: ["zip"] }],
+      title: t("builderPage.pickArchive"),
+      filters: [{ name: t("builderPage.zipFiles"), extensions: ["zip"] }],
     })
     if (!result || Array.isArray(result)) return
     await inspectSource(result, "zip")
@@ -216,9 +216,9 @@ function ModBuilderPage() {
       } catch {
         // Keep manifest-provided digest
       }
-      toast.success(copy.builderPage.inspectSuccess)
+      toast.success(t("builderPage.inspectSuccess"))
     } catch (error) {
-      toast.error(copy.builderPage.inspectFailed, {
+      toast.error(t("builderPage.inspectFailed"), {
         description: formatApiErrorMessage(error),
       })
     } finally {
@@ -263,7 +263,7 @@ function ModBuilderPage() {
   function addCustomPrerequisite() {
     let { name, url } = customPrereqForm
     if (!name.trim() || !url.trim()) {
-      toast.error(copy.builderPage.customPrerequisiteMissingFields)
+      toast.error(t("builderPage.customPrerequisiteMissingFields"))
       return
     }
 
@@ -276,11 +276,11 @@ function ModBuilderPage() {
       const parsedUrl = new URL(url)
       const hostname = parsedUrl.hostname.toLowerCase()
       if (!hostname.endsWith("github.com") && !hostname.endsWith("gtamodx.com")) {
-        toast.error(copy.builderPage.customPrerequisiteUrlError)
+        toast.error(t("builderPage.customPrerequisiteUrlError"))
         return
       }
     } catch {
-      toast.error(copy.builderPage.customPrerequisiteInvalidUrl)
+      toast.error(t("builderPage.customPrerequisiteInvalidUrl"))
       return
     }
 
@@ -358,7 +358,7 @@ function ModBuilderPage() {
 
       if (form.sourceType === "zip") {
         const selectedPath = await save({
-          title: copy.builderPage.selectManifestSavePath,
+          title: t("builderPage.selectManifestSavePath"),
           defaultPath: "g2m.json",
           filters: [{ name: "JSON", extensions: ["json"] }],
         })
@@ -375,11 +375,11 @@ function ModBuilderPage() {
         savePath,
       })
 
-      toast.success(copy.builderPage.generateManifestSuccess, {
+      toast.success(t("builderPage.generateManifestSuccess"), {
         description: generatedPath,
       })
     } catch (error) {
-      toast.error(copy.builderPage.generateManifestFailed, {
+      toast.error(t("builderPage.generateManifestFailed"), {
         description: formatApiErrorMessage(error),
       })
     }
@@ -430,9 +430,9 @@ function ModBuilderPage() {
   return (
     <div className="mx-auto flex w-full max-w-[1700px] flex-col gap-6 pb-10">
       <G2MPageHeroCard
-        eyebrow={copy.builderPage.metadataTitle}
-        title={copy.routes.builderSubtitle}
-        description={copy.builderPage.pageDescription}
+        eyebrow={t("builderPage.metadataTitle")}
+        title={t("routes.builderSubtitle")}
+        description={t("builderPage.pageDescription")}
       />
 
       <div className="space-y-6">
@@ -440,13 +440,13 @@ function ModBuilderPage() {
           <div className="p-5 lg:p-6">
             <BuilderSectionHeading
               icon={FolderOpen}
-              title={copy.builderPage.sourceTitle}
-              description={copy.builderPage.pickSourceDescription}
+              title={t("builderPage.sourceTitle")}
+              description={t("builderPage.pickSourceDescription")}
             />
             <div className="mt-5 flex flex-wrap gap-3">
               <Button className="cursor-pointer rounded-xl px-4" onClick={pickSourceDir} disabled={isInspecting}>
                 <FolderOpen className="size-4 mr-2" />
-                {copy.builderPage.pickDirectory}
+                {t("builderPage.pickDirectory")}
               </Button>
               <Button
                 variant="outline"
@@ -455,7 +455,7 @@ function ModBuilderPage() {
                 disabled={isInspecting}
               >
                 <HardDriveDownload className="size-4 mr-2" />
-                {copy.builderPage.pickArchive}
+                {t("builderPage.pickArchive")}
               </Button>
             </div>
 
@@ -464,7 +464,7 @@ function ModBuilderPage() {
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
                   <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                    {copy.workspaceDialogs.importDetected} - {sourceDisplayType} ({preview.fileCount} files, {formatFileSize(preview.sizeBytes)})
+                    {t("workspaceDialogs.importDetected")} - {sourceDisplayType} ({preview.fileCount} files, {formatFileSize(preview.sizeBytes)})
                   </p>
                 </div>
               </div>
@@ -478,30 +478,30 @@ function ModBuilderPage() {
               <div className="p-5 lg:p-6">
                 <BuilderSectionHeading
                   icon={PackageCheck}
-                  title={copy.workspaceDialogs.modMetadata}
-                  description={copy.builderPage.pageDescription}
+                  title={t("workspaceDialogs.modMetadata")}
+                  description={t("builderPage.pageDescription")}
                 />
                 <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                  <BuilderField label={copy.workspaceDialogs.modName}>
+                  <BuilderField label={t("workspaceDialogs.modName")}>
                     <Input
                       value={form.name}
                       onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
                       className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                     />
                   </BuilderField>
-                  <BuilderField label={copy.builderPage.modVersion}>
+                  <BuilderField label={t("builderPage.modVersion")}>
                     <Input
                       value={form.version}
                       onChange={(e) => setForm((c) => ({ ...c, version: e.target.value }))}
-                      placeholder={copy.builderPage.modVersionPlaceholder}
+                      placeholder={t("builderPage.modVersionPlaceholder")}
                       className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                     />
                   </BuilderField>
-                  <BuilderField label={copy.builderPage.modAuthor}>
+                  <BuilderField label={t("builderPage.modAuthor")}>
                     <Input
                       value={form.author}
                       onChange={(e) => setForm((c) => ({ ...c, author: e.target.value }))}
-                      placeholder={copy.builderPage.modAuthorPlaceholder}
+                      placeholder={t("builderPage.modAuthorPlaceholder")}
                       className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                     />
                   </BuilderField>
@@ -511,8 +511,8 @@ function ModBuilderPage() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <BuilderSectionHeading
                       icon={Puzzle}
-                      title={copy.builderPage.prerequisitesTitle}
-                      description={copy.builderPage.prerequisitesDescription}
+                      title={t("builderPage.prerequisitesTitle")}
+                      description={t("builderPage.prerequisitesDescription")}
                     />
                     <div>
                       <Button
@@ -523,7 +523,7 @@ function ModBuilderPage() {
                         onClick={() => setIsCustomPrereqSheetOpen(true)}
                       >
                         <Plus className="size-3 mr-1.5" />
-                        {copy.builderPage.addCustomPrerequisite}
+                        {t("builderPage.addCustomPrerequisite")}
                       </Button>
                     </div>
 
@@ -540,13 +540,13 @@ function ModBuilderPage() {
                                 <div className="flex items-start justify-between gap-4">
                                   <div>
                                     <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                                      {copy.builderPage.customPrerequisitesBadge}
+                                      {t("builderPage.customPrerequisitesBadge")}
                                     </Badge>
                                     <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                                      {copy.builderPage.addCustomPrerequisite}
+                                      {t("builderPage.addCustomPrerequisite")}
                                     </h2>
                                     <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                      {copy.builderPage.customPrerequisiteUrlError}
+                                      {t("builderPage.customPrerequisiteUrlError")}
                                     </p>
                                   </div>
                                   <Button
@@ -554,26 +554,26 @@ function ModBuilderPage() {
                                     className="cursor-pointer rounded-xl border-border/70 bg-background/70 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
                                     onClick={() => setIsCustomPrereqSheetOpen(false)}
                                   >
-                                    {copy.workspaceDialogs.cancel}
+                                    {t("workspaceDialogs.cancel")}
                                   </Button>
                                 </div>
                               </div>
 
                               <div className={drawerBodyClass}>
                                 <div className="mt-5 grid gap-4 md:grid-cols-2">
-                                  <BuilderField label={copy.builderPage.customPrerequisiteName}>
+                                  <BuilderField label={t("builderPage.customPrerequisiteName")}>
                                     <Input
                                       value={customPrereqForm.name}
                                       onChange={(e) => setCustomPrereqForm((c) => ({ ...c, name: e.target.value }))}
-                                      placeholder={copy.builderPage.customPrerequisiteNamePlaceholder}
+                                      placeholder={t("builderPage.customPrerequisiteNamePlaceholder")}
                                       className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
                                     />
                                   </BuilderField>
-                                  <BuilderField label={copy.builderPage.customPrerequisiteUrl}>
+                                  <BuilderField label={t("builderPage.customPrerequisiteUrl")}>
                                     <Input
                                       value={customPrereqForm.url}
                                       onChange={(e) => setCustomPrereqForm((c) => ({ ...c, url: e.target.value }))}
-                                      placeholder={copy.builderPage.customPrerequisiteUrlPlaceholder}
+                                      placeholder={t("builderPage.customPrerequisiteUrlPlaceholder")}
                                       className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
                                     />
                                   </BuilderField>
@@ -587,14 +587,14 @@ function ModBuilderPage() {
                                     className="cursor-pointer rounded-xl px-4 border-border/70 bg-background/70 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
                                     onClick={() => setIsCustomPrereqSheetOpen(false)}
                                   >
-                                    {copy.workspaceDialogs.cancel}
+                                    {t("workspaceDialogs.cancel")}
                                   </Button>
                                   <Button
                                     className="cursor-pointer rounded-xl px-4 shadow-sm"
                                     onClick={addCustomPrerequisite}
                                   >
                                     <Plus className="size-4 mr-2" />
-                                    {copy.builderPage.addCustomPrerequisite}
+                                    {t("builderPage.addCustomPrerequisite")}
                                   </Button>
                                 </div>
                               </div>
@@ -642,28 +642,28 @@ function ModBuilderPage() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <BuilderSectionHeading
                       icon={Link2}
-                      title={copy.builderPage.linksTitle}
-                      description={copy.builderPage.extraLinksDescription}
+                      title={t("builderPage.linksTitle")}
+                      description={t("builderPage.extraLinksDescription")}
                     />
                     <Button type="button" variant="outline" size="sm" onClick={addExtraLink} className="h-8 rounded-lg">
                       <Plus className="size-3 mr-1.5" />
-                      {copy.builderPage.addLink}
+                      {t("builderPage.addLink")}
                     </Button>
                   </div>
                   <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                    <BuilderField label={copy.builderPage.gtamodxUrl}>
+                    <BuilderField label={t("builderPage.gtamodxUrl")}>
                       <Input
                         value={getSpecialLinkUrl(form.links, "gtamodx")}
                         onChange={(e) => updateSpecialLink("gtamodx", e.target.value)}
-                        placeholder={copy.builderPage.gtamodxUrlPlaceholder}
+                        placeholder={t("builderPage.gtamodxUrlPlaceholder")}
                         className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                       />
                     </BuilderField>
-                    <BuilderField label={copy.builderPage.githubUrl}>
+                    <BuilderField label={t("builderPage.githubUrl")}>
                       <Input
                         value={getSpecialLinkUrl(form.links, "github")}
                         onChange={(e) => updateSpecialLink("github", e.target.value)}
-                        placeholder={copy.builderPage.githubUrlPlaceholder}
+                        placeholder={t("builderPage.githubUrlPlaceholder")}
                         className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                       />
                     </BuilderField>
@@ -674,19 +674,19 @@ function ModBuilderPage() {
                       {getExtraLinks(form.links).map((link, index) => (
                         <div key={link.id} className="rounded-xl border border-black/5 bg-muted/30 p-3 dark:border-white/10 dark:bg-white/[0.02]">
                           <div className="grid gap-3 lg:grid-cols-[1fr_2fr_auto]">
-                            <BuilderField label={`${copy.builderPage.extraLinks} ${index + 1}`}>
+                            <BuilderField label={`${t("builderPage.extraLinks")} ${index + 1}`}>
                               <Input
                                 value={link.label}
                                 onChange={(e) => updateExtraLink(link.id, "label", e.target.value)}
-                                placeholder={copy.builderPage.linkLabelPlaceholder}
+                                placeholder={t("builderPage.linkLabelPlaceholder")}
                                 className="h-9 rounded-md bg-background"
                               />
                             </BuilderField>
-                            <BuilderField label={copy.builderPage.linkUrlPlaceholder}>
+                            <BuilderField label={t("builderPage.linkUrlPlaceholder")}>
                               <Input
                                 value={link.url}
                                 onChange={(e) => updateExtraLink(link.id, "url", e.target.value)}
-                                placeholder={copy.builderPage.linkUrlPlaceholder}
+                                placeholder={t("builderPage.linkUrlPlaceholder")}
                                 className="h-9 rounded-md bg-background"
                               />
                             </BuilderField>
@@ -710,23 +710,32 @@ function ModBuilderPage() {
                 <div className="mt-6 border-t border-border/50 pt-6">
                   <BuilderSectionHeading
                     icon={ShieldCheck}
-                    title={copy.builderPage.updateFingerprintTitle}
-                    description={copy.builderPage.updateFingerprintDescription}
+                    title={t("builderPage.updateFingerprintTitle")}
+                    description={t("builderPage.updateFingerprintDescription")}
                   />
                   <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                    <BuilderField label={copy.builderPage.md5Mode}>
+                    <BuilderField label={t("builderPage.md5Mode")}>
                       <Input
-                        value={formatMd5ModeLabel(sourceDigest?.md5Mode, copy)}
+                        value={(() => {
+                          switch ((sourceDigest?.md5Mode || "").trim().toLowerCase()) {
+                            case "archive":
+                              return t("builderPage.md5ModeArchive")
+                            case "directory":
+                              return t("builderPage.md5ModeDirectory")
+                            default:
+                              return ""
+                          }
+                        })()}
                         readOnly
-                        placeholder={copy.builderPage.md5ModePlaceholder}
+                        placeholder={t("builderPage.md5ModePlaceholder")}
                         className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                       />
                     </BuilderField>
-                    <BuilderField label={copy.builderPage.md5Value}>
+                    <BuilderField label={t("builderPage.md5Value")}>
                       <Input
                         value={sourceDigest?.md5 ?? ""}
                         readOnly
-                        placeholder={copy.builderPage.md5ValuePlaceholder}
+                        placeholder={t("builderPage.md5ValuePlaceholder")}
                         className="h-10 rounded-lg border-border/70 bg-background font-mono text-xs shadow-none dark:border-white/10 dark:bg-white/[0.03]"
                       />
                     </BuilderField>
@@ -740,25 +749,25 @@ function ModBuilderPage() {
                 <div className="flex items-start justify-between">
                   <BuilderSectionHeading
                     icon={Files}
-                    title={copy.builderPage.mappingTitle}
-                    description={copy.workspaceDialogs.folderMappingHint}
+                    title={t("builderPage.mappingTitle")}
+                    description={t("workspaceDialogs.folderMappingHint")}
                   />
                   <div className="flex items-center gap-3">
                     <FileMappingModeSwitch
-                      copy={copy}
+                      t={t}
                       mode={builderMappingMode}
                       onChange={setBuilderMappingMode}
                     />
                     <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={resetMappings}>
                       <RefreshCcw className="size-3 mr-1.5" />
-                      {copy.builderPage.resetMappings}
+                      {t("builderPage.resetMappings")}
                     </Button>
                   </div>
                 </div>
                 <div className="mt-5 space-y-6">
                   {builderMappingMode === "list" ? (
                     <ModMappingList
-                      copy={copy}
+                      t={t}
                       gameTargetNodes={gameTargetNodes}
                       gameTargetsByPath={gameTargetsByPath}
                       toggleGameType={toggleGameType}
@@ -766,18 +775,18 @@ function ModBuilderPage() {
                     />
                   ) : builderMappingMode === "tree" ? (
                     <ModMappingWorkbench
-                      copy={copy}
+                      t={t}
                       files={mappings}
-                      headerTitle={copy.builderPage.mappingTitle}
-                      headerDescription={copy.workspaceDialogs.folderMappingHint}
-                      targetDescription={copy.workspaceDialogs.folderMappingHint}
-                      summaryDescription={copy.workspaceDialogs.folderMappingHint}
+                      headerTitle={t("builderPage.mappingTitle")}
+                      headerDescription={t("workspaceDialogs.folderMappingHint")}
+                      targetDescription={t("workspaceDialogs.folderMappingHint")}
+                      summaryDescription={t("workspaceDialogs.folderMappingHint")}
                       onDropToFolder={handleDropToFolder}
-                      emptyTargetLabel={copy.builderPage.emptyMapping}
+                      emptyTargetLabel={t("builderPage.emptyMapping")}
                     />
                   ) : (
                     <ModMappingExplorer
-                      copy={copy}
+                      t={t}
                       files={mappings}
                       onDropToFolder={handleDropToFolder}
                     />
@@ -791,13 +800,13 @@ function ModBuilderPage() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <BuilderSectionHeading
                     icon={FileCode2}
-                    title={copy.builderPage.manifestPreviewTitle}
-                    description={copy.builderPage.copyManifest}
+                    title={t("builderPage.manifestPreviewTitle")}
+                    description={t("builderPage.copyManifest")}
                   />
                   <div className="flex items-center gap-3">
                     <Button onClick={() => void generateManifest()} variant="secondary" className="rounded-xl px-6">
                       <HardDriveDownload className="size-4 mr-2" />
-                      {copy.builderPage.copyManifest}
+                      {t("builderPage.copyManifest")}
                     </Button>
                     <Button onClick={() => void buildArchive()} className="rounded-xl px-6">
                       <PackageCheck className="size-4 mr-2" />
@@ -1167,20 +1176,6 @@ function normalizeBuilderLinkKind(
 
 function createBuilderLinkId(): string {
   return `link-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function formatMd5ModeLabel(
-  md5Mode: string | undefined,
-  copy: ReturnType<typeof useI18n>["copy"],
-): string {
-  switch ((md5Mode || "").trim().toLowerCase()) {
-    case "archive":
-      return copy.builderPage.md5ModeArchive
-    case "directory":
-      return copy.builderPage.md5ModeDirectory
-    default:
-      return ""
-  }
 }
 
 export { ModBuilderPage }

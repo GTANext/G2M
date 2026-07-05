@@ -34,6 +34,16 @@ type ModxLoginPayload = {
   expiresAt?: number | null
 }
 
+export type ModxRemoteModPayload = {
+  id?: string | number | null
+  slug?: string | null
+  name?: string | null
+  title?: string | null
+  version?: string | null
+  latestVersion?: string | null
+  [key: string]: unknown
+}
+
 export async function loginToModx(email: string, password: string): Promise<ModxLoginState> {
   const payload = await requestModx<ModxLoginPayload>("/auth/login", {
     method: "POST",
@@ -91,6 +101,26 @@ export async function fetchModxUserInfo(loginId: string): Promise<ModxLoginState
   })
 
   return normalizeLoginState(payload, normalized)
+}
+
+export async function fetchModxModBySlug(
+  slug: string,
+  loginId?: string | null,
+): Promise<ModxRemoteModPayload | null> {
+  const normalizedSlug = slug.trim().replace(/^\/+|\/+$/g, "")
+  if (!normalizedSlug) {
+    throw new Error("Missing mod slug")
+  }
+
+  const headers: HeadersInit = {}
+  const normalizedLoginId = loginId?.trim()
+  if (normalizedLoginId) {
+    headers["X-Login-Id"] = normalizedLoginId
+  }
+
+  return requestModx<ModxRemoteModPayload>(`/mods/${encodeURIComponent(normalizedSlug)}`, {
+    headers,
+  })
 }
 
 export function loadStoredModxLoginState(): ModxLoginState | null {

@@ -76,6 +76,8 @@ pub(crate) struct StoredMod {
     pub(crate) preview_files: Vec<String>,
     pub(crate) conflict_files: Vec<StoredConflictFile>,
     pub(crate) conflict_with: Vec<String>,
+    pub(crate) links: Vec<ExistingBuilderManifestLinkPayload>,
+    pub(crate) modx_slug: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -98,7 +100,7 @@ pub(crate) struct ModImportFileEntryPayload {
     pub(crate) target_folder: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ExistingBuilderManifestLinkPayload {
     pub(crate) kind: String,

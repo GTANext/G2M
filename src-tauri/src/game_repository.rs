@@ -24,7 +24,9 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
                 source_dir TEXT NOT NULL DEFAULT '',
                 installed_at INTEGER NOT NULL DEFAULT 0,
                 size_bytes INTEGER NOT NULL DEFAULT 0,
-                enabled INTEGER NOT NULL DEFAULT 0
+                enabled INTEGER NOT NULL DEFAULT 0,
+                links_json TEXT NOT NULL DEFAULT '[]',
+                modx_slug TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS games (
@@ -84,6 +86,8 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
         "INTEGER NOT NULL DEFAULT 0",
     )?;
     ensure_table_column(&connection, "mods", "size_bytes", "INTEGER NOT NULL DEFAULT 0")?;
+    ensure_table_column(&connection, "mods", "links_json", "TEXT NOT NULL DEFAULT '[]'")?;
+    ensure_table_column(&connection, "mods", "modx_slug", "TEXT NOT NULL DEFAULT ''")?;
     ensure_table_column(
         &connection,
         "files",

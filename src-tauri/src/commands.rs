@@ -167,7 +167,7 @@ pub(crate) fn generate_manifest_file(
         }
 
         let target_path = match sourceType.trim() {
-            "directory" => Path::new(source_path).join("g2m.json"),
+            "directory" => Path::new(source_path).join("modx.json"),
             "zip" => {
                 let selected_path = savePath.unwrap_or_default();
                 let selected_path = selected_path.trim();

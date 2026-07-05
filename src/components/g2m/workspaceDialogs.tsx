@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, CircleHelp, Files, FolderOpen, HardDriveDownload, ImagePlus, MapPinned, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
-import { useI18n } from "@/components/app/i18nProvider"
+import { useTranslation } from "react-i18next"
 import { useAppPreferences } from "@/components/app/preferencesProvider"
 import { FileMappingModeSwitch } from "@/components/g2m/FileMappingModeSwitch"
 import { ModMappingExplorer } from "@/components/g2m/ModMappingExplorer"
@@ -79,7 +79,7 @@ function WorkspaceDialogs({ workspace }: { workspace: WorkspaceState }) {
 }
 
 function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   if (!workspace.isConflictDialogOpen) {
     return null
   }
@@ -101,12 +101,12 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
             <div className={drawerHeaderClass}>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">{copy.workspaceDialogs.conflictBadge}</Badge>
+                  <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">{t("workspaceDialogs.conflictBadge")}</Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {copy.workspaceDialogs.conflictTitle(selectedMod.name)}
+                    {t("workspaceDialogs.conflictTitle", { name: selectedMod.name })}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {copy.workspaceDialogs.conflictDescription}
+                    {t("workspaceDialogs.conflictDescription")}
                   </p>
                 </div>
 
@@ -115,7 +115,7 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={softOutlineButtonClass}
                   onClick={workspace.closeConflictDialog}
                 >
-                  {copy.workspaceDialogs.cancel}
+                  {t("workspaceDialogs.cancel")}
                 </Button>
               </div>
             </div>
@@ -134,21 +134,21 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
                             <div>
                               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{conflict.fileName}</p>
                               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                                {copy.workspaceDialogs.sameTargetFile(conflict.otherModName)}
+                                {t("workspaceDialogs.sameTargetFile", { otherModName: conflict.otherModName })}
                               </p>
                             </div>
 
                             <div className="grid gap-2 text-xs text-slate-500 dark:text-slate-400">
                               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                                <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.targetPath}</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-200">{t("workspaceDialogs.targetPath")}</span>
                                 <p className="mt-1 break-all">{conflict.targetPath}</p>
                               </div>
                               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                                <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.currentModSource}</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-200">{t("workspaceDialogs.currentModSource")}</span>
                                 <p className="mt-1 break-all">{conflict.sourcePath}</p>
                               </div>
                               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                                <span className="font-medium text-slate-700 dark:text-slate-200">{copy.workspaceDialogs.otherModSource}</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-200">{t("workspaceDialogs.otherModSource")}</span>
                                 <p className="mt-1 break-all">{conflict.otherSourcePath}</p>
                               </div>
                             </div>
@@ -167,7 +167,7 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
                                 workspace.resolveConflict(selectedMod.id, conflict.id, "overwrite")
                               }
                             >
-                              {copy.workspaceDialogs.overwrite}
+                              {t("workspaceDialogs.overwrite")}
                             </Button>
                             <Button
                               size="sm"
@@ -181,7 +181,7 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
                                 workspace.resolveConflict(selectedMod.id, conflict.id, "skip")
                               }
                             >
-                              {copy.workspaceDialogs.skip}
+                              {t("workspaceDialogs.skip")}
                             </Button>
                             <ConflictDecisionBadge
                               decision={workspace.getConflictDecision(selectedMod.id, conflict.id)}
@@ -197,9 +197,9 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
                   <div className="flex gap-3">
                     <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
                     <div>
-                      <AlertTitle>{copy.workspaceDialogs.noPendingConflictsTitle}</AlertTitle>
+                      <AlertTitle>{t("workspaceDialogs.noPendingConflictsTitle")}</AlertTitle>
                       <AlertDescription>
-                        {copy.workspaceDialogs.noPendingConflictsDescription}
+                        {t("workspaceDialogs.noPendingConflictsDescription")}
                       </AlertDescription>
                     </div>
                   </div>
@@ -214,10 +214,10 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={`px-4 ${softOutlineButtonClass}`}
                   onClick={workspace.closeConflictDialog}
                 >
-                  {copy.workspaceDialogs.later}
+                  {t("workspaceDialogs.later")}
                 </Button>
                 <Button className="cursor-pointer rounded-xl px-4 shadow-sm" onClick={workspace.closeConflictDialog}>
-                  {copy.workspaceDialogs.finish}
+                  {t("workspaceDialogs.finish")}
                 </Button>
               </div>
             </div>
@@ -229,7 +229,7 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
 }
 
 function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   if (!workspace.isAddGameDialogOpen) {
     return null
   }
@@ -251,13 +251,13 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                    {copy.workspaceDialogs.addBadge}
+                    {t("workspaceDialogs.addBadge")}
                   </Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {copy.workspaceDialogs.addTitle}
+                    {t("workspaceDialogs.addTitle")}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {copy.workspaceDialogs.addDescription}
+                    {t("workspaceDialogs.addDescription")}
                   </p>
                 </div>
 
@@ -266,19 +266,19 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={softOutlineButtonClass}
                   onClick={workspace.closeAddGameDialog}
                 >
-                  {copy.workspaceDialogs.cancel}
+                  {t("workspaceDialogs.cancel")}
                 </Button>
               </div>
             </div>
 
             <div className={drawerBodyClass}>
               <div className="mt-0">
-                <FieldBlock label={copy.workspaceDialogs.gameDirectory}>
+                <FieldBlock label={t("workspaceDialogs.gameDirectory")}>
                   <div className="flex gap-3">
                     <Input
                       value={workspace.addGameForm.dir}
                       readOnly
-                      placeholder={copy.workspaceDialogs.gameDirectoryPlaceholder}
+                      placeholder={t("workspaceDialogs.gameDirectoryPlaceholder")}
                       className="h-12 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
                     />
                     <Button
@@ -288,7 +288,7 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                       disabled={workspace.isDetectingGame}
                     >
                       <MapPinned className="size-4" />
-                      {workspace.isDetectingGame ? copy.workspaceDialogs.detecting : copy.workspaceDialogs.selectDirectory}
+                      {workspace.isDetectingGame ? t("workspaceDialogs.detecting") : t("workspaceDialogs.selectDirectory")}
                     </Button>
                   </div>
                 </FieldBlock>
@@ -298,57 +298,57 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                 <Alert className="mt-5 rounded-2xl border-emerald-200 bg-emerald-50/80 dark:border-emerald-500/20 dark:bg-emerald-500/10">
                   <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
                   <AlertTitle className="text-emerald-900 dark:text-emerald-100">
-                    {hasDetectedType ? copy.workspaceDialogs.directoryDetected : copy.workspaceDialogs.directorySelected}
+                    {hasDetectedType ? t("workspaceDialogs.directoryDetected") : t("workspaceDialogs.directorySelected")}
                   </AlertTitle>
                   <AlertDescription className="text-emerald-800/90 dark:text-emerald-200/90">
                     {hasDetectedType
-                      ? copy.workspaceDialogs.detectedSummary(
-                          workspace.addGameForm.name || copy.workspaceActions.currentGame,
-                          getGameTypeLabel(workspace.addGameForm.type, copy),
-                          workspace.addGameForm.exeName || copy.workspaceDialogs.detectedExe,
-                        )
-                      : copy.workspaceDialogs.directoryWaitingDetection}
+                      ? t("workspaceDialogs.detectedSummary", {
+                          name: workspace.addGameForm.name || t("workspaceActions.currentGame"),
+                          gameType: getGameTypeLabel(workspace.addGameForm.type, t),
+                          exeName: workspace.addGameForm.exeName || t("workspaceDialogs.detectedExe"),
+                        })
+                      : t("workspaceDialogs.directoryWaitingDetection")}
                   </AlertDescription>
                 </Alert>
               )}
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <FieldBlock label={copy.workspaceDialogs.gameName}>
+                <FieldBlock label={t("workspaceDialogs.gameName")}>
                   <Input
                     value={workspace.addGameForm.name}
                     onChange={(event) => workspace.setAddGameForm({ name: event.currentTarget.value })}
-                    placeholder={copy.workspaceDialogs.gameNamePlaceholder}
+                    placeholder={t("workspaceDialogs.gameNamePlaceholder")}
                     className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
                   />
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.gameType}>
+                <FieldBlock label={t("workspaceDialogs.gameType")}>
                   <select
                     value={workspace.addGameForm.type}
                     onChange={(event) => workspace.setAddGameForm({ type: event.currentTarget.value as "sa" | "vc" | "iii" })}
                     className="flex h-11 w-full rounded-2xl border border-border/70 bg-background/70 px-3 text-sm text-slate-900 outline-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100"
                   >
-                    <option value="">{copy.workspaceDialogs.chooseType}</option>
-                    <option value="iii">{copy.workspaceDialogs.gameTypeIii}</option>
-                    <option value="vc">{copy.workspaceDialogs.gameTypeVc}</option>
-                    <option value="sa">{copy.workspaceDialogs.gameTypeSa}</option>
+                    <option value="">{t("workspaceDialogs.chooseType")}</option>
+                    <option value="iii">{t("workspaceDialogs.gameTypeIii")}</option>
+                    <option value="vc">{t("workspaceDialogs.gameTypeVc")}</option>
+                    <option value="sa">{t("workspaceDialogs.gameTypeSa")}</option>
                   </select>
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.version} optionalLabel={copy.workspaceDialogs.optional} optional>
+                <FieldBlock label={t("workspaceDialogs.version")} optionalLabel={t("workspaceDialogs.optional")} optional>
                   <Input
                     value={workspace.addGameForm.version}
                     onChange={(event) => workspace.setAddGameForm({ version: event.currentTarget.value })}
-                    placeholder={copy.workspaceDialogs.versionPlaceholder}
+                    placeholder={t("workspaceDialogs.versionPlaceholder")}
                     className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
                   />
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.detectedExe}>
+                <FieldBlock label={t("workspaceDialogs.detectedExe")}>
                   <Input
                     value={workspace.addGameForm.exeName}
                     readOnly
-                    placeholder={copy.workspaceDialogs.notDetectedYet}
+                    placeholder={t("workspaceDialogs.notDetectedYet")}
                     className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
                   />
                 </FieldBlock>
@@ -356,7 +356,7 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
 
               <div className="mt-5 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
                 <GameCoverPreview
-                  title={workspace.addGameForm.name || copy.workspaceDialogs.defaultCover}
+                  title={workspace.addGameForm.name || t("workspaceDialogs.defaultCover")}
                   imageSrc={resolveGameImageSrc(workspace.addGameForm.imagePath, workspace.addGameForm.type)}
                 />
                 <div className="space-y-3">
@@ -368,7 +368,7 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                       onClick={() => void workspace.pickAddGameImage()}
                     >
                       <ImagePlus className="size-4" />
-                      {copy.workspaceDialogs.selectLocalImage}
+                      {t("workspaceDialogs.selectLocalImage")}
                     </Button>
                     <Button
                       type="button"
@@ -377,40 +377,40 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                       onClick={workspace.resetAddGameImage}
                     >
                       <RotateCcw className="size-4" />
-                      {copy.workspaceDialogs.useDefaultCover}
+                      {t("workspaceDialogs.useDefaultCover")}
                     </Button>
                   </div>
                   <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
-                    {copy.workspaceDialogs.coverDescription}
+                    {t("workspaceDialogs.coverDescription")}
                   </p>
                   <p className="break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-xs text-slate-500 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
-                    {usingCustomCover ? workspace.addGameForm.imagePath : copy.workspaceDialogs.usingDefaultCover}
+                    {usingCustomCover ? workspace.addGameForm.imagePath : t("workspaceDialogs.usingDefaultCover")}
                   </p>
                 </div>
               </div>
 
               <DialogTipsSection className="mt-6 pb-2">
-                <DialogTipCard title={copy.workspaceDialogs.detectionRulesTitle} icon={<CircleHelp className="size-4 text-violet-600" />}>
+                <DialogTipCard title={t("workspaceDialogs.detectionRulesTitle")} icon={<CircleHelp className="size-4 text-violet-600" />}>
                   <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                    <DetectionRule gameType={copy.workspaceDialogs.gameTypeIii} exeName="gta3.exe" />
-                    <DetectionRule gameType={copy.workspaceDialogs.gameTypeVc} exeName="gta-vc.exe / gta_vc.exe" />
-                    <DetectionRule gameType={copy.workspaceDialogs.gameTypeSa} exeName="gta_sa.exe / gta-sa.exe" />
+                    <DetectionRule gameType={t("workspaceDialogs.gameTypeIii")} exeName="gta3.exe" />
+                    <DetectionRule gameType={t("workspaceDialogs.gameTypeVc")} exeName="gta-vc.exe / gta_vc.exe" />
+                    <DetectionRule gameType={t("workspaceDialogs.gameTypeSa")} exeName="gta_sa.exe / gta-sa.exe" />
                   </div>
                 </DialogTipCard>
 
-                <DialogTipCard title={copy.workspaceDialogs.currentStatusTitle}>
+                <DialogTipCard title={t("workspaceDialogs.currentStatusTitle")}>
                   <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                    <p>{copy.workspaceDialogs.directoryStatus}：{hasDirectory ? copy.workspaceDialogs.selected : copy.workspaceDialogs.notSelected}</p>
-                    <p>{copy.workspaceDialogs.typeStatus}：{hasDetectedType ? getGameTypeLabel(workspace.addGameForm.type, copy) : copy.workspaceDialogs.notDetected}</p>
-                    <p>{copy.workspaceDialogs.coverStatus}：{usingCustomCover ? copy.workspaceDialogs.customImage : copy.workspaceDialogs.defaultCover}</p>
+                    <p>{t("workspaceDialogs.directoryStatus")}：{hasDirectory ? t("workspaceDialogs.selected") : t("workspaceDialogs.notSelected")}</p>
+                    <p>{t("workspaceDialogs.typeStatus")}：{hasDetectedType ? getGameTypeLabel(workspace.addGameForm.type, t) : t("workspaceDialogs.notDetected")}</p>
+                    <p>{t("workspaceDialogs.coverStatus")}：{usingCustomCover ? t("workspaceDialogs.customImage") : t("workspaceDialogs.defaultCover")}</p>
                   </div>
                 </DialogTipCard>
 
-                <DialogTipCard title={copy.workspaceDialogs.actionTipsTitle} icon={<CircleHelp className="size-4 text-violet-600" />}>
+                <DialogTipCard title={t("workspaceDialogs.actionTipsTitle")} icon={<CircleHelp className="size-4 text-violet-600" />}>
                   <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                    <p>{copy.workspaceDialogs.step1}</p>
-                    <p>{copy.workspaceDialogs.step2}</p>
-                    <p>{copy.workspaceDialogs.step3}</p>
+                    <p>{t("workspaceDialogs.step1")}</p>
+                    <p>{t("workspaceDialogs.step2")}</p>
+                    <p>{t("workspaceDialogs.step3")}</p>
                   </div>
                 </DialogTipCard>
               </DialogTipsSection>
@@ -423,7 +423,7 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={`px-4 ${softOutlineButtonClass}`}
                   onClick={workspace.closeAddGameDialog}
                 >
-                  {copy.workspaceDialogs.later}
+                  {t("workspaceDialogs.later")}
                 </Button>
                 <Button
                   className="cursor-pointer rounded-xl px-4 shadow-sm"
@@ -431,7 +431,7 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   disabled={workspace.savingGameId === "add-game" || !workspace.addGameForm.dir}
                 >
                   <Plus className="size-4" />
-                  {workspace.savingGameId === "add-game" ? copy.workspaceDialogs.adding : copy.workspaceDialogs.confirmAddGame}
+                  {workspace.savingGameId === "add-game" ? t("workspaceDialogs.adding") : t("workspaceDialogs.confirmAddGame")}
                 </Button>
               </div>
             </div>
@@ -443,7 +443,7 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
 }
 
 function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   if (!workspace.isEditGameDialogOpen) {
     return null
   }
@@ -461,10 +461,10 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                    {copy.workspaceDialogs.editBadge}
+                    {t("workspaceDialogs.editBadge")}
                   </Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {copy.workspaceDialogs.editTitle}
+                    {t("workspaceDialogs.editTitle")}
                   </h2>
                 </div>
 
@@ -473,14 +473,14 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={softOutlineButtonClass}
                   onClick={workspace.closeEditGameDialog}
                 >
-                  {copy.workspaceDialogs.cancel}
+                  {t("workspaceDialogs.cancel")}
                 </Button>
               </div>
             </div>
 
             <div className={drawerBodyClass}>
               <div className="grid gap-4 md:grid-cols-2">
-                <FieldBlock label={copy.workspaceDialogs.gameName}>
+                <FieldBlock label={t("workspaceDialogs.gameName")}>
                   <Input
                     value={workspace.editGameForm.name}
                     onChange={(event) => workspace.setEditGameForm({ name: event.currentTarget.value })}
@@ -488,19 +488,19 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   />
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.gameType}>
+                <FieldBlock label={t("workspaceDialogs.gameType")}>
                   <select
                     value={workspace.editGameForm.type}
                     onChange={(event) => workspace.setEditGameForm({ type: event.currentTarget.value as "sa" | "vc" | "iii" })}
                     className="flex h-11 w-full rounded-2xl border border-border/70 bg-background/70 px-3 text-sm text-slate-900 outline-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100"
                   >
-                    <option value="iii">{copy.workspaceDialogs.gameTypeIii}</option>
-                    <option value="vc">{copy.workspaceDialogs.gameTypeVc}</option>
-                    <option value="sa">{copy.workspaceDialogs.gameTypeSa}</option>
+                    <option value="iii">{t("workspaceDialogs.gameTypeIii")}</option>
+                    <option value="vc">{t("workspaceDialogs.gameTypeVc")}</option>
+                    <option value="sa">{t("workspaceDialogs.gameTypeSa")}</option>
                   </select>
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.gameDirectory} className="md:col-span-2">
+                <FieldBlock label={t("workspaceDialogs.gameDirectory")} className="md:col-span-2">
                   <Input
                     value={workspace.editGameForm.dir}
                     readOnly
@@ -508,7 +508,7 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   />
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.version} optionalLabel={copy.workspaceDialogs.optional} optional>
+                <FieldBlock label={t("workspaceDialogs.version")} optionalLabel={t("workspaceDialogs.optional")} optional>
                   <Input
                     value={workspace.editGameForm.version}
                     onChange={(event) => workspace.setEditGameForm({ version: event.currentTarget.value })}
@@ -516,7 +516,7 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   />
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.detectedExe}>
+                <FieldBlock label={t("workspaceDialogs.detectedExe")}>
                   <Input
                     value={workspace.editGameForm.exeName}
                     readOnly
@@ -524,10 +524,10 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   />
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.gameCover} className="md:col-span-2">
+                <FieldBlock label={t("workspaceDialogs.gameCover")} className="md:col-span-2">
                   <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
                     <GameCoverPreview
-                      title={workspace.editGameForm.name || copy.workspaceDialogs.currentCover}
+                      title={workspace.editGameForm.name || t("workspaceDialogs.currentCover")}
                       imageSrc={resolveGameImageSrc(workspace.editGameForm.imagePath, workspace.editGameForm.type)}
                     />
                     <div className="space-y-3">
@@ -539,7 +539,7 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                           onClick={() => void workspace.pickEditGameImage()}
                         >
                           <ImagePlus className="size-4" />
-                          {copy.workspaceDialogs.reselectImage}
+                          {t("workspaceDialogs.reselectImage")}
                         </Button>
                         <Button
                           type="button"
@@ -548,11 +548,11 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                           onClick={workspace.resetEditGameImage}
                         >
                           <RotateCcw className="size-4" />
-                          {copy.workspaceDialogs.restoreDefaultCover}
+                          {t("workspaceDialogs.restoreDefaultCover")}
                         </Button>
                       </div>
                       <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
-                        {copy.workspaceDialogs.coverDescription}
+                        {t("workspaceDialogs.coverDescription")}
                       </p>
                     </div>
                   </div>
@@ -560,10 +560,10 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
               </div>
 
               <DialogTipsSection className="mt-6 pb-2">
-                <DialogTipCard title={copy.workspaceDialogs.editTipTitle}>
+                <DialogTipCard title={t("workspaceDialogs.editTipTitle")}>
                   <div className="space-y-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    <p>{copy.workspaceDialogs.editTip1}</p>
-                    <p>{copy.workspaceDialogs.editTip2}</p>
+                    <p>{t("workspaceDialogs.editTip1")}</p>
+                    <p>{t("workspaceDialogs.editTip2")}</p>
                   </div>
                 </DialogTipCard>
               </DialogTipsSection>
@@ -576,7 +576,7 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={`px-4 ${softOutlineButtonClass}`}
                   onClick={workspace.closeEditGameDialog}
                 >
-                  {copy.workspaceDialogs.later}
+                  {t("workspaceDialogs.later")}
                 </Button>
                 <Button
                   className="cursor-pointer rounded-xl px-4 shadow-sm"
@@ -584,7 +584,7 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   disabled={workspace.savingGameId === workspace.editGameForm.id}
                 >
                   <Pencil className="size-4" />
-                  {workspace.savingGameId === workspace.editGameForm.id ? copy.workspaceDialogs.saving : copy.workspaceDialogs.saveChanges}
+                  {workspace.savingGameId === workspace.editGameForm.id ? t("workspaceDialogs.saving") : t("workspaceDialogs.saveChanges")}
                 </Button>
               </div>
             </div>
@@ -596,7 +596,7 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
 }
 
 function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const { builderMappingMode, setBuilderMappingMode } = useAppPreferences()
   const importFiles = workspace.importModMappings
   const importGameTargetNodes = buildMappingTargetNodes(importFiles)
@@ -611,7 +611,7 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
   const hasPreview = Boolean(preview)
   const hasConflicts = (preview?.conflictFiles.length ?? 0) > 0
   const conflictTree = buildImportConflictTree(preview?.conflictFiles ?? [])
-  const activeGameName = workspace.activeGame?.name || copy.workspaceActions.currentGame
+  const activeGameName = workspace.activeGame?.name || t("workspaceActions.currentGame")
   const missingPrerequisites =
     preview && workspace.activeGame
       ? getMissingPrerequisiteWarnings(preview.modType, workspace.activeGame.prerequisites)
@@ -675,13 +675,13 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                    {copy.workspaceDialogs.importBadge}
+                    {t("workspaceDialogs.importBadge")}
                   </Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {copy.workspaceDialogs.importTitle}
+                    {t("workspaceDialogs.importTitle")}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {copy.workspaceDialogs.importDescription}
+                    {t("workspaceDialogs.importDescription")}
                   </p>
                 </div>
 
@@ -690,20 +690,20 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={softOutlineButtonClass}
                   onClick={workspace.closeImportModDialog}
                 >
-                  {copy.workspaceDialogs.cancel}
+                  {t("workspaceDialogs.cancel")}
                 </Button>
               </div>
             </div>
 
             <div className={drawerBodyClass}>
               <div className="grid gap-4 md:grid-cols-2">
-                <FieldBlock label={copy.workspaceDialogs.importSource} className="md:col-span-2">
+                <FieldBlock label={t("workspaceDialogs.importSource")} className="md:col-span-2">
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-3">
                       <Input
                         value={workspace.importModForm.dir}
                         readOnly
-                        placeholder={copy.workspaceDialogs.importDirectoryPlaceholder}
+                        placeholder={t("workspaceDialogs.importDirectoryPlaceholder")}
                         className="h-12 min-w-[260px] flex-1 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
                       />
                       <Button
@@ -713,7 +713,7 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                         disabled={workspace.isImportingMod || workspace.isPreviewingMod}
                       >
                         <MapPinned className="size-4" />
-                        {copy.workspaceDialogs.importSourceDirectory}
+                        {t("workspaceDialogs.importSourceDirectory")}
                       </Button>
                       <Button
                         variant="outline"
@@ -722,22 +722,22 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                         disabled={workspace.isImportingMod || workspace.isPreviewingMod}
                       >
                         <HardDriveDownload className="size-4" />
-                        {copy.workspaceDialogs.importSourceZip}
+                        {t("workspaceDialogs.importSourceZip")}
                       </Button>
                     </div>
                   </div>
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.modName}>
+                <FieldBlock label={t("workspaceDialogs.modName")}>
                   <Input
                     value={workspace.importModForm.name}
                     onChange={(event) => workspace.setImportModName(event.currentTarget.value)}
-                    placeholder={copy.workspaceDialogs.notSelected}
+                    placeholder={t("workspaceDialogs.notSelected")}
                     className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
                   />
                 </FieldBlock>
 
-                <FieldBlock label={copy.workspaceDialogs.selectedGame}>
+                <FieldBlock label={t("workspaceDialogs.selectedGame")}>
                   <Input
                     value={activeGameName}
                     readOnly
@@ -750,17 +750,17 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                 <Alert className="mt-5 rounded-2xl border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-white/[0.04]">
                   <CircleHelp className="size-4 text-slate-600 dark:text-slate-300" />
                   <AlertTitle className="text-slate-900 dark:text-slate-100">
-                    {copy.workspaceDialogs.directoryStatus}
+                    {t("workspaceDialogs.directoryStatus")}
                   </AlertTitle>
                   <AlertDescription className="text-slate-700/90 dark:text-slate-300/90">
-                    {copy.workspaceDialogs.importWaitingSelection}
+                    {t("workspaceDialogs.importWaitingSelection")}
                   </AlertDescription>
                 </Alert>
               ) : workspace.isPreviewingMod ? (
                 <Alert className="mt-5 rounded-2xl border-sky-200 bg-sky-50/80 dark:border-sky-500/20 dark:bg-sky-500/10">
                   <CircleHelp className="size-4 text-sky-600 dark:text-sky-300" />
                   <AlertTitle className="text-sky-900 dark:text-sky-100">
-                    {copy.workspaceActions.previewingMod}
+                    {t("workspaceActions.previewingMod")}
                   </AlertTitle>
                   <AlertDescription className="text-sky-800/90 dark:text-sky-200/90">
                     {workspace.importModForm.dir}
@@ -786,7 +786,7 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                         : "text-emerald-900 dark:text-emerald-100"
                     }
                   >
-                    {hasPreview ? copy.workspaceActions.modPreviewReady : copy.workspaceDialogs.importDetected}
+                    {hasPreview ? t("workspaceActions.modPreviewReady") : t("workspaceDialogs.importDetected")}
                   </AlertTitle>
                   <AlertDescription
                     className={
@@ -797,8 +797,8 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                   >
                     {hasPreview
                       ? hasConflicts
-                        ? copy.workspacePage.conflictWarningDescription(preview?.name || workspace.importModForm.name, preview?.conflictFiles.length ?? 0)
-                        : copy.workspaceDialogs.noPendingConflictsDescription
+                        ? t("workspacePage.conflictWarningDescription", {modName: preview?.name || workspace.importModForm.name, count: preview?.conflictFiles.length ?? 0})
+                        : t("workspaceDialogs.noPendingConflictsDescription")
                       : workspace.importModForm.dir}
                   </AlertDescription>
                 </Alert>
@@ -808,13 +808,13 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                 <Alert className="mt-4 rounded-2xl border-amber-200 bg-amber-50/80 dark:border-amber-500/20 dark:bg-amber-500/10">
                   <AlertTriangle className="size-4 text-amber-600 dark:text-amber-300" />
                   <AlertTitle className="text-amber-900 dark:text-amber-100">
-                    {copy.workspaceDialogs.prerequisiteWarningsTitle}
+                    {t("workspaceDialogs.prerequisiteWarningsTitle")}
                   </AlertTitle>
                   <AlertDescription className="text-amber-800/90 dark:text-amber-200/90">
-                    {copy.workspaceDialogs.prerequisiteWarningsDescription(
-                      preview?.modType ?? copy.workspaceDialogs.notDetected,
-                      missingPrerequisites.map((item) => item.label).join(" / "),
-                    )}
+                    {t("workspaceDialogs.prerequisiteWarningsDescription", {
+                      modType: preview?.modType ?? t("workspaceDialogs.notDetected"),
+                      items: missingPrerequisites.map((item) => item.label).join(" / "),
+                    })}
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -824,39 +824,39 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                   <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                     <PreviewMetricCard
                       icon={<CircleHelp className="size-4 text-violet-600" />}
-                      label={copy.workspaceDialogs.typeStatus}
+                      label={t("workspaceDialogs.typeStatus")}
                       value={preview.modType}
                     />
                     <PreviewMetricCard
                       icon={<Files className="size-4 text-violet-600" />}
-                      label={copy.workspacePage.fileCount}
+                      label={t("workspacePage.fileCount")}
                       value={String(preview.fileCount)}
                     />
                     <PreviewMetricCard
                       icon={<HardDriveDownload className="size-4 text-violet-600" />}
-                      label={copy.workspacePage.size}
+                      label={t("workspacePage.size")}
                       value={formatFileSize(preview.sizeBytes)}
                     />
                     <PreviewMetricCard
                       icon={<AlertTriangle className="size-4 text-violet-600" />}
-                      label={copy.workspacePage.conflictFiles}
+                      label={t("workspacePage.conflictFiles")}
                       value={String(preview.conflictFiles.length)}
                       tone={hasConflicts ? "warning" : "default"}
                     />
                     <PreviewMetricCard
                       icon={<Files className="size-4 text-violet-600" />}
-                      label={copy.workspaceDialogs.manifestStatus}
-                      value={preview.hasG2mManifest ? copy.workspaceDialogs.manifestDetected : copy.workspaceDialogs.manifestMissing}
+                      label={t("workspaceDialogs.manifestStatus")}
+                      value={preview.hasG2mManifest ? t("workspaceDialogs.manifestDetected") : t("workspaceDialogs.manifestMissing")}
                       tone={preview.hasG2mManifest ? "success" : "default"}
                     />
                   </div>
 
-                  <DialogTipCard title={copy.workspacePage.filePreview} className="mt-4">
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge className="rounded-full bg-slate-950 px-3 py-1 text-white dark:bg-white dark:text-slate-950">
-                            {preview.name || workspace.importModForm.name || copy.workspaceDialogs.modName}
+                  <DialogTipCard title={t("workspacePage.filePreview")} className="mt-4">
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className="rounded-full bg-slate-950 px-3 py-1 text-white dark:bg-white dark:text-slate-950">
+                          {preview.name || workspace.importModForm.name || t("workspaceDialogs.modName")}
                           </Badge>
                           <Badge
                             variant="secondary"
@@ -869,13 +869,13 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                             className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
                           >
                             {workspace.importModForm.sourceType === "zip"
-                              ? copy.workspaceDialogs.importSourceZip
-                              : copy.workspaceDialogs.importSourceDirectory}
+                              ? t("workspaceDialogs.importSourceZip")
+                              : t("workspaceDialogs.importSourceDirectory")}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-3">
                           <FileMappingModeSwitch
-                            copy={copy}
+                            t={t}
                             mode={builderMappingMode}
                             onChange={setBuilderMappingMode}
                           />
@@ -886,14 +886,14 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                             onClick={handleResetMappings}
                           >
                             <RotateCcw className="mr-1.5 size-3" />
-                            {copy.builderPage.resetMappings}
+                            {t("builderPage.resetMappings")}
                           </Button>
                         </div>
                       </div>
 
                       {builderMappingMode === "list" ? (
                         <ModMappingList
-                          copy={copy}
+                          t={t}
                           gameTargetNodes={importGameTargetNodes}
                           gameTargetsByPath={{}}
                           updateTargetPath={handleUpdateTargetPath}
@@ -901,20 +901,20 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                         />
                       ) : builderMappingMode === "tree" ? (
                         <ModMappingWorkbench
-                          copy={copy}
+                          t={t}
                           files={importFiles}
-                          headerTitle={copy.workspacePage.filePreview}
-                          headerDescription={copy.workspaceDialogs.folderMappingHint}
+                          headerTitle={t("workspacePage.filePreview")}
+                          headerDescription={t("workspaceDialogs.folderMappingHint")}
                           initialTargetFolders={preview.targetFolders}
-                          targetDescription={copy.workspaceDialogs.folderMappingHint}
-                          summaryDescription={copy.workspaceDialogs.folderMappingHint}
+                          targetDescription={t("workspaceDialogs.folderMappingHint")}
+                          summaryDescription={t("workspaceDialogs.folderMappingHint")}
                           onDropToFolder={handleDropToFolder}
                           onResetMappings={handleResetMappings}
-                          emptyTargetLabel={copy.demo.targetPending}
+                          emptyTargetLabel={t("demo.targetPending")}
                         />
                       ) : (
                         <ModMappingExplorer
-                          copy={copy}
+                          t={t}
                           files={importFiles}
                           onDropToFolder={handleDropToFolder}
                         />
@@ -923,13 +923,13 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                   </DialogTipCard>
 
                   {hasConflicts ? (
-                    <DialogTipCard title={copy.workspacePage.conflictSummary} icon={<AlertTriangle className="size-4 text-amber-500" />} className="mt-4">
+                    <DialogTipCard title={t("workspacePage.conflictSummary")} icon={<AlertTriangle className="size-4 text-amber-500" />} className="mt-4">
                       <div className="space-y-3">
                         <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-                          {copy.workspaceDialogs.importConflictHelp}
+                          {t("workspaceDialogs.importConflictHelp")}
                         </p>
                         <p className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-                          {copy.workspaceDialogs.importConflictBackupNotice}
+                          {t("workspaceDialogs.importConflictBackupNotice")}
                         </p>
                         {conflictTree.map((node) => (
                           <ImportConflictTreeNode
@@ -947,47 +947,47 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
               ) : null}
 
               <DialogTipsSection className="mt-6 pb-2">
-                <DialogTipCard title={copy.workspaceDialogs.currentStatusTitle}>
+                <DialogTipCard title={t("workspaceDialogs.currentStatusTitle")}>
                   <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                    <p>{copy.workspaceDialogs.importSource}：{hasDirectory ? copy.workspaceDialogs.selected : copy.workspaceDialogs.notSelected}</p>
+                    <p>{t("workspaceDialogs.importSource")}：{hasDirectory ? t("workspaceDialogs.selected") : t("workspaceDialogs.notSelected")}</p>
                     <p>
-                      {copy.workspaceDialogs.typeStatus}：
+                      {t("workspaceDialogs.typeStatus")}：
                       {workspace.importModForm.sourceType === "zip"
-                        ? copy.workspaceDialogs.importSourceZip
-                        : copy.workspaceDialogs.importSourceDirectory}
+                        ? t("workspaceDialogs.importSourceZip")
+                        : t("workspaceDialogs.importSourceDirectory")}
                     </p>
-                    <p>{copy.workspaceDialogs.modName}：{workspace.importModForm.name || copy.workspaceDialogs.notSelected}</p>
-                    <p>{copy.workspaceDialogs.selectedGame}：{activeGameName}</p>
+                    <p>{t("workspaceDialogs.modName")}：{workspace.importModForm.name || t("workspaceDialogs.notSelected")}</p>
+                    <p>{t("workspaceDialogs.selectedGame")}：{activeGameName}</p>
                     <p>
-                      {copy.workspaceDialogs.manifestStatus}：
+                      {t("workspaceDialogs.manifestStatus")}：
                       {hasPreview && preview
                         ? preview.hasG2mManifest
-                          ? copy.workspaceDialogs.manifestDetected
-                          : copy.workspaceDialogs.manifestMissing
-                        : copy.workspaceDialogs.notDetectedYet}
+                          ? t("workspaceDialogs.manifestDetected")
+                          : t("workspaceDialogs.manifestMissing")
+                        : t("workspaceDialogs.notDetectedYet")}
                     </p>
                     <p>
-                      {copy.workspacePage.filePreview}：
+                      {t("workspacePage.filePreview")}：
                       {workspace.isPreviewingMod
-                        ? copy.workspaceActions.previewingMod
+                        ? t("workspaceActions.previewingMod")
                         : hasPreview
-                          ? copy.workspaceActions.modPreviewReady
-                          : copy.demo.pendingScan}
+                          ? t("workspaceActions.modPreviewReady")
+                          : t("demo.pendingScan")}
                     </p>
                   </div>
                 </DialogTipCard>
 
-                <DialogTipCard title={copy.workspaceDialogs.importTipTitle} icon={<CircleHelp className="size-4 text-violet-600" />}>
+                <DialogTipCard title={t("workspaceDialogs.importTipTitle")} icon={<CircleHelp className="size-4 text-violet-600" />}>
                   <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                    <p>{copy.workspaceDialogs.importStep1}</p>
-                    <p>{copy.workspaceDialogs.importStep2}</p>
-                    <p>{copy.workspaceDialogs.importStep3}</p>
+                    <p>{t("workspaceDialogs.importStep1")}</p>
+                    <p>{t("workspaceDialogs.importStep2")}</p>
+                    <p>{t("workspaceDialogs.importStep3")}</p>
                   </div>
                 </DialogTipCard>
 
-                <DialogTipCard title={copy.workspaceDialogs.actionTipsTitle}>
+                <DialogTipCard title={t("workspaceDialogs.actionTipsTitle")}>
                   <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                    <p>{copy.workspaceDialogs.importDescription}</p>
+                    <p>{t("workspaceDialogs.importDescription")}</p>
                   </div>
                 </DialogTipCard>
               </DialogTipsSection>
@@ -1000,7 +1000,7 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={`px-4 ${softOutlineButtonClass}`}
                   onClick={workspace.closeImportModDialog}
                 >
-                  {copy.workspaceDialogs.later}
+                  {t("workspaceDialogs.later")}
                 </Button>
                 <Button
                   className="cursor-pointer rounded-xl px-4 shadow-sm"
@@ -1008,7 +1008,7 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                   disabled={workspace.isImportingMod || workspace.isPreviewingMod || !hasPreview}
                 >
                   <HardDriveDownload className="size-4" />
-                  {workspace.isImportingMod ? copy.workspaceDialogs.importing : copy.workspaceDialogs.confirmImportMod}
+                  {workspace.isImportingMod ? t("workspaceDialogs.importing") : t("workspaceDialogs.confirmImportMod")}
                 </Button>
               </div>
             </div>
@@ -1181,7 +1181,7 @@ function ImportConflictTreeNode({
   setExpandedNodes: Dispatch<SetStateAction<Record<string, boolean>>>
   depth?: number
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const decision = getImportConflictNodeDecision(node, workspace)
   const isExpanded = node.kind === "folder" ? Boolean(expandedNodes[node.id]) : true
   const targetPaths = collectImportConflictTargetPaths([node])
@@ -1206,7 +1206,7 @@ function ImportConflictTreeNode({
                 )}
                 <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
                   {node.kind === "folder"
-                    ? node.name || copy.workspaceDialogs.installToRoot
+                    ? node.name || t("workspaceDialogs.installToRoot")
                     : node.name}
                 </p>
                 <Badge
@@ -1219,12 +1219,12 @@ function ImportConflictTreeNode({
               <div className="rounded-2xl border border-amber-200/70 bg-white/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-white/5 dark:text-amber-100">
                 <span className="font-medium">
                   {node.kind === "folder"
-                    ? copy.workspacePage.directory
-                    : copy.workspaceDialogs.targetPath}
+                    ? t("workspacePage.directory")
+                    : t("workspaceDialogs.targetPath")}
                 </span>
                 <p className="mt-1 break-all">
                   {node.kind === "folder"
-                    ? node.path || copy.workspaceDialogs.installToRoot
+                    ? node.path || t("workspaceDialogs.installToRoot")
                     : node.targetPath}
                 </p>
               </div>
@@ -1244,8 +1244,8 @@ function ImportConflictTreeNode({
                 }
               >
                 {isExpanded
-                  ? copy.builderPage.hideDetailedMappings
-                  : copy.builderPage.showDetailedMappings}
+                  ? t("builderPage.hideDetailedMappings")
+                  : t("builderPage.showDetailedMappings")}
                 {isExpanded ? (
                   <ChevronUp className="size-4" />
                 ) : (
@@ -1262,7 +1262,7 @@ function ImportConflictTreeNode({
               className={softOutlineButtonClass}
               onClick={() => resolveImportConflictNodeDecision(node, workspace, "overwrite")}
             >
-              {copy.workspaceDialogs.overwrite}
+              {t("workspaceDialogs.overwrite")}
             </Button>
             <Button
               size="sm"
@@ -1270,7 +1270,7 @@ function ImportConflictTreeNode({
               className={softOutlineButtonClass}
               onClick={() => resolveImportConflictNodeDecision(node, workspace, "skip")}
             >
-              {copy.workspaceDialogs.skip}
+              {t("workspaceDialogs.skip")}
             </Button>
             <ConflictDecisionBadge decision={decision} />
           </div>
@@ -1298,7 +1298,7 @@ function ImportConflictTreeNode({
                   className="rounded-2xl border border-black/5 bg-white/80 px-3 py-2 text-xs text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
                 >
                   <p className="font-medium">
-                    {copy.workspaceDialogs.sameTargetFile(conflict.otherModName)}
+                    {t("workspaceDialogs.sameTargetFile", { otherModName: conflict.otherModName })}
                   </p>
                   <p className="mt-1 break-all text-slate-500 dark:text-slate-400">
                     {conflict.otherSourcePath}
@@ -1348,7 +1348,7 @@ function PreviewMetricCard({
 }
 
 function DeleteGameDialog({ workspace }: { workspace: WorkspaceState }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   if (!workspace.deleteTargetGameId) {
     return null
   }
@@ -1371,10 +1371,10 @@ function DeleteGameDialog({ workspace }: { workspace: WorkspaceState }) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
-                    {copy.workspaceDialogs.deleteBadge}
+                    {t("workspaceDialogs.deleteBadge")}
                   </Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {copy.workspaceDialogs.deleteTitle(targetGame.name)}
+                    {t("workspaceDialogs.deleteTitle", { name: targetGame.name })}
                   </h2>
                 </div>
 
@@ -1383,14 +1383,14 @@ function DeleteGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={softOutlineButtonClass}
                   onClick={() => workspace.setDeleteTargetGameId(null)}
                 >
-                  {copy.workspaceDialogs.cancel}
+                  {t("workspaceDialogs.cancel")}
                 </Button>
               </div>
             </div>
 
             <div className={drawerBodyClass}>
               <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {copy.workspaceDialogs.deleteDescription}
+                {t("workspaceDialogs.deleteDescription")}
               </p>
               <p className="mt-3 break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm text-slate-600 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
                 {targetGame.gamePath}
@@ -1404,7 +1404,7 @@ function DeleteGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={softOutlineButtonClass}
                   onClick={() => workspace.setDeleteTargetGameId(null)}
                 >
-                  {copy.workspaceDialogs.cancel}
+                  {t("workspaceDialogs.cancel")}
                 </Button>
                 <Button
                   className="cursor-pointer rounded-xl bg-red-600 text-white shadow-sm hover:bg-red-700"
@@ -1412,7 +1412,7 @@ function DeleteGameDialog({ workspace }: { workspace: WorkspaceState }) {
                   disabled={workspace.savingGameId === targetGame.id}
                 >
                   <Trash2 className="size-4" />
-                  {workspace.savingGameId === targetGame.id ? copy.workspaceDialogs.deleting : copy.workspaceDialogs.confirmDelete}
+                  {workspace.savingGameId === targetGame.id ? t("workspaceDialogs.deleting") : t("workspaceDialogs.confirmDelete")}
                 </Button>
               </div>
             </div>
@@ -1424,7 +1424,7 @@ function DeleteGameDialog({ workspace }: { workspace: WorkspaceState }) {
 }
 
 function DeleteModDialog({ workspace }: { workspace: WorkspaceState }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   if (!workspace.deleteTargetModId) {
     return null
   }
@@ -1447,10 +1447,10 @@ function DeleteModDialog({ workspace }: { workspace: WorkspaceState }) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
-                    {copy.workspaceDialogs.deleteModBadge}
+                    {t("workspaceDialogs.deleteModBadge")}
                   </Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {copy.workspaceDialogs.deleteModTitle(targetMod.name)}
+                    {t("workspaceDialogs.deleteModTitle", { name: targetMod.name })}
                   </h2>
                 </div>
 
@@ -1459,14 +1459,14 @@ function DeleteModDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={softOutlineButtonClass}
                   onClick={() => workspace.setDeleteTargetModId(null)}
                 >
-                  {copy.workspaceDialogs.cancel}
+                  {t("workspaceDialogs.cancel")}
                 </Button>
               </div>
             </div>
 
             <div className={drawerBodyClass}>
               <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {copy.workspaceDialogs.deleteModDescription}
+                {t("workspaceDialogs.deleteModDescription")}
               </p>
               <div className="mt-4 space-y-3">
                 <p className="break-all rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-sm text-slate-600 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
@@ -1477,7 +1477,7 @@ function DeleteModDialog({ workspace }: { workspace: WorkspaceState }) {
                     {targetMod.type}
                   </Badge>
                   <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                    {copy.workspaceDialogs.version} {targetMod.version}
+                    {t("workspaceDialogs.version")} {targetMod.version}
                   </Badge>
                 </div>
               </div>
@@ -1490,7 +1490,7 @@ function DeleteModDialog({ workspace }: { workspace: WorkspaceState }) {
                   className={softOutlineButtonClass}
                   onClick={() => workspace.setDeleteTargetModId(null)}
                 >
-                  {copy.workspaceDialogs.cancel}
+                  {t("workspaceDialogs.cancel")}
                 </Button>
                 <Button
                   className="cursor-pointer rounded-xl bg-red-600 text-white shadow-sm hover:bg-red-700"
@@ -1499,8 +1499,8 @@ function DeleteModDialog({ workspace }: { workspace: WorkspaceState }) {
                 >
                   <Trash2 className="size-4" />
                   {workspace.deletingModId === targetMod.id
-                    ? copy.workspaceActions.deletingMod
-                    : copy.workspacePage.deleteCurrentMod}
+                    ? t("workspaceActions.deletingMod")
+                    : t("workspacePage.deleteCurrentMod")}
                 </Button>
               </div>
             </div>
@@ -1516,11 +1516,11 @@ function ConflictDecisionBadge({
 }: {
   decision: ReturnType<WorkspaceState["getConflictDecision"]>
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   if (!decision) {
     return (
       <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-        {copy.workspaceDialogs.pending}
+        {t("workspaceDialogs.pending")}
       </Badge>
     )
   }
@@ -1534,7 +1534,7 @@ function ConflictDecisionBadge({
           : "rounded-full bg-slate-100 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
       }
     >
-      {decision === "overwrite" ? copy.workspaceDialogs.willOverwrite : copy.workspaceDialogs.willSkip}
+      {decision === "overwrite" ? t("workspaceDialogs.willOverwrite") : t("workspaceDialogs.willSkip")}
     </Badge>
   )
 }
@@ -1614,19 +1614,19 @@ function FieldBlock({
 
 function getGameTypeLabel(
   gameType: WorkspaceState["addGameForm"]["type"] | WorkspaceState["editGameForm"]["type"],
-  copy: ReturnType<typeof useI18n>["copy"],
+  t: ReturnType<typeof useTranslation>["t"],
 ) {
   if (gameType === "iii") {
-    return copy.workspaceDialogs.gameTypeIii
+    return t("workspaceDialogs.gameTypeIii")
   }
   if (gameType === "vc") {
-    return copy.workspaceDialogs.gameTypeVc
+    return t("workspaceDialogs.gameTypeVc")
   }
   if (gameType === "sa") {
-    return copy.workspaceDialogs.gameTypeSa
+    return t("workspaceDialogs.gameTypeSa")
   }
 
-  return copy.workspaceDialogs.notDetected
+  return t("workspaceDialogs.notDetected")
 }
 
 function getMissingPrerequisiteWarnings(

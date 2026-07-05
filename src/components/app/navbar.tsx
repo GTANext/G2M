@@ -15,7 +15,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
-import { useI18n } from "@/components/app/i18nProvider";
+import { useTranslation } from "react-i18next";
 import { ModxAuthDialog } from "@/components/app/modxAuthDialog";
 import { useAppPreferences } from "@/components/app/preferencesProvider";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ function Navbar({ subtitle, title }: NavbarProps) {
   const [isMaximized, setIsMaximized] = useState(false);
   const location = useLocation();
   const { resolvedTheme, setTheme } = useTheme();
-  const { copy } = useI18n();
+  const { t } = useTranslation();
   const { titleBarStyle } = useAppPreferences();
 
   useEffect(() => {
@@ -67,11 +67,11 @@ function Navbar({ subtitle, title }: NavbarProps) {
     resolvedThemeMode === "dark"
       ? {
           icon: MoonStar,
-          title: copy.navbar.darkTitle,
+          title: t("navbar.darkTitle"),
         }
       : {
           icon: SunMedium,
-          title: copy.navbar.lightTitle,
+          title: t("navbar.lightTitle"),
         };
 
   const ThemeIcon = themeMeta.icon;
@@ -92,13 +92,13 @@ function Navbar({ subtitle, title }: NavbarProps) {
             <div className="flex items-center gap-2 pr-3">
               <WindowTrafficLight
                 tone="close"
-                title={copy.navbar.closeWindow}
+                title={t("navbar.closeWindow")}
                 onClick={() => void appWindow.close()}
                 icon={<X className="size-3" strokeWidth={2.4} />}
               />
               <WindowTrafficLight
                 tone="minimize"
-                title={copy.navbar.minimizeWindow}
+                title={t("navbar.minimizeWindow")}
                 onClick={() => void appWindow.minimize()}
                 icon={<Minimize2 className="size-3" strokeWidth={2.4} />}
               />
@@ -106,8 +106,8 @@ function Navbar({ subtitle, title }: NavbarProps) {
                 tone="maximize"
                 title={
                   isMaximized
-                    ? copy.navbar.restoreWindow
-                    : copy.navbar.maximizeWindow
+                    ? t("navbar.restoreWindow")
+                    : t("navbar.maximizeWindow")
                 }
                 onClick={() => void handleToggleMaximize()}
                 icon={
@@ -137,7 +137,7 @@ function Navbar({ subtitle, title }: NavbarProps) {
                     {title}
                   </p>
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {subtitle ?? copy.routes.workspaceSubtitle()}
+                    {subtitle ?? t("routes.workspaceSubtitle")}
                   </p>
                 </div>
               </div>
@@ -157,7 +157,7 @@ function Navbar({ subtitle, title }: NavbarProps) {
                   {title}
                 </p>
                 <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                  {subtitle ?? copy.routes.workspaceSubtitle()}
+                  {subtitle ?? t("routes.workspaceSubtitle")}
                 </p>
               </div>
             </div>
@@ -181,9 +181,9 @@ function Navbar({ subtitle, title }: NavbarProps) {
                   isMacStyle && "h-9 px-3",
                 )}
               >
-                <NavLink to="/" title={copy.navbar.openHome}>
+                <NavLink to="/" title={t("navbar.openHome")}>
                   <House className="size-4" />
-                  <span>{copy.navbar.home}</span>
+                  <span>{t("navbar.home")}</span>
                 </NavLink>
               </Button>
               <Button
@@ -197,9 +197,9 @@ function Navbar({ subtitle, title }: NavbarProps) {
                   isMacStyle && "h-9 px-3",
                 )}
               >
-                <NavLink to="/builder" title={copy.navbar.openBuilder}>
+                <NavLink to="/builder" title={t("navbar.openBuilder")}>
                   <FileCode2 className="size-4" />
-                  <span>{copy.navbar.builder}</span>
+                  <span>{t("navbar.builder")}</span>
                 </NavLink>
               </Button>
               <Button
@@ -213,9 +213,9 @@ function Navbar({ subtitle, title }: NavbarProps) {
                   isMacStyle && "h-9 px-3",
                 )}
               >
-                <NavLink to="/settings" title={copy.navbar.openSettings}>
+                <NavLink to="/settings" title={t("navbar.openSettings")}>
                   <Settings2 className="size-4" />
-                  <span>{copy.navbar.settings}</span>
+                  <span>{t("navbar.settings")}</span>
                 </NavLink>
               </Button>
             </div>
@@ -239,7 +239,7 @@ function Navbar({ subtitle, title }: NavbarProps) {
             {!isMacStyle && (
               <div className="ml-1 flex items-center gap-1">
                 <WindowActionButton
-                  title={copy.navbar.minimizeWindow}
+                  title={t("navbar.minimizeWindow")}
                   onClick={() => void appWindow.minimize()}
                 >
                   <Minimize2 className="size-4" />
@@ -247,8 +247,8 @@ function Navbar({ subtitle, title }: NavbarProps) {
                 <WindowActionButton
                   title={
                     isMaximized
-                      ? copy.navbar.restoreWindow
-                      : copy.navbar.maximizeWindow
+                      ? t("navbar.restoreWindow")
+                      : t("navbar.maximizeWindow")
                   }
                   onClick={() => void handleToggleMaximize()}
                 >
@@ -260,7 +260,7 @@ function Navbar({ subtitle, title }: NavbarProps) {
                 </WindowActionButton>
                 <WindowActionButton
                   tone="danger"
-                  title={copy.navbar.closeWindow}
+                  title={t("navbar.closeWindow")}
                   onClick={() => void appWindow.close()}
                 >
                   <X className="size-4" />

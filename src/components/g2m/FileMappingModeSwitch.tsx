@@ -5,16 +5,31 @@ import type { BuilderMappingMode } from "@/components/app/preferencesProvider"
 import { cn } from "@/lib/utils"
 
 type FileMappingModeSwitchProps = {
-  copy: AppCopy
+  copy?: AppCopy
+  t?: (key: string) => string
   mode: BuilderMappingMode
   onChange: (value: BuilderMappingMode) => void
 }
 
 function FileMappingModeSwitch({
   copy,
+  t,
   mode,
   onChange,
 }: FileMappingModeSwitchProps) {
+  const getLabel = (key: string) => {
+    if (t) {
+      return t(key)
+    }
+    // 兼容旧的 copy prop
+    const parts = key.split('.')
+    let result: any = copy
+    for (const part of parts) {
+      result = result?.[part]
+    }
+    return result || ''
+  }
+  
   const options: Array<{
     icon: typeof List
     label: string
@@ -22,17 +37,17 @@ function FileMappingModeSwitch({
   }> = [
     {
       icon: List,
-      label: copy.builderPage.builderModeList,
+      label: getLabel("builderPage.builderModeList"),
       value: "list",
     },
     {
       icon: Workflow,
-      label: copy.builderPage.builderModeTree,
+      label: getLabel("builderPage.builderModeTree"),
       value: "tree",
     },
     {
       icon: MousePointer2,
-      label: copy.builderPage.builderModeExplorer,
+      label: getLabel("builderPage.builderModeExplorer"),
       value: "explorer",
     },
   ]

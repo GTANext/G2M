@@ -1,8 +1,10 @@
 import { AlertTriangle, Boxes, CheckCircle2, ChevronRight, FolderOpen, HardDriveDownload, Layers3, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { toast } from "sonner"
 
-import { useI18n } from "@/components/app/i18nProvider"
+import { useTranslation } from "react-i18next"
+import { useModxAuth } from "@/components/app/modxAuthProvider"
 import { G2MPanel, G2MPill, G2MSubtlePanel } from "@/components/g2m/surface"
 import { G2MWorkspaceBreadcrumb, G2MWorkspaceHero } from "@/components/g2m/workspaceHeader"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -13,12 +15,20 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import type { UseG2mWorkspaceResult } from "@/hooks/useG2MWorkspace"
+import { formatApiErrorMessage } from "@/lib/api"
 import { formatGameTimestamp, resolveGameImageSrc, type GamePrerequisite, type ManagedMod, type ModType } from "@/lib/g2m"
+import { fetchModxModBySlug, type ModxRemoteModPayload } from "@/lib/modxAuth"
 import { cn } from "@/lib/utils"
 
 type WorkspaceState = UseG2mWorkspaceResult
 type MissingLoadedModPrerequisite = GamePrerequisite & {
   requiredBy: string[]
+}
+
+type ModUpdateCheckState = {
+  status: "idle" | "checking" | "success"
+  remoteVersion: string | null
+  hasUpdate: boolean | null
 }
 
 const softOutlineButtonClass =
@@ -54,7 +64,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false)
   const [isPrerequisiteDrawerOpen, setIsPrerequisiteDrawerOpen] = useState(false)
   const [localSelectedPrerequisiteKeys, setLocalSelectedPrerequisiteKeys] = useState<string[]>([])
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   useEffect(() => {
     if (!gameId) {
@@ -154,12 +164,12 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
             <div className="p-5 lg:p-6">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <p className="text-sm font-medium text-violet-600 dark:text-violet-300">{copy.workspacePage.mods}</p>
+                  <p className="text-sm font-medium text-violet-600 dark:text-violet-300">{t("workspacePage.mods")}</p>
                   <h2 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {copy.workspacePage.currentLoadedMods}
+                    {t("workspacePage.currentLoadedMods")}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {copy.workspacePage.selectedModDescription}
+                    {t("workspacePage.selectedModDescription")}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -169,7 +179,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                     disabled={workspace.isImportingMod || workspace.isPreviewingMod}
                   >
                     <HardDriveDownload className="size-4" />
-                    {copy.workspacePage.importMod}
+                    {t("workspacePage.importMod")}
                   </Button>
                   <Button
                     variant="outline"
@@ -177,7 +187,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                     onClick={() => void workspace.refreshWorkspace()}
                   >
                     <RefreshCw className="size-4" />
-                    {copy.workspacePage.refresh}
+                    {t("workspacePage.refresh")}
                   </Button>
                   <Button
                     variant="outline"
@@ -186,33 +196,33 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                     disabled={!workspace.selectedMod}
                   >
                     <Layers3 className="size-4" />
-                    {copy.workspacePage.currentFocus}
+                    {t("workspacePage.currentFocus")}
                   </Button>
                 </div>
               </div>
 
               <div className="mt-5 grid gap-3 lg:grid-cols-4">
                 <WorkbenchStatCard
-                  label={copy.workspacePage.totalMods}
+                  label={t("workspacePage.totalMods")}
                   value={String(workspace.stats.total)}
-                  caption={copy.workspacePage.disabledCount(workspace.stats.disabled)}
+                  caption={t("workspacePage.disabledCount", { count: workspace.stats.disabled })}
                 />
                 <WorkbenchStatCard
-                  label={copy.workspacePage.enabled}
+                  label={t("workspacePage.enabled")}
                   value={String(workspace.stats.enabled)}
-                  caption={copy.workspacePage.enabledMods}
+                  caption={t("workspacePage.enabledMods")}
                   tone="success"
                 />
                 <WorkbenchStatCard
-                  label={copy.workspacePage.conflictFiles}
+                  label={t("workspacePage.conflictFiles")}
                   value={String(workspace.stats.conflicts)}
-                  caption={hasConflicts ? copy.workspacePage.conflictWarning : copy.workspacePage.conflictFree}
+                  caption={hasConflicts ? t("workspacePage.conflictWarning") : t("workspacePage.conflictFree")}
                   tone={hasConflicts ? "warning" : "success"}
                 />
                 <WorkbenchStatCard
-                  label={copy.workspacePage.fileScale}
+                  label={t("workspacePage.fileScale")}
                   value={String(workspace.stats.files)}
-                  caption={copy.workspacePage.filesDetected}
+                  caption={t("workspacePage.filesDetected")}
                 />
               </div>
 
@@ -223,23 +233,23 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                     value={workspace.modSearchQuery}
                     onChange={(event) => workspace.setModSearchQuery(event.currentTarget.value)}
                     className="h-12 rounded-2xl border-border/70 bg-background/75 pl-10 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
-                    placeholder={copy.workspacePage.searchPlaceholder}
+                    placeholder={t("workspacePage.searchPlaceholder")}
                   />
                 </div>
                 <G2MSubtlePanel>
                   <div className="flex h-full items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
                     <G2MPill className="bg-muted px-3 py-1 dark:bg-white/10">
-                      {workspace.bootstrapping ? copy.common.current : copy.workspacePage.allTypes}
+                      {workspace.bootstrapping ? t("common.current") : t("workspacePage.allTypes")}
                     </G2MPill>
                     <G2MPill className="bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                      {copy.workspacePage.usingDatabase}
+                      {t("workspacePage.usingDatabase")}
                     </G2MPill>
                   </div>
                 </G2MSubtlePanel>
                 <G2MSubtlePanel>
                   <div className="flex h-full items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
                     <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
-                    {copy.workspacePage.softLinkMode}
+                    {t("workspacePage.softLinkMode")}
                   </div>
                 </G2MSubtlePanel>
               </div>
@@ -252,12 +262,12 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                 <div className="flex gap-3">
                   <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-300" />
                   <div>
-                    <AlertTitle>{copy.workspacePage.conflictTitle}</AlertTitle>
+                    <AlertTitle>{t("workspacePage.conflictTitle")}</AlertTitle>
                     <AlertDescription>
-                      {copy.workspacePage.conflictWarningDescription(
-                        workspace.selectedMod.name,
-                        workspace.selectedMod.conflictFiles.length,
-                      )}
+                      {t("workspacePage.conflictWarningDescription", { 
+                        modName: workspace.selectedMod.name, 
+                        conflictCount: workspace.selectedMod.conflictFiles.length 
+                      })}
                     </AlertDescription>
                   </div>
                 </div>
@@ -266,7 +276,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                   className="cursor-pointer rounded-xl border-amber-300 bg-white/90 text-amber-900 backdrop-blur hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/15"
                   onClick={workspace.openConflictDialog}
                 >
-                  {copy.workspacePage.resolveConflict}
+                  {t("workspacePage.resolveConflict")}
                 </Button>
               </div>
             </Alert>
@@ -301,11 +311,11 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                 <div className="flex gap-3">
                   <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-600 dark:text-rose-300" />
                   <div>
-                    <AlertTitle>{copy.workspacePage.missingPrerequisitesAlertTitle}</AlertTitle>
+                    <AlertTitle>{t("workspacePage.missingPrerequisitesAlertTitle")}</AlertTitle>
                     <AlertDescription>
-                      {copy.workspacePage.missingPrerequisitesAlertDescription(
-                        missingPrerequisiteSummary,
-                      )}
+                      {t("workspacePage.missingPrerequisitesAlertDescription", {
+                        prerequisites: missingPrerequisiteSummary,
+                      })}
                     </AlertDescription>
                   </div>
                 </div>
@@ -314,7 +324,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                   className="cursor-pointer rounded-xl border-rose-300 bg-white/90 text-rose-900 backdrop-blur hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100 dark:hover:bg-rose-500/15"
                   onClick={() => setIsPrerequisiteDrawerOpen(true)}
                 >
-                  {copy.workspacePage.openMissingPrerequisitesDrawer}
+                  {t("workspacePage.openMissingPrerequisitesDrawer")}
                 </Button>
               </div>
             </Alert>
@@ -324,19 +334,19 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
             <div className="p-5 lg:p-6">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{copy.workspacePage.modList}</p>
-                  <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">{copy.workspacePage.currentLoadedMods}</h3>
+                  <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{t("workspacePage.modList")}</p>
+                  <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">{t("workspacePage.currentLoadedMods")}</h3>
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    {copy.workspacePage.detailHint}
+                    {t("workspacePage.detailHint")}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <G2MPill className="bg-muted px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                    {copy.workspacePage.disabledCount(workspace.stats.disabled)}
+                    {t("workspacePage.disabledCount", { count: workspace.stats.disabled })}
                   </G2MPill>
                   {workspace.selectedMod && (
                     <G2MPill className="bg-background/80 px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                      {copy.workspacePage.currentFocusLabel(workspace.selectedMod.name)}
+                      {t("workspacePage.currentFocusLabel", { modName: workspace.selectedMod.name })}
                     </G2MPill>
                   )}
                 </div>
@@ -389,7 +399,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
 
 function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
   const activeGame = workspace.activeGame
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   if (!activeGame) {
     return null
   }
@@ -400,14 +410,14 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
       <G2MPanel>
         <div className="p-5 lg:p-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.workspacePage.gameInfo}</h3>
+            <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{t("workspacePage.gameInfo")}</h3>
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-8 rounded-full hover:bg-muted dark:hover:bg-white/10"
                 onClick={() => workspace.openEditGameDialog(activeGame.id)}
-                title={copy.workspacePage.editGameProfile}
+                title={t("workspacePage.editGameProfile")}
               >
                 <Pencil className="size-4" />
               </Button>
@@ -416,7 +426,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
                 size="icon"
                 className="size-8 rounded-full hover:bg-muted dark:hover:bg-white/10"
                 onClick={() => void workspace.openGameDirectory()}
-                title={copy.workspacePage.openGameDirectory}
+                title={t("workspacePage.openGameDirectory")}
               >
                 <FolderOpen className="size-4" />
               </Button>
@@ -424,17 +434,17 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <DetailCardLight label={copy.workspace.currentGame} value={activeGame.shortName} />
+            <DetailCardLight label={t("workspace.currentGame")} value={activeGame.shortName} />
             <DetailCardLight label="EXE" value={activeGame.exeName} />
           </div>
 
           <div className="mt-3 space-y-2">
             <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-sm dark:bg-white/[0.02]">
-              <span className="text-slate-500 dark:text-slate-400">{copy.workspacePage.addedAt}</span>
+              <span className="text-slate-500 dark:text-slate-400">{t("workspacePage.addedAt")}</span>
               <span className="font-medium text-slate-900 dark:text-slate-100">{formatGameTimestamp(activeGame.createdAt)}</span>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-sm dark:bg-white/[0.02]">
-              <span className="text-slate-500 dark:text-slate-400">{copy.workspacePage.updatedAt}</span>
+              <span className="text-slate-500 dark:text-slate-400">{t("workspacePage.updatedAt")}</span>
               <span className="font-medium text-slate-900 dark:text-slate-100">{formatGameTimestamp(activeGame.updatedAt)}</span>
             </div>
           </div>
@@ -446,7 +456,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
               onClick={() => void workspace.refreshWorkspace()}
             >
               <RefreshCw className="size-4" />
-              {copy.workspacePage.refreshWorkspace}
+              {t("workspacePage.refreshWorkspace")}
             </Button>
             <Button
               variant="outline"
@@ -454,7 +464,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
               onClick={() => workspace.openDeleteGameDialog(activeGame.id)}
             >
               <Trash2 className="size-4" />
-              {copy.workspacePage.deleteCurrentGame}
+              {t("workspacePage.deleteCurrentGame")}
             </Button>
           </div>
         </div>
@@ -465,7 +475,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
         <div className="p-5 lg:p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.workspacePage.prerequisitesTitle}</h3>
+              <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{t("workspacePage.prerequisitesTitle")}</h3>
               <G2MPill className="bg-background/80 px-2 py-0.5 text-xs text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
                 {activeGame.prerequisites.length}
               </G2MPill>
@@ -513,11 +523,11 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
                     disabled={workspace.installingPrerequisiteKey === item.key}
                     onClick={() => void workspace.installGamePrerequisite(item.key)}
                   >
-                    {copy.workspacePage.installPrerequisite}
+                    {t("workspacePage.installPrerequisite")}
                   </Button>
                 ) : !item.detected ? (
                   <Badge variant="outline" className="shrink-0 border-slate-200 bg-slate-50 text-[10px] text-slate-500 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400">
-                    {copy.workspacePage.prerequisiteMissing}
+                    {t("workspacePage.prerequisiteMissing")}
                   </Badge>
                 ) : null}
               </div>
@@ -530,7 +540,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
       <G2MPanel>
         <div className="p-5 lg:p-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{copy.home.configuredTitle}</h3>
+            <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">{t("home.configuredTitle")}</h3>
             <G2MPill className="bg-background/80 px-2 py-0.5 text-xs text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
               {workspace.games.length}
             </G2MPill>
@@ -548,7 +558,7 @@ function WorkspaceSidebar({ workspace }: { workspace: WorkspaceState }) {
             onClick={workspace.startAddGame}
           >
             <Plus className="size-4" />
-            {copy.home.addGame}
+            {t("home.addGame")}
           </Button>
         </div>
       </G2MPanel>
@@ -566,10 +576,71 @@ function SelectedModSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const selectedMod = workspace.selectedMod
-  const { copy } = useI18n()
+  const { t } = useTranslation()
+  const { authState } = useModxAuth()
+  const [updateCheckState, setUpdateCheckState] = useState<ModUpdateCheckState>({
+    status: "idle",
+    remoteVersion: null,
+    hasUpdate: null,
+  })
+
+  useEffect(() => {
+    setUpdateCheckState({
+      status: "idle",
+      remoteVersion: null,
+      hasUpdate: null,
+    })
+  }, [selectedMod?.id])
 
   if (!selectedMod || !open) {
     return null
+  }
+
+  const activeMod = selectedMod
+  const modxLink = resolveWorkspaceModxLink(activeMod)
+  const canCheckModUpdate = Boolean(activeMod.modxSlug.trim() && activeMod.rawVersion.trim())
+
+  async function handleCheckModUpdate() {
+    if (!activeMod.modxSlug.trim()) {
+      return
+    }
+
+    setUpdateCheckState({
+      status: "checking",
+      remoteVersion: null,
+      hasUpdate: null,
+    })
+
+    try {
+      const remoteMod = await fetchModxModBySlug(activeMod.modxSlug, authState?.loginId)
+      const remoteVersion = resolveRemoteModVersion(remoteMod)
+      if (!remoteVersion) {
+        throw new Error(t("workspacePage.updateVersionMissing"))
+      }
+
+      const hasUpdate = normalizeVersionValue(activeMod.rawVersion) !== normalizeVersionValue(remoteVersion)
+      setUpdateCheckState({
+        status: "success",
+        remoteVersion,
+        hasUpdate,
+      })
+
+      toast.success(
+        hasUpdate ? t("workspacePage.updateAvailable") : t("workspacePage.updateAlreadyLatest"),
+        {
+          description: `${t("workspacePage.localVersion")}: ${activeMod.rawVersion} · ${t("workspacePage.remoteVersion")}: ${remoteVersion}`,
+        },
+      )
+    } catch (error) {
+      setUpdateCheckState({
+        status: "idle",
+        remoteVersion: null,
+        hasUpdate: null,
+      })
+      toast.error(t("workspacePage.updateCheckFailed"), {
+        description: formatApiErrorMessage(error),
+      })
+    }
   }
 
   return (
@@ -585,13 +656,13 @@ function SelectedModSheet({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200">
-                    {copy.workspacePage.focusBadge}
+                    {t("workspacePage.focusBadge")}
                   </Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {selectedMod.name}
+                    {activeMod.name}
                   </h2>
                   <p className="mt-2 leading-6 text-slate-600 dark:text-slate-300">
-                    {copy.workspacePage.previewDrawerDescription}
+                    {t("workspacePage.previewDrawerDescription")}
                   </p>
                 </div>
                 <Button
@@ -599,7 +670,7 @@ function SelectedModSheet({
                   className={softOutlineButtonClass}
                   onClick={() => onOpenChange(false)}
                 >
-                  {copy.workspacePage.close}
+                  {t("workspacePage.close")}
                 </Button>
               </div>
             </div>
@@ -610,80 +681,137 @@ function SelectedModSheet({
                   <div>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                        {selectedMod.type}
+                        {activeMod.type}
                       </Badge>
                       <Badge variant="outline" className="rounded-full bg-background/80 px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                        {copy.workspaceDialogs.version} {selectedMod.version}
+                        {t("workspaceDialogs.version")} {activeMod.version}
                       </Badge>
                       <Badge
                         variant="secondary"
                         className={cn(
                           "rounded-full px-3 py-1",
-                          selectedMod.enabled
+                          activeMod.enabled
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
                             : "bg-muted text-slate-600 dark:bg-white/10 dark:text-slate-300",
                         )}
                       >
-                        {selectedMod.enabled ? copy.workspacePage.enabledState : copy.workspacePage.disabled}
+                        {activeMod.enabled ? t("workspacePage.enabledState") : t("workspacePage.disabled")}
                       </Badge>
                       <Badge
                         variant="secondary"
                         className={cn(
                           "rounded-full px-3 py-1",
-                          selectedMod.conflicts > 0
+                          activeMod.conflicts > 0
                             ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200"
                             : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200",
                         )}
                       >
-                        {selectedMod.conflicts > 0
-                          ? copy.workspace.conflictCaption(selectedMod.conflicts)
-                          : copy.workspacePage.statusStable}
+                        {activeMod.conflicts > 0
+                          ? t("workspace.conflictCaption", { count: activeMod.conflicts })
+                          : t("workspacePage.statusStable")}
                       </Badge>
                     </div>
-                    <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">{selectedMod.description}</p>
+                    <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">{activeMod.description}</p>
                   </div>
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <ModEnabledStateButtons
-                    modId={selectedMod.id}
-                    enabled={selectedMod.enabled}
+                    modId={activeMod.id}
+                    enabled={activeMod.enabled}
                     workspace={workspace}
                   />
                   <Button
                     variant="outline"
                     className={softOutlineButtonClass}
-                    onClick={() => workspace.openDeleteModDialog(selectedMod.id)}
+                    onClick={() => workspace.openDeleteModDialog(activeMod.id)}
                   >
                     <Trash2 className="size-4" />
-                    {copy.workspacePage.deleteCurrentMod}
+                    {t("workspacePage.deleteCurrentMod")}
                   </Button>
-                  {selectedMod.conflictFiles.length > 0 && (
+                  {activeMod.conflictFiles.length > 0 && (
                     <Button
                       variant="outline"
                       className={softOutlineButtonClass}
                       onClick={workspace.openConflictDialog}
                     >
                       <AlertTriangle className="size-4" />
-                      {copy.workspacePage.conflictView}
+                      {t("workspacePage.conflictView")}
                     </Button>
                   )}
                 </div>
               </div>
 
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <DetailCardLight label={copy.workspaceDialogs.version} value={selectedMod.version} />
-                <DetailCardLight label={copy.workspacePage.author} value={selectedMod.author} />
-                <DetailCardLight label={copy.workspacePage.size} value={selectedMod.size} />
-                <DetailCardLight label={copy.workspacePage.fileCount} value={String(selectedMod.fileCount)} />
-                <DetailCardLight label={copy.workspacePage.importedAt} value={selectedMod.installedAt} />
+                <DetailCardLight label={t("workspaceDialogs.version")} value={activeMod.version} />
+                <DetailCardLight label={t("workspacePage.author")} value={activeMod.author} />
+                <DetailCardLight label={t("workspacePage.size")} value={activeMod.size} />
+                <DetailCardLight label={t("workspacePage.fileCount")} value={String(activeMod.fileCount)} />
+                <DetailCardLight label={t("workspacePage.importedAt")} value={activeMod.installedAt} />
               </div>
 
+              {activeMod.modxSlug.trim() && (
+                <div className="mt-6 rounded-[24px] border border-border/70 bg-background/75 p-5 backdrop-blur dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {t("workspacePage.updateCheckTitle")}
+                      </p>
+                      <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                        {canCheckModUpdate
+                          ? t("workspacePage.updateCheckDescription")
+                          : t("workspacePage.updateCheckVersionMissing")}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {modxLink ?? activeMod.modxSlug}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className={softOutlineButtonClass}
+                      onClick={() => void handleCheckModUpdate()}
+                      disabled={!canCheckModUpdate || updateCheckState.status === "checking"}
+                    >
+                      <RefreshCw
+                        className={cn(
+                          "size-4",
+                          updateCheckState.status === "checking" && "animate-spin",
+                        )}
+                      />
+                      {updateCheckState.status === "checking"
+                        ? t("workspacePage.checkingModUpdate")
+                        : t("workspacePage.checkModUpdate")}
+                    </Button>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <DetailCardLight
+                      label={t("workspacePage.localVersion")}
+                      value={activeMod.version}
+                    />
+                    <DetailCardLight
+                      label={t("workspacePage.remoteVersion")}
+                      value={updateCheckState.remoteVersion ?? t("workspacePage.notCheckedYet")}
+                    />
+                    <DetailCardLight
+                      label={t("workspacePage.updateStatus")}
+                      value={
+                        updateCheckState.status !== "success"
+                          ? t("workspacePage.notCheckedYet")
+                          : updateCheckState.hasUpdate
+                            ? t("workspacePage.updateAvailable")
+                            : t("workspacePage.updateAlreadyLatest")
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="mt-6">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{copy.workspacePage.targetFolders}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("workspacePage.targetFolders")}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {selectedMod.targetFolders.map((folder) => (
-                    <Badge key={`${selectedMod.id}-${folder}`} variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                  {activeMod.targetFolders.map((folder) => (
+                    <Badge key={`${activeMod.id}-${folder}`} variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
                       {folder}
                     </Badge>
                   ))}
@@ -691,11 +819,11 @@ function SelectedModSheet({
               </div>
 
               <div className="mt-6">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{copy.workspacePage.filePreview}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("workspacePage.filePreview")}</p>
                 <div className="mt-3 space-y-2">
-                  {selectedMod.previewFiles.map((file) => (
+                  {activeMod.previewFiles.map((file) => (
                     <div
-                      key={`${selectedMod.id}-${file}`}
+                      key={`${activeMod.id}-${file}`}
                       className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
                     >
                       {file}
@@ -704,13 +832,13 @@ function SelectedModSheet({
                 </div>
               </div>
 
-              {selectedMod.conflictFiles.length > 0 && (
+              {activeMod.conflictFiles.length > 0 && (
                 <div className="mt-6">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{copy.workspacePage.conflictSummary}</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("workspacePage.conflictSummary")}</p>
                   <div className="mt-3 space-y-2">
-                    {selectedMod.conflictFiles.slice(0, 4).map((conflict) => (
+                    {activeMod.conflictFiles.slice(0, 4).map((conflict) => (
                       <div
-                        key={`${selectedMod.id}-${conflict.id}-sheet`}
+                        key={`${activeMod.id}-${conflict.id}-sheet`}
                         className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10"
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -734,7 +862,7 @@ function SelectedModSheet({
                   className={softOutlineButtonClass}
                   onClick={() => onOpenChange(false)}
                 >
-                  {copy.workspacePage.close}
+                  {t("workspacePage.close")}
                 </Button>
               </div>
             </div>
@@ -762,7 +890,7 @@ function MissingPrerequisiteInstallDrawer({
   onToggleKey: (key: string, checked: boolean) => void
   onInstallSelected: () => void
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const hasInstallableItems = items.some((item) => item.canInstall)
   const selectedInstallableCount = items.filter(
     (item) => item.canInstall && selectedKeys.includes(item.key),
@@ -773,10 +901,10 @@ function MissingPrerequisiteInstallDrawer({
       <DrawerContent className="mx-auto w-full max-w-3xl rounded-t-[28px] border-border/60 bg-background/96 px-0 pb-0 shadow-[0_30px_120px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#10131a]/96 dark:shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
         <DrawerHeader className="px-6 pb-4 pt-5 text-left lg:px-7">
           <DrawerTitle className="text-xl font-semibold text-slate-950 dark:text-slate-50">
-            {copy.workspacePage.prerequisitesTitle}
+            {t("workspacePage.prerequisitesTitle")}
           </DrawerTitle>
           <DrawerDescription className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-            {copy.workspacePage.missingPrerequisiteDrawerDescription}
+            {t("workspacePage.missingPrerequisiteDrawerDescription")}
           </DrawerDescription>
         </DrawerHeader>
 
@@ -814,17 +942,19 @@ function MissingPrerequisiteInstallDrawer({
                       }
                     >
                       {item.canInstall
-                        ? copy.workspacePage.installPrerequisite
-                        : copy.workspacePage.prerequisiteBuiltinMissing}
+                        ? t("workspacePage.installPrerequisite")
+                        : t("workspacePage.prerequisiteBuiltinMissing")}
                     </Badge>
                   </div>
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    {copy.workspacePage.prerequisiteRequiredBy(item.requiredBy.join("、"))}
+                    {t("workspacePage.prerequisiteRequiredBy", {
+                      items: item.requiredBy.join("、"),
+                    })}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {item.scanScope === "scriptsPlugins"
-                      ? copy.workspacePage.prerequisiteScriptsPlugins
-                      : copy.workspacePage.prerequisiteRoot}
+                      ? t("workspacePage.prerequisiteScriptsPlugins")
+                      : t("workspacePage.prerequisiteRoot")}
                   </p>
                 </div>
               </label>
@@ -836,13 +966,13 @@ function MissingPrerequisiteInstallDrawer({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {hasInstallableItems
-                ? copy.workspacePage.missingPrerequisitesAlertDescription(
-                    items
+                ? t("workspacePage.missingPrerequisitesAlertDescription", {
+                    prerequisites: items
                       .filter((item) => item.canInstall && selectedKeys.includes(item.key))
                       .map((item) => item.label)
                       .join("、"),
-                  )
-                : copy.workspacePage.prerequisiteBuiltinMissing}
+                  })
+                : t("workspacePage.prerequisiteBuiltinMissing")}
             </p>
             <div className="flex flex-wrap justify-end gap-3">
               <Button
@@ -850,14 +980,14 @@ function MissingPrerequisiteInstallDrawer({
                 className={softOutlineButtonClass}
                 onClick={() => onOpenChange(false)}
               >
-                {copy.workspacePage.close}
+                {t("workspacePage.close")}
               </Button>
               <Button
                 className="cursor-pointer rounded-xl px-4"
                 disabled={!hasInstallableItems || selectedInstallableCount === 0 || installing}
                 onClick={onInstallSelected}
               >
-                {copy.workspacePage.installSelectedPrerequisites}
+                {t("workspacePage.installSelectedPrerequisites")}
               </Button>
             </div>
           </div>
@@ -868,7 +998,7 @@ function MissingPrerequisiteInstallDrawer({
 }
 
 function EmptyModsState({ workspace }: { workspace: WorkspaceState }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <Card className="rounded-[28px] border-dashed bg-background/70 dark:bg-white/[0.03]">
@@ -877,13 +1007,13 @@ function EmptyModsState({ workspace }: { workspace: WorkspaceState }) {
           <Boxes className="size-8" />
         </div>
         <h4 className="mt-5 text-xl font-semibold text-slate-950 dark:text-slate-50">
-          {copy.workspacePage.noModsTitle}
+          {t("workspacePage.noModsTitle")}
         </h4>
         <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
-          {copy.workspacePage.noModsDescription}
+          {t("workspacePage.noModsDescription")}
         </p>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          {copy.workspacePage.noModsHint}
+          {t("workspacePage.noModsHint")}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button
@@ -892,7 +1022,7 @@ function EmptyModsState({ workspace }: { workspace: WorkspaceState }) {
             disabled={workspace.isImportingMod || workspace.isPreviewingMod}
           >
             <HardDriveDownload className="size-4" />
-            {copy.workspacePage.importMod}
+            {t("workspacePage.importMod")}
           </Button>
           <Button
             variant="outline"
@@ -900,7 +1030,7 @@ function EmptyModsState({ workspace }: { workspace: WorkspaceState }) {
             onClick={() => void workspace.openGameDirectory()}
           >
             <FolderOpen className="size-4" />
-            {copy.workspacePage.openGameDirectory}
+            {t("workspacePage.openGameDirectory")}
           </Button>
           <Button
             variant="outline"
@@ -908,7 +1038,7 @@ function EmptyModsState({ workspace }: { workspace: WorkspaceState }) {
             onClick={() => void workspace.refreshWorkspace()}
           >
             <RefreshCw className="size-4" />
-            {copy.workspacePage.refreshWorkspace}
+            {t("workspacePage.refreshWorkspace")}
           </Button>
         </div>
       </CardContent>
@@ -954,7 +1084,7 @@ function GameSwitchRow({
 }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const isCurrent = location.pathname === `/game/${game.id}`
 
   return (
@@ -988,7 +1118,7 @@ function GameSwitchRow({
           isCurrent ? "rounded-full bg-white/10 px-2 py-0.5 text-white dark:bg-white/10" : "rounded-full bg-background/80 px-2 py-0.5"
         )}
       >
-        {game.status === "ready" ? copy.workspacePage.gameStatusReady : copy.workspacePage.gameStatusPending}
+        {game.status === "ready" ? t("workspacePage.gameStatusReady") : t("workspacePage.gameStatusPending")}
       </Badge>
     </button>
   )
@@ -1003,7 +1133,7 @@ function ModListCard({
   workspace: WorkspaceState
   onOpenDetails: () => void
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <Card className="w-full rounded-[24px] bg-background/90 text-left shadow-[0_16px_40px_rgba(15,23,42,0.05)] ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:ring-black/10 hover:shadow-[0_24px_50px_rgba(15,23,42,0.08)] dark:bg-white/5 dark:shadow-[0_18px_40px_rgba(0,0,0,0.22)] dark:ring-white/10 dark:hover:ring-white/20 dark:hover:shadow-[0_22px_44px_rgba(0,0,0,0.28)]">
@@ -1034,7 +1164,7 @@ function ModListCard({
                 </div>
                 {mod.conflicts > 0 && (
                   <Badge variant="secondary" className="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">
-                    {copy.workspace.conflictCaption(mod.conflicts)}
+                    {t("workspace.conflictCaption", { count: mod.conflicts })}
                   </Badge>
                 )}
               </div>
@@ -1044,9 +1174,9 @@ function ModListCard({
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <span>{copy.workspacePage.fileCount} {mod.fileCount}</span>
-                <span>{copy.workspacePage.size} {mod.size}</span>
-                <span>{copy.workspacePage.importedAt} {mod.installedAt}</span>
+                <span>{t("workspacePage.fileCount")} {mod.fileCount}</span>
+                <span>{t("workspacePage.size")} {mod.size}</span>
+                <span>{t("workspacePage.importedAt")} {mod.installedAt}</span>
               </div>
             </div>
           </div>
@@ -1057,10 +1187,10 @@ function ModListCard({
                 {mod.type}
               </Badge>
               <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                {copy.workspaceDialogs.version} {mod.version}
+                {t("workspaceDialogs.version")} {mod.version}
               </Badge>
               <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                {copy.workspacePage.author} {mod.author}
+                {t("workspacePage.author")} {mod.author}
               </Badge>
             </div>
 
@@ -1092,7 +1222,7 @@ function ModListCard({
                 }}
               >
                 <Trash2 className="size-4" />
-                {copy.workspacePage.deleteCurrentMod}
+                {t("workspacePage.deleteCurrentMod")}
               </Button>
               <Button
                 variant="outline"
@@ -1103,7 +1233,7 @@ function ModListCard({
                   onOpenDetails()
                 }}
               >
-                {copy.workspacePage.viewDetails}
+                {t("workspacePage.viewDetails")}
               </Button>
             </div>
           </div>
@@ -1114,7 +1244,7 @@ function ModListCard({
 }
 
 function SearchEmptyState() {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <Card className="rounded-[28px] border-dashed bg-background/70 dark:bg-white/[0.03]">
@@ -1123,10 +1253,10 @@ function SearchEmptyState() {
           <Search className="size-8" />
         </div>
         <h4 className="mt-5 text-xl font-semibold text-slate-950 dark:text-slate-50">
-          {copy.workspacePage.noSearchResultsTitle}
+          {t("workspacePage.noSearchResultsTitle")}
         </h4>
         <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
-          {copy.workspacePage.noSearchResultsDescription}
+          {t("workspacePage.noSearchResultsDescription")}
         </p>
       </CardContent>
     </Card>
@@ -1144,7 +1274,7 @@ function ModEnabledStateButtons({
   workspace: WorkspaceState
   onClickCapture?: (event: React.MouseEvent<HTMLDivElement>) => void
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const isPending = workspace.togglingModId === modId
 
   function handleSetEnabled(nextEnabled: boolean) {
@@ -1173,7 +1303,7 @@ function ModEnabledStateButtons({
         onClick={() => handleSetEnabled(true)}
       >
         <CheckCircle2 className="size-4" />
-        {copy.workspacePage.enabled}
+        {t("workspacePage.enabled")}
       </Button>
       <Button
         type="button"
@@ -1188,7 +1318,7 @@ function ModEnabledStateButtons({
         disabled={isPending || !enabled}
         onClick={() => handleSetEnabled(false)}
       >
-        {copy.workspacePage.disabled}
+        {t("workspacePage.disabled")}
       </Button>
     </div>
   )
@@ -1243,6 +1373,43 @@ function getMissingLoadedModPrerequisites(
   }
 
   return Array.from(missingPrerequisites.values())
+}
+
+function resolveWorkspaceModxLink(mod: ManagedMod): string | null {
+  return (
+    mod.links.find((link) => {
+      const kind = link.kind?.trim().toLowerCase()
+      return kind === "gtamodx" || link.url.includes("/mods/")
+    })?.url ?? null
+  )
+}
+
+function resolveRemoteModVersion(mod: ModxRemoteModPayload | null): string {
+  if (!mod || typeof mod !== "object") {
+    return ""
+  }
+
+  const candidateKeys = ["version", "latestVersion", "buildVersion", "currentVersion"]
+  for (const key of candidateKeys) {
+    const value = mod[key]
+    if (typeof value === "string" && value.trim()) {
+      return value.trim()
+    }
+  }
+
+  const nestedBuild = mod.build
+  if (nestedBuild && typeof nestedBuild === "object") {
+    const version = (nestedBuild as Record<string, unknown>).version
+    if (typeof version === "string" && version.trim()) {
+      return version.trim()
+    }
+  }
+
+  return ""
+}
+
+function normalizeVersionValue(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : ""
 }
 
 function getRequiredPrerequisiteKeysByModType(modType: ModType): string[] {

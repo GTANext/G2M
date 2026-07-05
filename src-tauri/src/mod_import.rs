@@ -267,9 +267,9 @@ pub(crate) fn import_mod_into_database(
         .execute(
             "
             INSERT INTO mods (
-                id, game_id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled
+                id, game_id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, ?8, ?9, 1)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, ?8, ?9, 1, ?10, ?11)
             ",
             params![
                 mod_id,
@@ -280,7 +280,19 @@ pub(crate) fn import_mod_into_database(
                 import_summary.author,
                 build_game_scoped_storage_path(game_path, Path::new(&import_summary.source_dir)),
                 installed_at,
-                import_summary.size_bytes
+                import_summary.size_bytes,
+                serialize_manifest_links(
+                    import_summary
+                        .existing_manifest
+                        .as_ref()
+                        .map(|manifest| manifest.links.as_slice())
+                        .unwrap_or(&[]),
+                ),
+                import_summary
+                    .existing_manifest
+                    .as_ref()
+                    .map(|manifest| resolve_modx_slug_from_links(&manifest.links))
+                    .unwrap_or_default()
             ],
         )
         .map_err(|error| format!("failed to insert mod entry: {error}"))?;
@@ -449,12 +461,12 @@ pub(crate) fn build_mod_archive(
     let options = zip::write::FileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
-    // 1. Add g2m.json at the root
-    zip.start_file("g2m.json", options)
-        .map_err(|e| format!("Failed to start g2m.json in archive: {}", e))?;
+    // 1. Add modx.json at the root
+    zip.start_file("modx.json", options)
+        .map_err(|e| format!("Failed to start modx.json in archive: {}", e))?;
     use std::io::Write;
     zip.write_all(manifest_content.as_bytes())
-        .map_err(|e| format!("Failed to write g2m.json: {}", e))?;
+        .map_err(|e| format!("Failed to write modx.json: {}", e))?;
 
     // 2. Add source files
     if source_type == "directory" {
@@ -504,8 +516,8 @@ fn add_directory_to_zip<W: std::io::Write + std::io::Seek>(
                 .to_string_lossy()
                 .replace('\\', "/");
 
-            if relative_path.eq_ignore_ascii_case("g2m.json") {
-                continue; // We already added the new g2m.json
+            if relative_path.eq_ignore_ascii_case("modx.json") {
+                continue; // We already added the new modx.json
             }
 
             zip.start_file(relative_path, options.clone())
@@ -529,7 +541,7 @@ fn scan_imported_mod_directory(
     let mut has_modloader = false;
     let mut has_cleo = false;
     let mut has_asi = false;
-    let g2m_manifest_path = mod_dir.join("g2m.json");
+    let g2m_manifest_path = mod_dir.join("modx.json");
     let has_g2m_manifest = g2m_manifest_path.is_file();
 
     let mut existing_manifest: Option<ExistingBuilderManifestPayload> = None;
@@ -547,7 +559,7 @@ fn scan_imported_mod_directory(
     //     }
     // }
 
-    // 2. If no online manifest, fallback to local g2m.json (if original was zip, it extracted here; if original was folder, it's just here)
+    // 2. If no online manifest, fallback to local modx.json (if original was zip, it extracted here; if original was folder, it's just here)
     if existing_manifest.is_none() {
         existing_manifest = read_existing_builder_manifest(&g2m_manifest_path)?;
     }
@@ -628,13 +640,13 @@ fn read_existing_builder_manifest(
     }
 
     let content = fs::read_to_string(manifest_path)
-        .map_err(|error| format!("failed to read g2m.json: {error}"))?;
+        .map_err(|error| format!("failed to read modx.json: {error}"))?;
     parse_builder_manifest_content(&content)
 }
 
 fn parse_builder_manifest_content(content: &str) -> Result<Option<ExistingBuilderManifestPayload>, String> {
     let parsed = serde_json::from_str::<ExistingBuilderManifestInput>(content)
-        .map_err(|error| format!("failed to parse g2m.json: {error}"))?;
+        .map_err(|error| format!("failed to parse modx.json: {error}"))?;
     let links = build_manifest_links_payload(&parsed);
 
     Ok(Some(ExistingBuilderManifestPayload {
@@ -729,6 +741,30 @@ fn dedupe_manifest_links(
     }
 
     results
+}
+
+fn serialize_manifest_links(links: &[ExistingBuilderManifestLinkPayload]) -> String {
+    serde_json::to_string(links).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn resolve_modx_slug_from_links(links: &[ExistingBuilderManifestLinkPayload]) -> String {
+    links.iter().find_map(|link| extract_modx_slug_from_url(&link.url)).unwrap_or_default()
+}
+
+fn extract_modx_slug_from_url(url: &str) -> Option<String> {
+    let normalized = url.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let without_query = normalized.split('?').next().unwrap_or(normalized);
+    let without_hash = without_query.split('#').next().unwrap_or(without_query);
+    let lower = without_hash.to_ascii_lowercase();
+    let marker = "/mods/";
+    let start = lower.find(marker)?;
+    let slug = without_hash[start + marker.len()..].trim_matches('/');
+
+    (!slug.is_empty()).then(|| slug.to_string())
 }
 
 fn apply_existing_manifest_mappings(
@@ -1196,7 +1232,7 @@ pub(crate) fn copy_directory_recursive(
     target_dir: &Path,
     game_type: Option<&str>,
 ) -> Result<(), String> {
-    let manifest = read_existing_builder_manifest(&source_dir.join("g2m.json"))?;
+    let manifest = read_existing_builder_manifest(&source_dir.join("modx.json"))?;
     copy_directory_recursive_with_manifest(source_dir, source_dir, target_dir, manifest.as_ref(), game_type)?;
     Ok(())
 }
@@ -1237,7 +1273,7 @@ fn copy_directory_recursive_with_manifest(
             .strip_prefix(base_dir)
             .map_err(|error| format!("failed to build relative mod path for copy: {error}"))?;
         let normalized_relative = normalize_path(relative_path);
-        if normalized_relative.eq_ignore_ascii_case("g2m.json") {
+        if normalized_relative.eq_ignore_ascii_case("modx.json") {
             continue;
         }
 
@@ -1383,7 +1419,7 @@ fn collect_digest_files(
             .map_err(|error| format!("failed to build digest relative path: {error}"))?
             .to_string_lossy()
             .replace('\\', "/");
-        if relative_path.eq_ignore_ascii_case("g2m.json") {
+        if relative_path.eq_ignore_ascii_case("modx.json") {
             continue;
         }
 

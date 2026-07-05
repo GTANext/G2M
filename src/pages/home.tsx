@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd"
 
-import { useI18n } from "@/components/app/i18nProvider"
+import { useTranslation } from "react-i18next"
 import { useAppPreferences } from "@/components/app/preferencesProvider"
 import { G2MGameCoverCard } from "@/components/g2m/gameCoverCard"
 import { G2MPageHeroCard } from "@/components/g2m/pageHeroCard"
@@ -17,7 +17,7 @@ type WorkspaceState = UseG2mWorkspaceResult
 
 function HomePage({ workspace }: { workspace: WorkspaceState }) {
   const navigate = useNavigate()
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   useEffect(() => {
     workspace.goHome()
@@ -30,9 +30,9 @@ function HomePage({ workspace }: { workspace: WorkspaceState }) {
   return (
     <div className="mx-auto max-w-[1700px] space-y-4">
       <G2MPageHeroCard
-        eyebrow={copy.home.heroEyebrow}
-        title={copy.home.heroTitle}
-        description={copy.home.heroDescription}
+        eyebrow={t("home.heroEyebrow")}
+        title={t("home.heroTitle")}
+        description={t("home.heroDescription")}
         actions={
           <>
             <Button
@@ -40,7 +40,7 @@ function HomePage({ workspace }: { workspace: WorkspaceState }) {
               onClick={workspace.startAddGame}
             >
               <Plus className="size-4" />
-              {copy.home.addGame}
+              {t("home.addGame")}
             </Button>
             <Button
               variant="outline"
@@ -48,7 +48,7 @@ function HomePage({ workspace }: { workspace: WorkspaceState }) {
               onClick={() => void workspace.openGamesDownloadPage()}
             >
               <HardDriveDownload className="size-4" />
-              {copy.home.downloadGame}
+              {t("home.downloadGame")}
             </Button>
           </>
         }
@@ -64,7 +64,7 @@ function HomePage({ workspace }: { workspace: WorkspaceState }) {
 }
 
 function EmptyHero({ workspace }: { workspace: WorkspaceState }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <G2MPanel>
@@ -73,11 +73,11 @@ function EmptyHero({ workspace }: { workspace: WorkspaceState }) {
           <div className="flex size-16 items-center justify-center rounded-3xl bg-violet-100 text-violet-700 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/30">
             <Gamepad2 className="size-8" />
           </div>
-          <h2 className="mt-6 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-            {copy.home.emptyTitle}
+          <h2 className="mt-6 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-5">
+            {t("home.emptyTitle")}
           </h2>
           <p className="mt-4 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">
-            {copy.home.emptyDescription}
+            {t("home.emptyDescription")}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button
@@ -85,7 +85,7 @@ function EmptyHero({ workspace }: { workspace: WorkspaceState }) {
               onClick={workspace.startAddGame}
             >
               <Plus className="size-4" />
-              {copy.home.addGame}
+              {t("home.addGame")}
             </Button>
             <Button
               variant="outline"
@@ -93,14 +93,14 @@ function EmptyHero({ workspace }: { workspace: WorkspaceState }) {
               onClick={() => void workspace.openGamesDownloadPage()}
             >
               <HardDriveDownload className="size-4" />
-              {copy.home.downloadGame}
+              {t("home.downloadGame")}
             </Button>
           </div>
         </div>
 
         <G2MSubtlePanel>
           <div className="p-5">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{copy.home.detectionRules}</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("home.detectionRules")}</p>
             <div className="mt-4 space-y-3">
               <DetectionRule gameType="GTA San Andreas" exeName="gta_sa.exe / gta-sa.exe" />
               <DetectionRule gameType="GTA Vice City" exeName="gta-vc.exe / gta_vc.exe" />
@@ -120,7 +120,7 @@ function ConfiguredGamesGrid({
   workspace: WorkspaceState
   onOpenGame: (gameId: string) => void
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const { homeViewMode, showHomeGameDetails } = useAppPreferences()
   const [localGames, setLocalGames] = useState(workspace.configuredGames)
 
@@ -160,15 +160,15 @@ function ConfiguredGamesGrid({
       <div className="p-5 lg:p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{copy.home.configuredTitle}</p>
-            <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">{copy.home.configuredTitle}</h3>
+            <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{t("home.configuredTitle")}</p>
+            <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">{t("home.configuredTitle")}</h3>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              {copy.home.configuredDescription}
+              {t("home.configuredDescription")}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <G2MPill className="bg-background/80 px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-              {copy.home.configuredCount(localGames.length)}
+              {t("home.configuredCount", { count: localGames.length })}
             </G2MPill>
           </div>
         </div>
@@ -231,7 +231,7 @@ function GameListRow({
   onClick: () => void
   showMoreInfo: boolean
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <button
@@ -250,7 +250,7 @@ function GameListRow({
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.08)_0%,rgba(15,23,42,0.52)_100%)]" />
             <div className="absolute inset-x-0 bottom-0 flex items-center justify-between p-3 text-white">
               <span className="text-sm font-semibold">{game.shortName}</span>
-              <span className="text-xs text-white/80">{copy.gameCard.modCount(game.modCount)}</span>
+              <span className="text-xs text-white/80">{t("gameCard.modCount", { count: game.modCount })}</span>
             </div>
           </div>
 
@@ -259,7 +259,7 @@ function GameListRow({
               <div className="min-w-0">
                 <h3 className="truncate text-xl font-semibold text-slate-950 dark:text-slate-50">{game.name}</h3>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {game.version || copy.gameCard.versionFallback}
+                  {game.version || t("gameCard.versionFallback")}
                 </p>
               </div>
 
@@ -274,24 +274,24 @@ function GameListRow({
             </div>
 
             <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              {copy.gameCard.openWorkspaceDescription}
+              {t("gameCard.openWorkspaceDescription")}
             </p>
 
             {showMoreInfo && (
               <div className="mt-4 grid gap-3 lg:grid-cols-[repeat(2,minmax(0,180px))_minmax(0,1fr)]">
                 <ListInfoChip
                   icon={<CalendarDays className="size-3.5" />}
-                  label={copy.gameCard.createdAt}
+                  label={t("gameCard.createdAt")}
                   value={formatGameTimestamp(game.createdAt)}
                 />
                 <ListInfoChip
                   icon={<CalendarDays className="size-3.5" />}
-                  label={copy.gameCard.updatedAt}
+                  label={t("gameCard.updatedAt")}
                   value={formatGameTimestamp(game.updatedAt)}
                 />
                 <ListInfoChip
                   icon={<FolderOpen className="size-3.5" />}
-                  label={copy.gameCard.installPath}
+                  label={t("gameCard.installPath")}
                   value={game.gamePath}
                   clamp={false}
                 />

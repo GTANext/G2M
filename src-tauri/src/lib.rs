@@ -144,7 +144,7 @@ fn setup_system_tray(app: &tauri::App) -> tauri::Result<()> {
 
     let mut tray = TrayIconBuilder::new()
         .menu(&menu)
-        .menu_on_left_click(false)
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             TRAY_SHOW_ID => {
                 let _ = show_main_window(app);

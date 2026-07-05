@@ -1,9 +1,11 @@
 use rusqlite::{params, Connection, OptionalExtension};
+use serde_json;
 use std::path::{Path, PathBuf};
 
 use crate::{
     mod_import::ImportedModFile, random_suffix, resolve_game_scoped_path, remove_path_if_exists,
-    ModInstallFileRecord, ModInstallPlan, StoredConflictFile, StoredMod,
+    ExistingBuilderManifestLinkPayload, ModInstallFileRecord, ModInstallPlan, StoredConflictFile,
+    StoredMod,
 };
 
 pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> {
@@ -13,7 +15,8 @@ pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> 
         .prepare(
             "
             SELECT mods.id, mods.game_id, games.path, mods.name, mods.version, mods.mod_type,
-                   mods.author, mods.enabled, mods.description, mods.source_dir, mods.installed_at, mods.size_bytes
+                   mods.author, mods.enabled, mods.description, mods.source_dir, mods.installed_at, mods.size_bytes,
+                   mods.links_json, mods.modx_slug
             FROM mods
             INNER JOIN games ON games.id = mods.game_id
             ORDER BY mods.game_id COLLATE NOCASE ASC, mods.name COLLATE NOCASE ASC
@@ -25,6 +28,8 @@ pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> 
         .query_map([], |row| {
             let game_path = row.get::<_, String>(2)?;
             let stored_source_dir = row.get::<_, String>(9)?;
+            let links = parse_manifest_links(&row.get::<_, String>(12)?);
+            let stored_modx_slug = row.get::<_, String>(13)?;
             Ok(StoredMod {
                 id: row.get(0)?,
                 game_id: row.get(1)?,
@@ -45,6 +50,8 @@ pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> 
                 preview_files: Vec::new(),
                 conflict_files: Vec::new(),
                 conflict_with: Vec::new(),
+                modx_slug: normalize_modx_slug(&stored_modx_slug, &links),
+                links,
             })
         })
         .map_err(|error| format!("failed to query mods: {error}"))?;
@@ -410,4 +417,37 @@ fn load_mod_conflict_files(
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| format!("failed to read conflict files: {error}"))
+}
+
+fn parse_manifest_links(raw_links_json: &str) -> Vec<ExistingBuilderManifestLinkPayload> {
+    serde_json::from_str::<Vec<ExistingBuilderManifestLinkPayload>>(raw_links_json)
+        .unwrap_or_default()
+}
+
+fn normalize_modx_slug(
+    stored_modx_slug: &str,
+    links: &[ExistingBuilderManifestLinkPayload],
+) -> String {
+    let normalized_slug = stored_modx_slug.trim();
+    if !normalized_slug.is_empty() {
+        return normalized_slug.to_string();
+    }
+
+    links.iter().find_map(|link| extract_modx_slug_from_url(&link.url)).unwrap_or_default()
+}
+
+fn extract_modx_slug_from_url(url: &str) -> Option<String> {
+    let normalized = url.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let without_query = normalized.split('?').next().unwrap_or(normalized);
+    let without_hash = without_query.split('#').next().unwrap_or(without_query);
+    let lower = without_hash.to_ascii_lowercase();
+    let marker = "/mods/";
+    let start = lower.find(marker)?;
+    let slug = without_hash[start + marker.len()..].trim_matches('/');
+
+    (!slug.is_empty()).then(|| slug.to_string())
 }

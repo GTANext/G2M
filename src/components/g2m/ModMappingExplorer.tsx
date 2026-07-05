@@ -27,12 +27,36 @@ import { G2MGameCoverCard } from "@/components/g2m/gameCoverCard"
 import { useAppPreferences } from "@/components/app/preferencesProvider"
 
 type ModMappingExplorerProps = {
-  copy: AppCopy
+  copy?: AppCopy
+  t?: (key: string) => string
   files: ModImportFileEntry[]
   onDropToFolder: (targetFolder: string, payload: DragPayload) => void
 }
 
-export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingExplorerProps) {
+function getLabel(
+  key: string,
+  fallback: string,
+  options?: { copy?: AppCopy; t?: (key: string) => string }
+): string {
+  if (options?.t) {
+    return options.t(key)
+  }
+  if (options?.copy) {
+    const keys = key.split('.')
+    let value: any = options.copy
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k]
+      } else {
+        return fallback
+      }
+    }
+    return typeof value === 'string' ? value : fallback
+  }
+  return fallback
+}
+
+export function ModMappingExplorer({ copy, t, files, onDropToFolder }: ModMappingExplorerProps) {
   const workspace = useG2mWorkspace()
   const { showHomeGameDetails } = useAppPreferences()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -136,7 +160,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
     const result = await open({
       directory: true,
       multiple: false,
-      title: copy.builderPage.explorerTitle,
+      title: getLabel("builderPage.explorerTitle", "Select Directory", { copy, t }),
     })
     if (result && !Array.isArray(result)) {
       setTargetRootPath(normalizePath(result))
@@ -161,7 +185,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
               size="icon"
               className="size-8 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               onClick={() => setShowSourceTree(!showSourceTree)}
-              title={showSourceTree ? copy.builderPage.hideSourceTree : copy.builderPage.showSourceTree}
+              title={showSourceTree ? getLabel("builderPage.hideSourceTree", "Hide Source", { copy, t }) : getLabel("builderPage.showSourceTree", "Show Source", { copy, t })}
             >
               {showSourceTree ? <PanelLeftClose className="size-4" /> : <PanelLeft className="size-4" />}
             </Button>
@@ -173,7 +197,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
                 className="cursor-pointer hover:text-violet-600 dark:hover:text-violet-400"
                 onClick={() => setCurrentRelativePath("")}
               >
-                {targetRootPath ? getBaseName(targetRootPath) : copy.builderPage.explorerRootLabel}
+                {targetRootPath ? getBaseName(targetRootPath) : getLabel("builderPage.explorerRootLabel", "Root", { copy, t })}
               </span>
               {currentRelativePath.split("/").filter(Boolean).map((part, index, arr) => (
                 <div key={index} className="flex items-center">
@@ -194,20 +218,20 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
               <DrawerTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 text-xs">
                   <Gamepad2 className="size-3 mr-1.5" />
-                  {copy.builderPage.explorerTitle}
+                  {getLabel("builderPage.explorerTitle", "Select Game", { copy, t })}
                 </Button>
               </DrawerTrigger>
               <DrawerContent className="max-h-[85vh]">
                 <div className="mx-auto w-full max-w-5xl overflow-hidden flex flex-col">
                   <DrawerHeader className="text-left px-6 pt-6">
                     <Badge variant="secondary" className="w-fit rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200 mb-2">
-                      {copy.builderPage.explorerTitle}
+                      {getLabel("builderPage.explorerTitle", "Select Game", { copy, t })}
                     </Badge>
                     <DrawerTitle className="text-2xl font-semibold tracking-tight">
-                      {copy.builderPage.explorerTitle}
+                      {getLabel("builderPage.explorerTitle", "Select Game", { copy, t })}
                     </DrawerTitle>
                     <DrawerDescription className="mt-2 text-sm leading-6">
-                      {copy.builderPage.explorerDescription}
+                      {getLabel("builderPage.explorerDescription", "Select the game directory for installation", { copy, t })}
                     </DrawerDescription>
                   </DrawerHeader>
 
@@ -239,7 +263,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
                           }}
                         >
                           <HardDrive className="size-8 text-slate-400" />
-                          <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{copy.builderPage.explorerCustom}</span>
+                          <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{getLabel("builderPage.explorerCustom", "Custom Directory", { copy, t })}</span>
                         </button>
                       </DrawerClose>
                     </div>
@@ -249,7 +273,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
                     <div className="flex justify-end gap-3">
                       <DrawerClose asChild>
                         <Button variant="outline" className="rounded-xl px-6">
-                          {copy.common.close}
+                          {getLabel("common.close", "Close", { copy, t })}
                         </Button>
                       </DrawerClose>
                     </div>
@@ -269,7 +293,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
                 parts.pop()
                 setCurrentRelativePath(parts.join("/"))
               }}
-              title={copy.builderPage.explorerGoUp}
+              title={getLabel("builderPage.explorerGoUp", "Go Up", { copy, t })}
             >
               <ArrowUp className="size-4" />
             </Button>
@@ -282,13 +306,13 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
           {showSourceTree && (
             <div className="w-[320px] shrink-0 overflow-hidden rounded-xl border border-black/5 bg-slate-50/50 p-2 dark:border-white/10 dark:bg-black/20">
               <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                {copy.builderPage.sourceTitle}
+                {getLabel("builderPage.sourceTitle", "Source", { copy, t })}
               </div>
               <div className="h-[calc(100%-24px)] overflow-y-auto pr-2 pb-4">
                 <DraggableTree
                   files={files}
                   mode="source"
-                  emptyLabel={copy.builderPage.sourceTreeEmpty}
+                  emptyLabel={getLabel("builderPage.sourceTreeEmpty", "No files", { copy, t })}
                   showFullPath={false}
                   defaultExpandedDepth={2}
                 />
@@ -306,7 +330,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
           >
             {allFolders.length === 0 && virtualItems.files.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                {copy.builderPage.explorerEmpty}
+                {getLabel("builderPage.explorerEmpty", "No folders or files", { copy, t })}
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -324,6 +348,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
                       path: currentRelativePath ? `${currentRelativePath}/${folder}` : folder
                     })}
                     copy={copy}
+                    t={t}
                   />
                 ))}
                 
@@ -338,6 +363,7 @@ export function ModMappingExplorer({ copy, files, onDropToFolder }: ModMappingEx
                       path: file.targetPath
                     })}
                     copy={copy}
+                    t={t}
                   />
                 ))}
               </div>
@@ -360,7 +386,8 @@ function ExplorerFolderItem({
   activePayload,
   hasMappedFiles,
   onRemoveMapping,
-  copy
+  copy,
+  t
 }: { 
   name: string
   currentRelativePath: string
@@ -368,7 +395,8 @@ function ExplorerFolderItem({
   activePayload: DragPayload | null
   hasMappedFiles?: boolean
   onRemoveMapping?: () => void
-  copy: AppCopy
+  copy?: AppCopy
+  t?: (key: string) => string
 }) {
   const folderPath = currentRelativePath ? `${currentRelativePath}/${name}` : name
   
@@ -409,7 +437,7 @@ function ExplorerFolderItem({
       <ContextMenuContent>
         <ContextMenuItem onClick={onRemoveMapping} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:text-red-400 dark:focus:text-red-400 dark:focus:bg-red-500/10 cursor-pointer">
           <Trash2 className="mr-2 size-4" />
-          {copy.workspaceDialogs.doNotInstall}
+          {getLabel("workspaceDialogs.doNotInstall", "Do not install", { copy, t })}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -420,12 +448,14 @@ function ExplorerFileItem({
   file, 
   isMapped,
   onRemoveMapping,
-  copy
+  copy,
+  t
 }: { 
   file: ModImportFileEntry
   isMapped?: boolean
   onRemoveMapping?: () => void
-  copy: AppCopy
+  copy?: AppCopy
+  t?: (key: string) => string
 }) {
   const name = getBaseName(file.targetPath)
   
@@ -460,7 +490,7 @@ function ExplorerFileItem({
       <ContextMenuContent>
         <ContextMenuItem onClick={onRemoveMapping} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:text-red-400 dark:focus:text-red-400 dark:focus:bg-red-500/10 cursor-pointer">
           <Trash2 className="mr-2 size-4" />
-          {copy.workspaceDialogs.doNotInstall}
+          {getLabel("workspaceDialogs.doNotInstall", "Do not install", { copy, t })}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

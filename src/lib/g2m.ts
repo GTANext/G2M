@@ -110,6 +110,7 @@ export type ManagedMod = {
   id: string
   gameId: string
   name: string
+  rawVersion: string
   version: string
   type: ModType
   author: string
@@ -124,6 +125,8 @@ export type ManagedMod = {
   previewFiles: string[]
   conflictFiles: ModConflictItem[]
   conflictWith: string[]
+  links: ExistingBuilderManifestLink[]
+  modxSlug: string
 }
 
 export type BackendGame = {
@@ -168,6 +171,8 @@ export type BackendMod = {
   previewFiles: string[]
   conflictFiles: ModConflictItem[]
   conflictWith: string[]
+  links: ExistingBuilderManifestLink[]
+  modxSlug: string
 }
 
 export type ModImportPreview = {
@@ -225,6 +230,7 @@ export function buildDisplayMods(sourceMods: BackendMod[]): ManagedMod[] {
     id: mod.id,
     gameId: mod.gameId,
     name: mod.name,
+    rawVersion: mod.version,
     version: mod.version || i18n.t("common.notProvided"),
     type: mod.modType,
     author: mod.author || i18n.t("common.notProvided"),
@@ -239,6 +245,8 @@ export function buildDisplayMods(sourceMods: BackendMod[]): ManagedMod[] {
     previewFiles: mod.previewFiles.length > 0 ? mod.previewFiles : [i18n.t("demo.previewPending")],
     conflictFiles: mod.conflictFiles,
     conflictWith: mod.conflictWith,
+    links: mod.links ?? [],
+    modxSlug: mod.modxSlug ?? "",
   }))
 }
 

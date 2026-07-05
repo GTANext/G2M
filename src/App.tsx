@@ -1,7 +1,6 @@
 import { lazy, Suspense, type ReactNode, useEffect, useRef, useState } from "react"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { ShieldAlert, X } from "lucide-react"
-import { useI18n } from "@/components/app/i18nProvider"
 import { Navbar } from "@/components/app/navbar"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -10,6 +9,7 @@ import { useG2mWorkspace } from "@/hooks/useG2MWorkspace"
 import { invokeApi } from "@/lib/api"
 import type { AppInfoPayload } from "@/lib/g2m"
 import { Navigate, Route, Routes } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import "./App.css"
 
 const HomePage = lazy(() =>
@@ -37,14 +37,16 @@ function AppShell({
   appInfo,
   children,
   subtitle,
+  showFooter = false,
   showAdminAlert = false,
 }: {
   appInfo?: AppInfoPayload | null
   children: ReactNode
   subtitle: string
+  showFooter?: boolean
   showAdminAlert?: boolean
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const [isAdminAlertDismissed, setIsAdminAlertDismissed] = useState(false)
 
   useEffect(() => {
@@ -60,9 +62,9 @@ function AppShell({
           <div className="mx-auto flex max-w-[1700px] items-center gap-2 px-4 py-1.5 text-xs text-amber-900 sm:px-6 lg:px-6 dark:text-amber-100">
             <ShieldAlert className="size-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
             <p className="min-w-0 flex-1 truncate">
-              <span className="font-medium">{copy.workspaceActions.adminRequired}</span>
+              <span className="font-medium">{t("workspaceActions.adminRequired")}</span>
               <span className="ml-1 text-amber-800/90 dark:text-amber-100/80">
-                {copy.workspaceActions.adminRequiredDescription}
+                {t("workspaceActions.adminRequiredDescription")}
               </span>
             </p>
             <Button
@@ -71,44 +73,48 @@ function AppShell({
               size="icon"
               className="size-6 cursor-pointer rounded-full text-amber-700 hover:bg-amber-100 hover:text-amber-950 dark:text-amber-200 dark:hover:bg-amber-400/10 dark:hover:text-white"
               onClick={() => setIsAdminAlertDismissed(true)}
-              aria-label={copy.common.close}
+              aria-label={t("common.close")}
             >
               <X className="size-3.5" />
             </Button>
           </div>
         </div>
       ) : null}
-      <Navbar title={copy.common.appName} subtitle={subtitle} />
+      <Navbar title={t("common.appName")} subtitle={subtitle} />
 
-      <main className="px-4 pb-24 pt-4 lg:px-6">{children}</main>
+      <main className={showFooter ? "px-4 pb-24 pt-4 lg:px-6" : "px-4 pb-8 pt-4 lg:px-6"}>
+        {children}
+      </main>
 
-      <footer className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 lg:px-6">
-        <div className="pointer-events-auto">
-          <div className="flex min-h-12 items-center gap-3 rounded-full border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(241,245,249,0.7))] px-4 py-2 text-xs shadow-[0_18px_50px_rgba(15,23,42,0.16)] ring-1 ring-black/[0.04] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.62))] dark:shadow-[0_18px_50px_rgba(0,0,0,0.36)] dark:ring-white/[0.04]">
-            <button
-              type="button"
-              className="cursor-pointer rounded-full px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-700 transition-colors hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-              onClick={() => void openUrl("https://www.gtamodx.com/")}
-            >
-              GTAMODX
-            </button>
+      {showFooter ? (
+        <footer className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 lg:px-6">
+          <div className="pointer-events-auto">
+            <div className="flex min-h-12 items-center gap-3 rounded-full border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(241,245,249,0.7))] px-4 py-2 text-xs shadow-[0_18px_50px_rgba(15,23,42,0.16)] ring-1 ring-black/[0.04] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.62))] dark:shadow-[0_18px_50px_rgba(0,0,0,0.36)] dark:ring-white/[0.04]">
+              <button
+                type="button"
+                className="cursor-pointer rounded-full px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-700 transition-colors hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
+                onClick={() => void openUrl("https://www.gtamodx.com/")}
+              >
+                GTAMODX
+              </button>
 
-            <button
-              type="button"
-              className="cursor-pointer rounded-full px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-700 transition-colors hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-              onClick={() => void openUrl("https://github.com/GTANext/G2M")}
-            >
-              GitHub
-            </button>
+              <button
+                type="button"
+                className="cursor-pointer rounded-full px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-700 transition-colors hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
+                onClick={() => void openUrl("https://github.com/GTANext/G2M")}
+              >
+                GitHub
+              </button>
 
-            {appInfo?.version ? (
-              <span className="shrink-0 text-[11px] font-medium tracking-[0.04em] text-slate-500 dark:text-slate-300">
-                {appInfo.version}
-              </span>
-            ) : null}
+              {appInfo?.version ? (
+                <span className="shrink-0 text-[11px] font-medium tracking-[0.04em] text-slate-500 dark:text-slate-300">
+                  {appInfo.version}
+                </span>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      ) : null}
     </div>
   )
 }
@@ -184,13 +190,14 @@ function HomeRoute({
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
 }) {
-  const { copy } = useI18n()
-  const navbarSubtitle = copy.routes.homeSubtitle
+  const { t } = useTranslation()
+  const navbarSubtitle = t("routes.homeSubtitle")
 
   return (
     <AppShell
       appInfo={appInfo}
       subtitle={navbarSubtitle}
+      showFooter
       showAdminAlert={workspace.bootstrap?.isElevated === false}
     >
       <Suspense fallback={<RouteLoader />}>
@@ -207,12 +214,12 @@ function SettingsRoute({
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
 }) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <AppShell
       appInfo={appInfo}
-      subtitle={copy.routes.settingsSubtitle}
+      subtitle={t("routes.settingsSubtitle")}
       showAdminAlert={workspace.bootstrap?.isElevated === false}
     >
       <Suspense fallback={<RouteLoader />}>
@@ -229,8 +236,8 @@ function BuilderRoute({
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
 }) {
-  const { copy } = useI18n()
-  const navbarSubtitle = copy.routes.builderSubtitle
+  const { t } = useTranslation()
+  const navbarSubtitle = t("routes.builderSubtitle")
 
   return (
     <AppShell
@@ -252,8 +259,8 @@ function GameWorkspaceRoute({
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
 }) {
-  const { copy } = useI18n()
-  const navbarSubtitle = copy.routes.workspaceSubtitle(workspace.activeGame?.name)
+  const { t } = useTranslation()
+  const navbarSubtitle = t("routes.workspaceSubtitle", { gameName: workspace.activeGame?.name })
 
   return (
     <AppShell
@@ -275,8 +282,8 @@ function AboutRoute({
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
 }) {
-  const { copy } = useI18n()
-  const navbarSubtitle = (copy.routes as any).aboutSubtitle || "About"
+  const { t } = useTranslation()
+  const navbarSubtitle = t("routes.aboutSubtitle") || "About"
 
   return (
     <AppShell

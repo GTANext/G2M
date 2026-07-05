@@ -8,6 +8,7 @@ use std::{
 
 use crate::{
     build_game_scoped_storage_path, build_mod_id, current_timestamp, game_workspace_package_path,
+    ExistingBuilderManifestLinkPayload,
     infer_target_folder_from_target_path, normalize_import_target_path, resolve_game_scoped_path,
     system_time_to_timestamp, GameDirectory,
     GAME_WORKSPACE_PACKAGE_FILE_NAME, GAME_WORKSPACE_PACKAGE_VERSION,
@@ -38,6 +39,10 @@ pub(crate) struct GameWorkspacePackageMod {
     pub(crate) size_bytes: i64,
     pub(crate) source_dir: String,
     pub(crate) last_modified_at: i64,
+    #[serde(default)]
+    pub(crate) links: Vec<ExistingBuilderManifestLinkPayload>,
+    #[serde(default)]
+    pub(crate) modx_slug: String,
     pub(crate) files: Vec<GameWorkspacePackageFile>,
 }
 
@@ -199,9 +204,9 @@ fn import_game_package_into_database_if_needed(
             .execute(
                 "
                 INSERT INTO mods (
-                    id, game_id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled
+                    id, game_id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
                 ",
                 params![
                     mod_id,
@@ -214,7 +219,9 @@ fn import_game_package_into_database_if_needed(
                     stored_source_dir,
                     package_mod.installed_at,
                     package_mod.size_bytes,
-                    if package_mod.enabled { 1_i64 } else { 0_i64 }
+                    if package_mod.enabled { 1_i64 } else { 0_i64 },
+                    serialize_manifest_links(&package_mod.links),
+                    package_mod.modx_slug.trim()
                 ],
             )
             .map_err(|error| format!("failed to import package mod into database: {error}"))?;
@@ -279,7 +286,7 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
     let mut statement = connection
         .prepare(
             "
-            SELECT id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled
+            SELECT id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
             FROM mods
             WHERE game_id = ?1
             ORDER BY installed_at ASC, name COLLATE NOCASE ASC
@@ -300,6 +307,8 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
                 row.get::<_, i64>(7)?,
                 row.get::<_, i64>(8)?,
                 row.get::<_, i64>(9)? != 0,
+                deserialize_manifest_links(&row.get::<_, String>(10)?),
+                row.get::<_, String>(11)?,
             ))
         })
         .map_err(|error| format!("failed to query mods for package sync: {error}"))?;
@@ -317,6 +326,8 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
             installed_at,
             size_bytes,
             enabled,
+            links,
+            modx_slug,
         ) = mod_row.map_err(|error| format!("failed to read game package mod row: {error}"))?;
         let source_dir = resolve_game_scoped_path(Path::new(&game.path), &stored_source_dir);
         let files =
@@ -336,6 +347,8 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
             size_bytes,
             source_dir: build_game_scoped_storage_path(Path::new(&game.path), &source_dir),
             last_modified_at,
+            links,
+            modx_slug,
             files,
         });
     }
@@ -349,6 +362,14 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
         mods: package_mods,
     };
     write_game_workspace_package(&game_workspace_package_path(Path::new(&game.path)), &package)
+}
+
+fn serialize_manifest_links(links: &[ExistingBuilderManifestLinkPayload]) -> String {
+    serde_json::to_string(links).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn deserialize_manifest_links(raw: &str) -> Vec<ExistingBuilderManifestLinkPayload> {
+    serde_json::from_str::<Vec<ExistingBuilderManifestLinkPayload>>(raw).unwrap_or_default()
 }
 
 fn load_game_package_mod_files(

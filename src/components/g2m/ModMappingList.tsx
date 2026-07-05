@@ -26,20 +26,31 @@ const GAME_TARGET_OPTIONS = GAME_TYPE_TARGETS.map((type) => ({
   label: type.toUpperCase(),
 }))
 
-function TargetFolderSelect({
-  value,
-  onChange,
-  copy,
-}: {
+type TargetFolderSelectProps = {
   value: string
   onChange: (v: string) => void
-  copy: ReturnType<typeof useI18n>["copy"]
-}) {
+  copy?: ReturnType<typeof useI18n>["copy"]
+  t?: (key: string) => string
+}
+
+function TargetFolderSelect({ value, onChange, copy, t }: TargetFolderSelectProps) {
+  const getLabel = (key: string) => {
+    if (t) {
+      return t(key)
+    }
+    const parts = key.split('.')
+    let result: any = copy
+    for (const part of parts) {
+      result = result?.[part]
+    }
+    return result || ''
+  }
+  
   const displayValue = !value ? "skip" : value
 
   const predefinedLocations = PREDEFINED_LOCATIONS.map((loc) => {
-    if (loc.value === "skip") return { ...loc, label: copy.workspaceDialogs.doNotInstall }
-    if (loc.value === "/") return { ...loc, label: copy.workspaceDialogs.installToRoot }
+    if (loc.value === "skip") return { ...loc, label: getLabel("workspaceDialogs.doNotInstall") }
+    if (loc.value === "/") return { ...loc, label: getLabel("workspaceDialogs.installToRoot") }
     return loc
   })
   
@@ -50,7 +61,7 @@ function TargetFolderSelect({
   return (
     <Select value={displayValue} onValueChange={(v) => onChange(v === "skip" ? "" : v)}>
       <SelectTrigger className="h-8 w-[180px] rounded-lg border-black/10 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.02]">
-        <SelectValue placeholder={copy.workspaceDialogs.installPath} />
+        <SelectValue placeholder={getLabel("workspaceDialogs.installPath")} />
       </SelectTrigger>
       <SelectContent>
         {options.map((opt) => (
@@ -63,23 +74,39 @@ function TargetFolderSelect({
   )
 }
 
-function GameTargetTreeNode({
-  copy,
-  node,
-  selectedTargets,
-  onToggleGameType,
-  onUpdateTargetPath,
-  showGameTargets,
-  depth = 0,
-}: {
-  copy: ReturnType<typeof useI18n>["copy"]
+type GameTargetTreeNodeProps = {
+  copy?: ReturnType<typeof useI18n>["copy"]
+  t?: (key: string) => string
   node: BuilderGameTargetNode
   selectedTargets: Record<string, GameTypeTarget[]>
   onToggleGameType?: (path: string, type: GameTypeTarget) => void
   onUpdateTargetPath: (path: string, newTargetPath: string) => void
   showGameTargets?: boolean
   depth?: number
-}) {
+}
+
+function GameTargetTreeNode({
+  copy,
+  t,
+  node,
+  selectedTargets,
+  onToggleGameType,
+  onUpdateTargetPath,
+  showGameTargets,
+  depth = 0,
+}: GameTargetTreeNodeProps) {
+  const getLabel = (key: string) => {
+    if (t) {
+      return t(key)
+    }
+    const parts = key.split('.')
+    let result: any = copy
+    for (const part of parts) {
+      result = result?.[part]
+    }
+    return result || ''
+  }
+  
   const [expanded, setExpanded] = useState(false)
   const isFolder = node.kind === "folder"
   const selectedValues = selectedTargets[node.path] ?? []
@@ -106,14 +133,14 @@ function GameTargetTreeNode({
             {node.path.split("/").pop() || node.path}
           </p>
           <span className="ml-2 shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-white/10 dark:text-slate-400">
-            {isFolder ? `${node.fileCount} ${copy.builderPage.summaryFile}` : copy.builderPage.summaryFile}
+            {isFolder ? `${node.fileCount} ${getLabel("builderPage.summaryFile")}` : getLabel("builderPage.summaryFile")}
           </span>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-4 pl-8 lg:w-auto lg:pl-0">
           <div className="flex items-center gap-2 w-[240px] justify-end">
-            <span className="shrink-0 text-xs font-medium text-slate-500">{copy.workspaceDialogs.installPath}</span>
-            <TargetFolderSelect value={node.targetPath} onChange={(val) => onUpdateTargetPath(node.path, val)} copy={copy} />
+            <span className="shrink-0 text-xs font-medium text-slate-500">{getLabel("workspaceDialogs.installPath")}</span>
+            <TargetFolderSelect value={node.targetPath} onChange={(val) => onUpdateTargetPath(node.path, val)} copy={copy} t={t} />
           </div>
 
           {showGameTargets ? (
@@ -146,6 +173,7 @@ function GameTargetTreeNode({
             <GameTargetTreeNode
               key={child.path}
               copy={copy}
+              t={t}
               node={child}
               selectedTargets={selectedTargets}
               showGameTargets={showGameTargets}
@@ -160,27 +188,32 @@ function GameTargetTreeNode({
   )
 }
 
-export function ModMappingList({
-  copy,
-  gameTargetNodes,
-  gameTargetsByPath,
-  toggleGameType,
-  updateTargetPath,
-  showGameTargets = true,
-}: {
-  copy: ReturnType<typeof useI18n>["copy"]
+type ModMappingListProps = {
+  copy?: ReturnType<typeof useI18n>["copy"]
+  t?: (key: string) => string
   gameTargetNodes: BuilderGameTargetNode[]
   gameTargetsByPath: Record<string, GameTypeTarget[]>
   toggleGameType?: (path: string, type: GameTypeTarget) => void
   updateTargetPath: (path: string, newTargetPath: string) => void
   showGameTargets?: boolean
-}) {
+}
+
+export function ModMappingList({
+  copy,
+  t,
+  gameTargetNodes,
+  gameTargetsByPath,
+  toggleGameType,
+  updateTargetPath,
+  showGameTargets = true,
+}: ModMappingListProps) {
   return (
     <div className="space-y-1">
       {gameTargetNodes.map((node) => (
         <GameTargetTreeNode
           key={node.path}
           copy={copy}
+          t={t}
           node={node}
           selectedTargets={gameTargetsByPath}
           showGameTargets={showGameTargets}

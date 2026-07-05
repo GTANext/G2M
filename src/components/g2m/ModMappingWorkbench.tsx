@@ -25,7 +25,8 @@ type SummaryTargetState = {
 }
 
 type ModMappingWorkbenchProps = {
-  copy: AppCopy
+  copy?: AppCopy
+  t?: (key: string) => string
   files: ModImportFileEntry[]
   headerTitle?: string
   headerDescription?: string
@@ -42,8 +43,32 @@ type ModMappingWorkbenchProps = {
 
 const EMPTY_TARGET_FOLDERS: string[] = []
 
+function getLabel(
+  key: string,
+  fallback: string,
+  options?: { copy?: AppCopy; t?: (key: string) => string }
+): string {
+  if (options?.t) {
+    return options.t(key)
+  }
+  if (options?.copy) {
+    const keys = key.split('.')
+    let value: any = options.copy
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k]
+      } else {
+        return fallback
+      }
+    }
+    return typeof value === 'string' ? value : fallback
+  }
+  return fallback
+}
+
 function ModMappingWorkbenchInner({
   copy,
+  t,
   files,
   initialTargetFolders = EMPTY_TARGET_FOLDERS,
   targetDescription,
@@ -92,15 +117,15 @@ function ModMappingWorkbenchInner({
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
         <WorkbenchPanel
-          title={copy.builderPage.sourceTreeTitle || "源文件 (Source)"}
-          description={copy.builderPage.pickSourceDescription || "拖拽文件或文件夹到右侧"}
+          title={getLabel("builderPage.sourceTreeTitle", "Source", { copy, t })}
+          description={getLabel("builderPage.pickSourceDescription", "Drag files or folders to the right", { copy, t })}
           icon={<FolderTree className="size-4" />}
           headerAction={
             <Badge
               variant="secondary"
               className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
             >
-              {copy.workspacePage.fileCount} {files.length}
+              {getLabel("workspacePage.fileCount", "", { copy, t })} {files.length}
             </Badge>
           }
         >
@@ -109,7 +134,7 @@ function ModMappingWorkbenchInner({
               <DraggableTree
                 files={files}
                 mode="source"
-                emptyLabel={copy.builderPage.sourceTreeEmpty}
+                emptyLabel={getLabel("builderPage.sourceTreeEmpty", "", { copy, t })}
                 className="pb-8"
                 showFullPath={false}
                 defaultExpandedDepth={2}
@@ -119,15 +144,15 @@ function ModMappingWorkbenchInner({
         </WorkbenchPanel>
 
         <WorkbenchPanel
-          title={copy.workspacePage.targetFolders || "游戏目录 (Target)"}
-          description={targetDescription ?? copy.workspaceDialogs.installPath}
+          title={getLabel("workspacePage.targetFolders", "Target", { copy, t })}
+          description={targetDescription ?? getLabel("workspaceDialogs.installPath", "", { copy, t })}
           icon={<FolderTree className="size-4" />}
           headerAction={
             <Badge
               variant="secondary"
               className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
             >
-              {copy.workspacePage.targetFolders} {targetFolders.length}
+              {getLabel("workspacePage.targetFolders", "", { copy, t })} {targetFolders.length}
             </Badge>
           }
         >
@@ -145,9 +170,9 @@ function ModMappingWorkbenchInner({
                     <Trash2 className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="break-all text-sm font-semibold">{copy.workspaceDialogs.doNotInstall}</p>
+                    <p className="break-all text-sm font-semibold">{getLabel("workspaceDialogs.doNotInstall", "", { copy, t })}</p>
                     <p className="mt-1 text-xs text-red-500/80 dark:text-red-400/80">
-                      {copy.builderPage.dragToIgnore || "拖拽到此处以忽略文件"}
+                      {getLabel("builderPage.dragToIgnore", "Drag here to ignore files", { copy, t })}
                     </p>
                   </div>
                 </div>
@@ -161,13 +186,13 @@ function ModMappingWorkbenchInner({
                 ref={dropRefRoot}
               >
                 <div className="mb-2 flex items-center justify-between px-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span>{copy.workspaceDialogs.installToRoot}</span>
-                  <span>{copy.builderPage.dragToRoot || "可直接拖拽至此面板空白处"}</span>
+                  <span>{getLabel("workspaceDialogs.installToRoot", "", { copy, t })}</span>
+                  <span>{getLabel("builderPage.dragToRoot", "You can also drag directly here", { copy, t })}</span>
                 </div>
                 <DraggableTree
                   files={files}
                   mode="target"
-                  emptyLabel={emptyTargetLabel || "未分配任何文件"}
+                  emptyLabel={emptyTargetLabel || "No files assigned"}
                   showFullPath={false}
                   defaultExpandedDepth={2}
                   includePresets={true}
