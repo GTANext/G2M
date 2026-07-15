@@ -1,6 +1,6 @@
 import { ArrowRight, CalendarDays, FolderOpen } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
-import { useI18n } from "@/components/app/i18nProvider"
 import { formatGameTimestamp, resolveGameImageSrc, type Game } from "@/lib/g2m"
 
 import { G2MPill } from "@/components/g2m/surface"
@@ -12,7 +12,7 @@ type G2MGameCoverCardProps = {
 }
 
 function G2MGameCoverCard({ game, onClick, showMoreInfo = false }: G2MGameCoverCardProps) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <button
@@ -34,7 +34,7 @@ function G2MGameCoverCard({ game, onClick, showMoreInfo = false }: G2MGameCoverC
               {game.shortName}
             </G2MPill>
             <G2MPill className="border-0 bg-white/18 text-white backdrop-blur-md">
-              {copy.gameCard.modCount(game.modCount)}
+              {t("gameCard.modCount", { count: game.modCount })}
             </G2MPill>
           </div>
 
@@ -42,7 +42,7 @@ function G2MGameCoverCard({ game, onClick, showMoreInfo = false }: G2MGameCoverC
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-2xl font-semibold tracking-tight">{game.name}</p>
-                <p className="mt-1 text-sm text-white/75">{game.version || copy.gameCard.versionFallback}</p>
+                <p className="mt-1 text-sm text-white/75">{game.version || t("gameCard.versionFallback")}</p>
               </div>
               <ArrowRight className="size-5 shrink-0 text-white/80 transition-transform duration-300 group-hover:translate-x-1" />
             </div>
@@ -54,11 +54,11 @@ function G2MGameCoverCard({ game, onClick, showMoreInfo = false }: G2MGameCoverC
             <>
               <div className="grid grid-cols-2 gap-3">
                 <InfoTile
-                  label={copy.gameCard.createdAt}
+                  label={t("gameCard.createdAt")}
                   value={formatGameTimestamp(game.createdAt)}
                 />
                 <InfoTile
-                  label={copy.gameCard.updatedAt}
+                  label={t("gameCard.updatedAt")}
                   value={formatGameTimestamp(game.updatedAt)}
                 />
               </div>
@@ -66,7 +66,7 @@ function G2MGameCoverCard({ game, onClick, showMoreInfo = false }: G2MGameCoverC
               <div className="rounded-[22px] border border-black/5 bg-[linear-gradient(135deg,rgba(248,250,252,0.95),rgba(241,245,249,0.88))] px-4 py-4 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(30,41,59,0.6),rgba(15,23,42,0.78))]">
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                   <FolderOpen className="size-3.5" />
-                  {copy.gameCard.installPath}
+                  {t("gameCard.installPath")}
                 </div>
                 <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                   {game.gamePath}
@@ -77,9 +77,9 @@ function G2MGameCoverCard({ game, onClick, showMoreInfo = false }: G2MGameCoverC
 
           <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 px-4 py-3 text-sm dark:border-white/10">
             <div>
-              <p className="font-medium text-slate-900 dark:text-slate-100">{copy.gameCard.openWorkspace}</p>
+              <p className="font-medium text-slate-900 dark:text-slate-100">{t("gameCard.openWorkspace")}</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {copy.gameCard.openWorkspaceDescription}
+                {t("gameCard.openWorkspaceDescription")}
               </p>
             </div>
             <div className="flex size-10 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">

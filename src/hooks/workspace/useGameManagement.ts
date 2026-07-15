@@ -1,14 +1,124 @@
-import { useCallback } from "react"
-import { toast } from "sonner"
 import { open } from "@tauri-apps/plugin-dialog"
+import { useCallback } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 
-import { useI18n } from "@/components/app/i18nProvider"
 import { formatApiErrorMessage, invokeApi } from "@/lib/api"
 import type { BootstrapPayload, DetectedGame, Game } from "@/lib/g2m"
-import { createDefaultAddGameForm, createDefaultEditGameForm, type WorkspaceState } from "./types"
+import {
+  createDefaultAddGameForm,
+  createDefaultEditGameForm,
+  type AddGameForm,
+  type EditGameForm,
+  type WorkspaceState,
+} from "./types"
 
-export function useGameManagement(state: WorkspaceState, games: Game[], applyBootstrap: (payload: BootstrapPayload) => void) {
-  const { copy } = useI18n()
+type GameForm = AddGameForm | EditGameForm
+type GameType = Game["gameType"]
+type SetGameFormState<TForm extends GameForm> = (value: TForm | ((current: TForm) => TForm)) => void
+
+const GAME_IMAGE_FILTERS = [
+  {
+    name: "Image",
+    extensions: ["jpg", "jpeg", "png", "webp"],
+  },
+]
+
+const GAME_EXECUTABLE_FILTERS = [
+  {
+    name: "Executable",
+    extensions: ["exe"],
+  },
+]
+
+function isGameType(value: string): value is GameType {
+  return value === "sa" || value === "vc" || value === "iii"
+}
+
+function normalizeDetectedGameType(value: string): GameType | "" {
+  return isGameType(value) ? value : ""
+}
+
+function toDetectedGameForm(detectedGame: DetectedGame): AddGameForm {
+  const hasCustomCover = Boolean(detectedGame.coverBase64)
+
+  return {
+    dir: detectedGame.path,
+    type: normalizeDetectedGameType(detectedGame.gameType),
+    name: detectedGame.name,
+    version: detectedGame.version,
+    exeName: detectedGame.exeName,
+    isExeAutoDetected: true,
+    imagePath: detectedGame.coverBase64 || "",
+    customImageSourcePath: "",
+    useDefaultImage: !hasCustomCover,
+  }
+}
+
+function createGameImagePatch<TForm extends GameForm>(base64Image: string) {
+  return (current: TForm): TForm => ({
+    ...current,
+    imagePath: base64Image,
+    customImageSourcePath: "",
+    useDefaultImage: false,
+  })
+}
+
+function createResetGameImagePatch<TForm extends GameForm>() {
+  return (current: TForm): TForm => ({
+    ...current,
+    imagePath: "",
+    customImageSourcePath: "",
+    useDefaultImage: true,
+  })
+}
+
+function getExistingCoverBase64(imagePath: string): string | null {
+  return imagePath.startsWith("data:image/") ? imagePath : null
+}
+
+function getGameImagePickerOptions(title: string) {
+  return {
+    multiple: false,
+    title,
+    filters: GAME_IMAGE_FILTERS,
+  } as const
+}
+
+function getGameExecutablePickerOptions(title: string) {
+  return {
+    multiple: false,
+    title,
+    filters: GAME_EXECUTABLE_FILTERS,
+  } as const
+}
+
+function getPathFileName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path
+}
+
+function normalizeComparablePath(path: string): string {
+  return path.trim().replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase()
+}
+
+function resolveStoredExecutableValue(selectedPath: string, gameDir: string): string {
+  const normalizedSelectedPath = selectedPath.trim().replace(/\\/g, "/")
+  const normalizedGameDir = normalizeComparablePath(gameDir)
+  const comparableSelectedPath = normalizeComparablePath(selectedPath)
+
+  if (normalizedGameDir && comparableSelectedPath.startsWith(`${normalizedGameDir}/`)) {
+    return normalizedSelectedPath.slice(gameDir.trim().replace(/\\/g, "/").replace(/\/+$/, "").length + 1)
+  }
+
+  return getPathFileName(selectedPath)
+}
+
+export function useGameManagement(
+  state: WorkspaceState,
+  games: Game[],
+  applyBootstrap: (payload: BootstrapPayload) => void,
+) {
+  const { t } = useTranslation()
 
   const setAddGameForm = useCallback((patch: Partial<WorkspaceState["addGameForm"]>) => {
     state.setAddGameFormState((current) => ({
@@ -42,7 +152,7 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
       const selected = await open({
         directory: true,
         multiple: false,
-        title: copy.workspaceActions.chooseGameDirectoryTitle,
+        title: t("workspaceActions.chooseGameDirectoryTitle"),
       })
 
       if (!selected || Array.isArray(selected)) {
@@ -50,88 +160,115 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
       }
 
       state.setIsDetectingGame(true)
-      toastId = toast.loading(copy.workspaceActions.checkingDirectory)
+      toastId = toast.loading(t("workspaceActions.checkingDirectory"))
 
       const detectedGame = await invokeApi<DetectedGame>("detect_game_directory", {
         gamePath: selected,
       })
 
-      const hasCustomCover = Boolean(detectedGame.coverBase64)
-
-      state.setAddGameFormState({
-        dir: detectedGame.path,
-        type: detectedGame.gameType as any,
-        name: detectedGame.name,
-        version: detectedGame.version,
-        exeName: detectedGame.exeName,
-        imagePath: detectedGame.coverBase64 || "",
-        customImageSourcePath: "",
-        useDefaultImage: !hasCustomCover,
-      })
-      toast.success(copy.workspaceActions.gameDetected, {
+      state.setAddGameFormState(toDetectedGameForm(detectedGame))
+      toast.success(t("workspaceActions.gameDetected"), {
         id: toastId,
         description: `${detectedGame.name} · ${detectedGame.exeName}`,
       })
     } catch (error) {
-      toast.error(copy.workspaceActions.directoryCheckFailed, {
+      toast.error(t("workspaceActions.directoryCheckFailed"), {
         id: toastId,
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setIsDetectingGame(false)
     }
-  }, [copy, state])
+  }, [state, t])
+
+  const pickGameImage = useCallback(
+    async <TForm extends GameForm>({
+      setFormState,
+      successMessage,
+    }: {
+      setFormState: SetGameFormState<TForm>
+      successMessage: string
+    }) => {
+      const selected = await open(getGameImagePickerOptions(t("workspaceActions.chooseGameCoverTitle")))
+
+      if (!selected || Array.isArray(selected)) {
+        return
+      }
+
+      try {
+        const base64Image = await invokeApi<string>("read_image_base64", {
+          path: selected,
+        })
+
+        setFormState(createGameImagePatch<TForm>(base64Image))
+        toast.success(successMessage)
+      } catch (error) {
+        toast.error("读取图片失败", { description: formatApiErrorMessage(error) })
+      }
+    },
+    [t],
+  )
 
   const pickAddGameImage = useCallback(async () => {
-    const selected = await open({
-      multiple: false,
-      title: copy.workspaceActions.chooseGameCoverTitle,
-      filters: [
-        {
-          name: "Image",
-          extensions: ["jpg", "jpeg", "png", "webp"],
-        },
-      ],
+    await pickGameImage<AddGameForm>({
+      setFormState: state.setAddGameFormState,
+      successMessage: t("workspaceActions.coverSelected"),
     })
+  }, [pickGameImage, state.setAddGameFormState, t])
 
-    if (!selected || Array.isArray(selected)) {
-      return
-    }
+  const pickGameExecutable = useCallback(
+    async <TForm extends GameForm>({
+      gameDir,
+      setFormState,
+      successMessage,
+    }: {
+      gameDir: string
+      setFormState: SetGameFormState<TForm>
+      successMessage: string
+    }) => {
+      if (!gameDir.trim()) {
+        toast.warning(t("workspaceActions.selectGameDirectoryFirst"))
+        return
+      }
 
-    try {
-      const base64Image = await invokeApi<string>("read_image_base64", {
-        path: selected,
-      })
+      const selected = await open(
+        getGameExecutablePickerOptions(t("workspaceActions.chooseGameExecutableTitle")),
+      )
 
-      state.setAddGameFormState((current) => ({
+      if (!selected || Array.isArray(selected)) {
+        return
+      }
+
+      setFormState((current) => ({
         ...current,
-        imagePath: base64Image,
-        customImageSourcePath: "",
-        useDefaultImage: false,
+        exeName: resolveStoredExecutableValue(selected, current.dir || gameDir),
+        isExeAutoDetected: false,
       }))
-      toast.success(copy.workspaceActions.coverSelected)
-    } catch (error) {
-      toast.error("读取图片失败", { description: formatApiErrorMessage(error) })
-    }
-  }, [copy, state])
+      toast.success(successMessage)
+    },
+    [t],
+  )
+
+  const pickAddGameExecutable = useCallback(async () => {
+    await pickGameExecutable<AddGameForm>({
+      gameDir: state.addGameForm.dir,
+      setFormState: state.setAddGameFormState,
+      successMessage: t("workspaceActions.gameExecutableSelected"),
+    })
+  }, [pickGameExecutable, state.addGameForm.dir, state.setAddGameFormState, t])
 
   const resetAddGameImage = useCallback(() => {
-    state.setAddGameFormState((current) => ({
-      ...current,
-      imagePath: "",
-      customImageSourcePath: "",
-      useDefaultImage: true,
-    }))
-    toast.info(copy.workspaceActions.coverReset)
-  }, [copy, state])
+    state.setAddGameFormState(createResetGameImagePatch<AddGameForm>())
+    toast.info(t("workspaceActions.coverReset"))
+  }, [state.setAddGameFormState, t])
 
   const confirmAddGame = useCallback(async () => {
     if (!state.addGameForm.dir.trim()) {
-      toast.warning(copy.workspaceActions.selectGameDirectoryFirst)
+      toast.warning(t("workspaceActions.selectGameDirectoryFirst"))
       return
     }
     if (!state.addGameForm.type) {
-      toast.warning(copy.workspaceActions.confirmGameTypeFirst)
+      toast.warning(t("workspaceActions.confirmGameTypeFirst"))
       return
     }
 
@@ -139,22 +276,23 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
 
     try {
       state.setSavingGameId("add-game")
-      toastId = toast.loading(copy.workspaceActions.savingGameConfig)
+      toastId = toast.loading(t("workspaceActions.savingGameConfig"))
 
       const payload = await invokeApi<BootstrapPayload>("save_game_path", {
         gamePath: state.addGameForm.dir.trim(),
         gameType: state.addGameForm.type,
         name: state.addGameForm.name,
         version: state.addGameForm.version,
+        exeName: state.addGameForm.exeName,
         coverImageSourcePath: state.addGameForm.customImageSourcePath || null,
-        existingCoverBase64: state.addGameForm.imagePath.startsWith("data:image/") ? state.addGameForm.imagePath : null,
+        existingCoverBase64: getExistingCoverBase64(state.addGameForm.imagePath),
       })
 
       const addedGame = payload.games[payload.games.length - 1]
       applyBootstrap(payload)
-      toast.success(copy.workspaceActions.gameAdded, {
+      toast.success(t("workspaceActions.gameAdded"), {
         id: toastId,
-        description: state.addGameForm.name || addedGame?.name || copy.workspaceActions.gameConfigSaved,
+        description: state.addGameForm.name || addedGame?.name || t("workspaceActions.gameConfigSaved"),
       })
       closeAddGameDialog()
       state.setCurrentView("home")
@@ -163,14 +301,14 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
         state.setActiveGameId(addedGame.id)
       }
     } catch (error) {
-      toast.error(copy.workspaceActions.addFailed, {
+      toast.error(t("workspaceActions.addFailed"), {
         id: toastId,
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setSavingGameId(null)
     }
-  }, [state, copy, applyBootstrap, closeAddGameDialog])
+  }, [applyBootstrap, closeAddGameDialog, state, t])
 
   const openEditGameDialog = useCallback((gameId: string) => {
     const game = games.find((item) => item.id === gameId)
@@ -181,10 +319,11 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
     state.setEditGameFormState({
       id: game.id,
       dir: game.gamePath,
-      type: game.gameType as any,
+      type: game.gameType,
       name: game.name,
       version: game.version,
       exeName: game.exeName,
+      isExeAutoDetected: false,
       imagePath: game.imagePath,
       customImageSourcePath: "",
       useDefaultImage: !game.imagePath,
@@ -193,47 +332,24 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
   }, [games, state])
 
   const pickEditGameImage = useCallback(async () => {
-    const selected = await open({
-      multiple: false,
-      title: copy.workspaceActions.chooseGameCoverTitle,
-      filters: [
-        {
-          name: "Image",
-          extensions: ["jpg", "jpeg", "png", "webp"],
-        },
-      ],
+    await pickGameImage<EditGameForm>({
+      setFormState: state.setEditGameFormState,
+      successMessage: t("workspaceActions.coverSelectionUpdated"),
     })
+  }, [pickGameImage, state.setEditGameFormState, t])
 
-    if (!selected || Array.isArray(selected)) {
-      return
-    }
-
-    try {
-      const base64Image = await invokeApi<string>("read_image_base64", {
-        path: selected,
-      })
-
-      state.setEditGameFormState((current) => ({
-        ...current,
-        imagePath: base64Image,
-        customImageSourcePath: "",
-        useDefaultImage: false,
-      }))
-      toast.success(copy.workspaceActions.coverSelectionUpdated)
-    } catch (error) {
-      toast.error("读取图片失败", { description: formatApiErrorMessage(error) })
-    }
-  }, [copy, state])
+  const pickEditGameExecutable = useCallback(async () => {
+    await pickGameExecutable<EditGameForm>({
+      gameDir: state.editGameForm.dir,
+      setFormState: state.setEditGameFormState,
+      successMessage: t("workspaceActions.gameExecutableSelected"),
+    })
+  }, [pickGameExecutable, state.editGameForm.dir, state.setEditGameFormState, t])
 
   const resetEditGameImage = useCallback(() => {
-    state.setEditGameFormState((current) => ({
-      ...current,
-      imagePath: "",
-      customImageSourcePath: "",
-      useDefaultImage: true,
-    }))
-    toast.info(copy.workspaceActions.coverReset)
-  }, [copy, state])
+    state.setEditGameFormState(createResetGameImagePatch<EditGameForm>())
+    toast.info(t("workspaceActions.coverReset"))
+  }, [state.setEditGameFormState, t])
 
   const confirmEditGame = useCallback(async () => {
     if (!state.editGameForm.id) {
@@ -244,41 +360,42 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
 
     try {
       state.setSavingGameId(state.editGameForm.id)
-      toastId = toast.loading(copy.workspaceActions.savingGameInfo(state.editGameForm.name))
+      toastId = toast.loading(t("workspaceActions.savingGameInfo", { gameName: state.editGameForm.name }))
 
       const payload = await invokeApi<BootstrapPayload>("update_game_entry", {
         gameId: state.editGameForm.id,
         gameType: state.editGameForm.type,
         name: state.editGameForm.name,
         version: state.editGameForm.version,
+        exeName: state.editGameForm.exeName,
         coverImageSourcePath: state.editGameForm.customImageSourcePath || null,
-        existingCoverBase64: state.editGameForm.imagePath.startsWith("data:image/") ? state.editGameForm.imagePath : null,
+        existingCoverBase64: getExistingCoverBase64(state.editGameForm.imagePath),
         useDefaultImage: state.editGameForm.useDefaultImage,
       })
 
       applyBootstrap(payload)
       closeEditGameDialog()
-      toast.success(copy.workspaceActions.gameUpdated, {
+      toast.success(t("workspaceActions.gameUpdated"), {
         id: toastId,
         description: state.editGameForm.name,
       })
     } catch (error) {
-      toast.error(copy.workspaceActions.editFailed, {
+      toast.error(t("workspaceActions.editFailed"), {
         id: toastId,
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setSavingGameId(null)
     }
-  }, [state, copy, applyBootstrap, closeEditGameDialog])
+  }, [applyBootstrap, closeEditGameDialog, state, t])
 
   const confirmDeleteGame = useCallback(async (gameId: string, _removeOnly?: boolean) => {
     let toastId: string | number | undefined
 
     try {
       state.setSavingGameId(gameId)
-      const gameName = games.find((game) => game.id === gameId)?.name ?? copy.workspaceActions.currentGame
-      toastId = toast.loading(copy.workspaceActions.deletingGameConfig)
+      const gameName = games.find((game) => game.id === gameId)?.name ?? t("workspaceActions.currentGame")
+      toastId = toast.loading(t("workspaceActions.deletingGameConfig"))
 
       const payload = await invokeApi<BootstrapPayload>("delete_game_entry", {
         gameId,
@@ -286,7 +403,7 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
 
       applyBootstrap(payload)
       state.setDeleteTargetGameId(null)
-      toast.success(copy.workspaceActions.gameDeleted, {
+      toast.success(t("workspaceActions.gameDeleted"), {
         id: toastId,
         description: gameName,
       })
@@ -295,14 +412,14 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
         state.setCurrentView("home")
       }
     } catch (error) {
-      toast.error(copy.workspaceActions.deleteFailed, {
+      toast.error(t("workspaceActions.deleteFailed"), {
         id: toastId,
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setSavingGameId(null)
     }
-  }, [state, games, copy, applyBootstrap])
+  }, [applyBootstrap, games, state, t])
 
   const updateGamesSortOrder = useCallback(async (orders: { id: string; sortOrder: number }[]) => {
     try {
@@ -323,10 +440,12 @@ export function useGameManagement(state: WorkspaceState, games: Game[], applyBoo
     closeAddGameDialog,
     closeEditGameDialog,
     pickGameDirectory,
+    pickAddGameExecutable,
     pickAddGameImage,
     resetAddGameImage,
     confirmAddGame,
     openEditGameDialog,
+    pickEditGameExecutable,
     pickEditGameImage,
     resetEditGameImage,
     confirmEditGame,

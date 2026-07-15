@@ -73,7 +73,7 @@ function EmptyHero({ workspace }: { workspace: WorkspaceState }) {
           <div className="flex size-16 items-center justify-center rounded-3xl bg-violet-100 text-violet-700 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/30">
             <Gamepad2 className="size-8" />
           </div>
-          <h2 className="mt-6 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-5">
+          <h2 className="mt-6 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
             {t("home.emptyTitle")}
           </h2>
           <p className="mt-4 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">

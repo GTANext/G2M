@@ -1,19 +1,12 @@
 import { useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { useI18n } from "@/components/app/i18nProvider"
 import type { ManagedMod } from "@/lib/g2m"
 import type { ConflictDecision, WorkspaceState } from "./types"
-
-function buildConflictDecisionKey(modId: string, conflictId: string): string {
-  return `${modId}::${conflictId}`
-}
-
-function normalizeConflictTargetPath(targetPath: string): string {
-  return targetPath.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
-}
+import { buildConflictDecisionKey, normalizeConflictTargetPath } from "./utils"
 
 export function useConflictResolution(state: WorkspaceState, mods: ManagedMod[]) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   const resolveConflict = useCallback(
     (modId: string, conflictId: string, decision: ConflictDecision) => {
@@ -25,11 +18,11 @@ export function useConflictResolution(state: WorkspaceState, mods: ManagedMod[])
       const mod = mods.find((item) => item.id === modId)
       const conflict = mod?.conflictFiles.find((item) => item.id === conflictId)
 
-      toast.success(decision === "overwrite" ? copy.workspaceActions.conflictSetOverwrite : copy.workspaceActions.conflictSetSkip, {
-        description: conflict?.fileName ?? copy.workspaceActions.conflictUpdated,
+      toast.success(decision === "overwrite" ? t("workspaceActions.conflictSetOverwrite") : t("workspaceActions.conflictSetSkip"), {
+        description: conflict?.fileName ?? t("workspaceActions.conflictUpdated"),
       })
     },
-    [state, mods, copy],
+    [mods, state, t],
   )
 
   const getConflictDecision = useCallback(
@@ -46,13 +39,13 @@ export function useConflictResolution(state: WorkspaceState, mods: ManagedMod[])
 
     toast.success(
       decision === "overwrite"
-        ? copy.workspaceActions.conflictSetOverwrite
-        : copy.workspaceActions.conflictSetSkip,
+        ? t("workspaceActions.conflictSetOverwrite")
+        : t("workspaceActions.conflictSetSkip"),
       {
         description: targetPath,
       },
     )
-  }, [state, copy])
+  }, [state, t])
 
   const resolveImportConflicts = useCallback(
     (targetPaths: string[], decision: ConflictDecision) => {
@@ -77,8 +70,8 @@ export function useConflictResolution(state: WorkspaceState, mods: ManagedMod[])
 
       toast.success(
         decision === "overwrite"
-          ? copy.workspaceActions.conflictSetOverwrite
-          : copy.workspaceActions.conflictSetSkip,
+          ? t("workspaceActions.conflictSetOverwrite")
+          : t("workspaceActions.conflictSetSkip"),
         {
           description:
             normalizedTargetPaths.length === 1
@@ -87,7 +80,7 @@ export function useConflictResolution(state: WorkspaceState, mods: ManagedMod[])
         },
       )
     },
-    [state, copy],
+    [state, t],
   )
 
   const getImportConflictDecision = useCallback(

@@ -219,6 +219,7 @@ pub(crate) fn update_game_entry_in_database(
     game_id: &str,
     game_type: &str,
     name: &str,
+    exe_name: &str,
     version: &str,
     image_path: &str,
     updated_at: i64,
@@ -230,10 +231,10 @@ pub(crate) fn update_game_entry_in_database(
         .execute(
             "
             UPDATE games
-            SET game_type = ?1, name = ?2, version = ?3, image_path = ?4, updated_at = ?5
-            WHERE id = ?6
+            SET game_type = ?1, name = ?2, exe_name = ?3, version = ?4, image_path = ?5, updated_at = ?6
+            WHERE id = ?7
             ",
-            params![game_type, name, version, image_path, updated_at, game_id],
+            params![game_type, name, exe_name, version, image_path, updated_at, game_id],
         )
         .map_err(|error| format!("failed to update game entry: {error}"))
 }

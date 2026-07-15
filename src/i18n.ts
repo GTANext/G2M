@@ -8,29 +8,67 @@ import zhCN from "./locales/zh-CN.json"
 
 const STORAGE_KEY = "g2m:locale"
 
-const resources = {
+const localeRegistry = {
   "zh-CN": {
-    translation: zhCN,
+    code: "ZH",
+    label: "简体中文",
+    messages: zhCN,
   },
   "en-US": {
-    translation: enUS,
+    code: "EN",
+    label: "English",
+    messages: enUS,
   },
   "ja-JP": {
-    translation: jaJP,
+    code: "JA",
+    label: "日本語",
+    messages: jaJP,
   },
   "ru-RU": {
-    translation: ruRU,
+    code: "RU",
+    label: "Русский",
+    messages: ruRU,
   },
 } as const
 
-function detectLanguage(): keyof typeof resources {
+type AppLocale = keyof typeof localeRegistry
+
+type LocaleOption = {
+  code: string
+  label: string
+  value: AppLocale
+}
+
+const localeEntries = Object.entries(localeRegistry) as Array<
+  [AppLocale, (typeof localeRegistry)[AppLocale]]
+>
+
+const resources = Object.fromEntries(
+  localeEntries.map(([value, meta]) => [value, { translation: meta.messages }]),
+) as {
+  [Key in AppLocale]: {
+    translation: (typeof localeRegistry)[Key]["messages"]
+  }
+}
+
+const localeOptions: LocaleOption[] = localeEntries.map(([value, meta]) => ({
+  code: meta.code,
+  label: meta.label,
+  value,
+}))
+
+function isAppLocale(value: string): value is AppLocale {
+  return value in localeRegistry
+}
+
+function detectLanguage(): AppLocale {
   if (typeof window === "undefined") {
     return "zh-CN"
   }
 
   const storedValue = window.localStorage.getItem(STORAGE_KEY)
-  if (storedValue && storedValue in resources) {
-    return storedValue as keyof typeof resources
+  if (storedValue && isAppLocale(storedValue)) {
+    return storedValue
   }
 
   const source = window.navigator.language || ""
@@ -57,3 +95,5 @@ void i18n.use(initReactI18next).init({
 })
 
 export { STORAGE_KEY, i18n }
+export { localeOptions, localeRegistry, resources }
+export type { AppLocale, LocaleOption }

@@ -4,6 +4,7 @@ import type {
   ManagedMod,
   ModImportFileEntry,
   ModImportPreview,
+  WorkspaceStats,
 } from "@/lib/g2m"
 
 export type AddGameForm = {
@@ -12,6 +13,7 @@ export type AddGameForm = {
   name: string
   version: string
   exeName: string
+  isExeAutoDetected: boolean
   imagePath: string
   customImageSourcePath: string
   useDefaultImage: boolean
@@ -35,6 +37,7 @@ export const createDefaultAddGameForm = (): AddGameForm => ({
   name: "",
   version: "",
   exeName: "",
+  isExeAutoDetected: false,
   imagePath: "",
   customImageSourcePath: "",
   useDefaultImage: true,
@@ -158,7 +161,9 @@ export type UseG2mWorkspaceResult = {
   openGameDirectory: (gameId?: string) => Promise<void>
   confirmImportMod: () => Promise<void>
   pickImportModSource: (sourceType?: ImportModForm["sourceType"]) => Promise<void>
+  pickAddGameExecutable: () => Promise<void>
   pickAddGameImage: () => Promise<void>
+  pickEditGameExecutable: () => Promise<void>
   pickEditGameImage: () => Promise<void>
   pickGameDirectory: () => Promise<void>
   resetAddGameImage: () => void
@@ -182,7 +187,7 @@ export type UseG2mWorkspaceResult = {
   updateImportModMappingTarget: (relativePath: string, targetPath: string) => void
   setActiveGameId: (gameId: string) => void
   setSelectedModId: (modId: string) => void
-  stats: any
+  stats: WorkspaceStats
   toggleMod: (modId: string) => Promise<void>
   togglingModId: string | null
   refreshWorkspace: () => Promise<void>

@@ -1,6 +1,6 @@
 import { ChevronRight, FolderOpen, HardDriveDownload, Home, Pencil, Sparkles } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
-import { useI18n } from "@/components/app/i18nProvider"
 import { Button } from "@/components/ui/button"
 import { resolveGameImageSrc, type Game, type WorkspaceStats } from "@/lib/g2m"
 import { cn } from "@/lib/utils"
@@ -22,7 +22,7 @@ function G2MWorkspaceBreadcrumb({
   gameName,
   onHomeClick,
 }: G2MWorkspaceBreadcrumbProps) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-[28px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(241,245,249,0.9))] px-4 py-3 shadow-[0_20px_70px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.03] backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(15,23,42,0.9),rgba(15,23,42,0.72))] dark:shadow-[0_20px_70px_rgba(0,0,0,0.34)] dark:ring-white/[0.04]">
@@ -33,7 +33,7 @@ function G2MWorkspaceBreadcrumb({
           className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/5 bg-white/80 px-3 py-1.5 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-white hover:text-slate-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/[0.1] dark:hover:text-white"
         >
           <Home className="size-3.5" />
-          {copy.workspace.breadcrumbHome}
+          {t("workspace.breadcrumbHome")}
         </button>
         <ChevronRight className="size-4 text-slate-300 dark:text-slate-600" />
         <span className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 font-medium text-white shadow-sm dark:bg-white dark:text-slate-950">
@@ -43,7 +43,7 @@ function G2MWorkspaceBreadcrumb({
 
       <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/80 bg-violet-50/90 px-3 py-1.5 text-xs font-medium text-violet-700 shadow-sm dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-200">
         <Sparkles className="size-3.5" />
-        {copy.workspace.breadcrumbWorkspace}
+        {t("workspace.breadcrumbWorkspace")}
       </span>
     </div>
   )
@@ -56,7 +56,7 @@ function G2MWorkspaceHero({
   onImportMods,
   onOpenDirectory,
 }: G2MWorkspaceHeroProps) {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const hasConflicts = stats.conflicts > 0
 
   return (
@@ -75,7 +75,7 @@ function G2MWorkspaceHero({
             <div className="max-w-3xl">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-white/10 bg-white/15 px-3 py-1 text-[11px] font-medium text-white backdrop-blur">
-                  {copy.workspace.heroEyebrow}
+                  {t("workspace.heroEyebrow")}
                 </span>
                 <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-medium text-white/90 backdrop-blur">
                   {game.shortName}
@@ -85,10 +85,10 @@ function G2MWorkspaceHero({
                 {game.name}
               </h1>
               <p className="mt-3 text-sm text-white/75 lg:text-base">
-                {game.version || copy.workspace.unknownVersion} · {game.exeName}
+                {game.version || t("workspace.unknownVersion")} · {game.exeName}
               </p>
               <p className="mt-5 max-w-2xl text-sm leading-7 text-white/80 lg:text-[15px]">
-                {copy.workspace.heroDescription}
+                {t("workspace.heroDescription")}
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -97,7 +97,7 @@ function G2MWorkspaceHero({
                   onClick={onImportMods}
                 >
                   <HardDriveDownload className="size-4" />
-                  {copy.workspace.importMod}
+                  {t("workspace.importMod")}
                 </Button>
                 <Button
                   variant="outline"
@@ -105,7 +105,7 @@ function G2MWorkspaceHero({
                   onClick={onOpenDirectory}
                 >
                   <FolderOpen className="size-4" />
-                  {copy.workspace.openGameDirectory}
+                  {t("workspace.openGameDirectory")}
                 </Button>
                 <Button
                   variant="outline"
@@ -113,31 +113,31 @@ function G2MWorkspaceHero({
                   onClick={onEditGame}
                 >
                   <Pencil className="size-4" />
-                  {copy.workspace.editGame}
+                  {t("workspace.editGame")}
                 </Button>
               </div>
             </div>
 
             <div className="grid gap-3 xl:w-[420px] xl:grid-cols-2">
               <HeroStatTile
-                label={copy.workspace.currentGame}
+                label={t("workspace.currentGame")}
                 value={game.shortName}
-                caption={game.status === "ready" ? copy.workspace.configuredReady : copy.workspace.configuredPending}
+                caption={game.status === "ready" ? t("workspace.configuredReady") : t("workspace.configuredPending")}
               />
               <HeroStatTile
-                label={copy.workspace.modTotal}
+                label={t("workspace.modTotal")}
                 value={String(stats.total)}
-                caption={copy.workspace.modsCaption(stats.enabled)}
+                caption={t("workspace.modsCaption", { count: stats.enabled })}
               />
               <HeroStatTile
-                label={copy.workspace.fileTotal}
+                label={t("workspace.fileTotal")}
                 value={String(stats.files)}
-                caption={copy.workspace.filesCaption}
+                caption={t("workspace.filesCaption")}
               />
               <HeroStatTile
-                label={copy.workspace.conflictStatus}
+                label={t("workspace.conflictStatus")}
                 value={hasConflicts ? String(stats.conflicts) : "0"}
-                caption={hasConflicts ? copy.workspace.conflictCaption(stats.conflicts) : copy.workspace.conflictHealthy}
+                caption={hasConflicts ? t("workspace.conflictCaption", { count: stats.conflicts }) : t("workspace.conflictHealthy")}
                 tone={hasConflicts ? "warning" : "success"}
               />
             </div>

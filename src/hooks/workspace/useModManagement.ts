@@ -1,27 +1,85 @@
 import { useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { open } from "@tauri-apps/plugin-dialog"
 
-import { useI18n } from "@/components/app/i18nProvider"
 import { formatApiErrorMessage, invokeApi } from "@/lib/api"
 import {
   type BootstrapPayload,
   type Game,
   inferImportSourceType,
   inferTargetFolderFromPath,
+  type ModImportFileEntry,
   type ModImportPreview,
 } from "@/lib/g2m"
 import { createDefaultImportModForm, type WorkspaceState } from "./types"
+import { normalizeConflictTargetPath } from "./utils"
+
+type ImportSourceType = "directory" | "zip"
+type PreparedImportMapping = ModImportFileEntry & {
+  overwriteExisting: boolean
+}
 
 function toImportDisplayName(selectedPath: string): string {
   const rawName = selectedPath.split(/[\\/]/).pop()?.trim() || ""
   return rawName.replace(/\.(zip|rar|7z)$/i, "")
 }
 
-export function useModManagement(state: WorkspaceState, activeGame: Game | null, applyBootstrap: (payload: BootstrapPayload) => void) {
-  const { copy } = useI18n()
+function createImportModForm(selectedPath: string, sourceType: ImportSourceType) {
+  return {
+    dir: selectedPath,
+    name: toImportDisplayName(selectedPath),
+    sourceType,
+  }
+}
 
-  const resetImportModState = useCallback((sourceType: "directory" | "zip" = "directory") => {
+function getActiveConflictTargets({
+  preview,
+  mappings,
+}: {
+  preview: ModImportPreview
+  mappings: ModImportFileEntry[]
+}): string[] {
+  return Array.from(
+    new Set(
+      preview.conflictFiles
+        .map((conflict) => normalizeConflictTargetPath(conflict.targetPath))
+        .filter((targetPath) =>
+          mappings.some(
+            (file) =>
+              normalizeConflictTargetPath(file.targetPath) === targetPath &&
+              !file.skipInstall &&
+              file.targetPath.trim(),
+          ),
+        ),
+    ),
+  )
+}
+
+function prepareImportMappings({
+  mappings,
+  getConflictDecision,
+}: {
+  mappings: ModImportFileEntry[]
+  getConflictDecision: (targetPath: string) => "overwrite" | "skip" | null
+}): PreparedImportMapping[] {
+  return mappings.map((file) => ({
+    ...file,
+    skipInstall: Boolean(
+      file.skipInstall || !file.targetPath.trim() || getConflictDecision(file.targetPath) === "skip",
+    ),
+    overwriteExisting: getConflictDecision(file.targetPath) === "overwrite",
+  }))
+}
+
+export function useModManagement(
+  state: WorkspaceState,
+  activeGame: Game | null,
+  applyBootstrap: (payload: BootstrapPayload) => void,
+) {
+  const { t } = useTranslation()
+
+  const resetImportModState = useCallback((sourceType: ImportSourceType = "directory") => {
     state.setImportModForm(createDefaultImportModForm(sourceType))
     state.setImportModMappingsState([])
     state.setImportModPreview(null)
@@ -45,7 +103,7 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
 
     try {
       state.setTogglingModId(modId)
-      toastId = toast.loading(copy.workspaceActions.updatingModState)
+      toastId = toast.loading(t("workspaceActions.updatingModState"))
 
       const payload = await invokeApi<BootstrapPayload>("update_mod_enabled", {
         modId,
@@ -54,29 +112,29 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
 
       applyBootstrap(payload)
       toast.success(
-        nextEnabledState ? copy.workspaceActions.modEnabled : copy.workspaceActions.modDisabled,
+        nextEnabledState ? t("workspaceActions.modEnabled") : t("workspaceActions.modDisabled"),
         {
           id: toastId,
           description: targetMod.name,
         },
       )
     } catch (error) {
-      toast.error(copy.workspaceActions.updateModFailed, {
+      toast.error(t("workspaceActions.updateModFailed"), {
         id: toastId,
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setTogglingModId(null)
     }
-  }, [state, copy, applyBootstrap])
+  }, [applyBootstrap, state, t])
 
   const confirmDeleteMod = useCallback(async (modId: string) => {
     let toastId: string | number | undefined
 
     try {
       state.setDeletingModId(modId)
-      const modName = state.allMods.find((mod) => mod.id === modId)?.name ?? copy.workspacePage.importMod
-      toastId = toast.loading(copy.workspaceActions.deletingMod)
+      const modName = state.allMods.find((mod) => mod.id === modId)?.name ?? t("workspacePage.importMod")
+      toastId = toast.loading(t("workspaceActions.deletingMod"))
 
       const payload = await invokeApi<BootstrapPayload>("delete_mod_entry", {
         modId,
@@ -84,74 +142,71 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
 
       applyBootstrap(payload)
       state.setDeleteTargetModId(null)
-      toast.success(copy.workspaceActions.modDeleted, {
+      toast.success(t("workspaceActions.modDeleted"), {
         id: toastId,
         description: modName,
       })
     } catch (error) {
-      toast.error(copy.workspaceActions.deleteModFailed, {
+      toast.error(t("workspaceActions.deleteModFailed"), {
         id: toastId,
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setDeletingModId(null)
     }
-  }, [state, copy, applyBootstrap])
+  }, [applyBootstrap, state, t])
 
   const previewImportModSource = useCallback(async (selectedPath: string) => {
     if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
+      toast.warning(t("workspaceActions.currentGame"))
       return
     }
 
     let toastId: string | number | undefined
 
     try {
-      const modName = toImportDisplayName(selectedPath)
       const sourceType = inferImportSourceType(selectedPath)
-      state.setImportModForm({
-        dir: selectedPath,
-        name: modName,
-        sourceType,
-      })
+      const initialForm = createImportModForm(selectedPath, sourceType)
+
+      state.setImportModForm(initialForm)
       state.setImportModMappingsState([])
       state.setImportModPreview(null)
       state.setIsPreviewingMod(true)
-      toastId = toast.loading(copy.workspaceActions.previewingMod)
+      toastId = toast.loading(t("workspaceActions.previewingMod"))
 
       const preview = await invokeApi<ModImportPreview>("preview_mod_directory", {
         gameId: activeGame.id,
         modPath: selectedPath,
-        modName: modName || undefined,
+        modName: initialForm.name || undefined,
       })
 
       state.setImportModForm({
         dir: selectedPath,
-        name: preview.name || modName,
+        name: preview.name || initialForm.name,
         sourceType,
       })
       state.setImportModMappingsState(preview.files)
       state.setImportModPreview(preview)
       state.setImportConflictDecisions({})
-      toast.success(copy.workspaceActions.modPreviewReady, {
+      toast.success(t("workspaceActions.modPreviewReady"), {
         id: toastId,
-        description: preview.name || modName || copy.workspacePage.importMod,
+        description: preview.name || initialForm.name || t("workspacePage.importMod"),
       })
     } catch (error) {
       state.setImportModMappingsState([])
       state.setImportModPreview(null)
-      toast.error(copy.workspaceActions.importPreviewFailed, {
+      toast.error(t("workspaceActions.importPreviewFailed"), {
         id: toastId,
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setIsPreviewingMod(false)
     }
-  }, [activeGame, copy, state])
+  }, [activeGame, state, t])
 
   const pickImportModDirectory = useCallback(async () => {
     if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
+      toast.warning(t("workspaceActions.currentGame"))
       return
     }
 
@@ -159,7 +214,7 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
       const selected = await open({
         directory: true,
         multiple: false,
-        title: copy.workspaceActions.chooseModDirectoryTitle,
+        title: t("workspaceActions.chooseModDirectoryTitle"),
       })
 
       if (!selected || Array.isArray(selected)) {
@@ -168,22 +223,22 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
 
       await previewImportModSource(String(selected))
     } catch (error) {
-      toast.error(copy.workspaceActions.importPreviewFailed, {
+      toast.error(t("workspaceActions.importPreviewFailed"), {
         description: formatApiErrorMessage(error),
       })
     }
-  }, [activeGame, copy, previewImportModSource])
+  }, [activeGame, previewImportModSource, t])
 
   const pickImportModArchive = useCallback(async () => {
     if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
+      toast.warning(t("workspaceActions.currentGame"))
       return
     }
 
     try {
       const selected = await open({
         multiple: false,
-        title: copy.workspaceActions.chooseModArchiveTitle,
+        title: t("workspaceActions.chooseModArchiveTitle"),
         filters: [
           {
             name: "ZIP",
@@ -198,13 +253,13 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
 
       await previewImportModSource(String(selected))
     } catch (error) {
-      toast.error(copy.workspaceActions.importPreviewFailed, {
+      toast.error(t("workspaceActions.importPreviewFailed"), {
         description: formatApiErrorMessage(error),
       })
     }
-  }, [activeGame, copy, previewImportModSource])
+  }, [activeGame, previewImportModSource, t])
 
-  const pickImportModSource = useCallback(async (sourceType?: "directory" | "zip") => {
+  const pickImportModSource = useCallback(async (sourceType?: ImportSourceType) => {
     const nextSourceType = sourceType ?? state.importModForm.sourceType
 
     if (sourceType) {
@@ -222,10 +277,6 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
     await pickImportModDirectory()
   }, [state, pickImportModArchive, pickImportModDirectory])
 
-  function normalizeConflictTargetPath(targetPath: string): string {
-    return targetPath.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
-  }
-
   const getImportConflictDecision = useCallback(
     (targetPath: string) =>
       state.importConflictDecisions[normalizeConflictTargetPath(targetPath)] ?? null,
@@ -234,15 +285,15 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
 
   const confirmImportMod = useCallback(async () => {
     if (!activeGame?.id) {
-      toast.warning(copy.workspaceActions.currentGame)
+      toast.warning(t("workspaceActions.currentGame"))
       return
     }
     if (!state.importModForm.dir.trim()) {
-      toast.warning(copy.workspaceActions.selectModDirectoryFirst)
+      toast.warning(t("workspaceActions.selectModDirectoryFirst"))
       return
     }
     if (!state.importModPreview) {
-      toast.warning(copy.workspaceActions.scanModFirst)
+      toast.warning(t("workspaceActions.scanModFirst"))
       return
     }
 
@@ -250,22 +301,12 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
 
     try {
       state.setIsImportingMod(true)
-      toastId = toast.loading(copy.workspaceActions.importingMod)
+      toastId = toast.loading(t("workspaceActions.importingMod"))
 
-      const activeConflictTargets = Array.from(
-        new Set(
-          state.importModPreview.conflictFiles
-            .map((conflict) => normalizeConflictTargetPath(conflict.targetPath))
-            .filter((targetPath) =>
-              state.importModMappings.some(
-                (file) =>
-                  normalizeConflictTargetPath(file.targetPath) === targetPath &&
-                  !file.skipInstall &&
-                  file.targetPath.trim(),
-              ),
-            ),
-        ),
-      )
+      const activeConflictTargets = getActiveConflictTargets({
+        preview: state.importModPreview,
+        mappings: state.importModMappings,
+      })
 
       const unresolvedConflictTargets = activeConflictTargets.filter(
         (targetPath) => !state.importConflictDecisions[targetPath],
@@ -273,7 +314,7 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
 
       if (unresolvedConflictTargets.length > 0) {
         toast.warning(
-          copy.workspaceActions.resolveImportConflictsFirst(unresolvedConflictTargets.length),
+          t("workspaceActions.resolveImportConflictsFirst", { count: unresolvedConflictTargets.length }),
           {
             id: toastId,
           },
@@ -281,20 +322,15 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
         return
       }
 
-      const preparedMappings = state.importModMappings.map((file) => ({
-        ...file,
-        skipInstall: Boolean(
-          file.skipInstall ||
-            !file.targetPath.trim() ||
-            getImportConflictDecision(file.targetPath) === "skip",
-        ),
-        overwriteExisting: getImportConflictDecision(file.targetPath) === "overwrite",
-      }))
+      const preparedMappings = prepareImportMappings({
+        mappings: state.importModMappings,
+        getConflictDecision: getImportConflictDecision,
+      })
       const skippedMappingsCount = preparedMappings.filter((file) => file.skipInstall).length
 
       if (skippedMappingsCount > 0) {
         state.setImportModMappingsState(preparedMappings)
-        toast.info(copy.workspaceActions.emptyTargetPathsHandled(skippedMappingsCount))
+        toast.info(t("workspaceActions.emptyTargetPathsHandled", { count: skippedMappingsCount }))
       }
 
       const payload = await invokeApi<BootstrapPayload>("import_mod_directory", {
@@ -310,22 +346,22 @@ export function useModManagement(state: WorkspaceState, activeGame: Game | null,
       })
 
       applyBootstrap(payload)
-      toast.success(copy.workspaceActions.modImported, {
+      toast.success(t("workspaceActions.modImported"), {
         id: toastId,
-        description: state.importModPreview.name || state.importModForm.name || copy.workspacePage.importMod,
+        description: state.importModPreview.name || state.importModForm.name || t("workspacePage.importMod"),
       })
       closeImportModDialog()
     } catch (error) {
-      toast.error(copy.workspaceActions.importModFailed, {
+      toast.error(t("workspaceActions.importModFailed"), {
         id: toastId,
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setIsImportingMod(false)
     }
-  }, [activeGame, state, copy, applyBootstrap, closeImportModDialog, getImportConflictDecision])
+  }, [activeGame, applyBootstrap, closeImportModDialog, getImportConflictDecision, state, t])
 
-  const setImportModSourceType = useCallback((value: "directory" | "zip") => {
+  const setImportModSourceType = useCallback((value: ImportSourceType) => {
     resetImportModState(value)
   }, [resetImportModState])
 

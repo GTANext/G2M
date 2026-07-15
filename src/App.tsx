@@ -11,15 +11,13 @@ import type { AppInfoPayload } from "@/lib/g2m"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import "./App.css"
+import "./g2m.css"
 
 const HomePage = lazy(() =>
   import("@/pages/home").then((module) => ({ default: module.HomePage })),
 )
 const SettingsPage = lazy(() =>
   import("@/pages/settings").then((module) => ({ default: module.SettingsPage })),
-)
-const AboutPage = lazy(() =>
-  import("@/pages/about").then((module) => ({ default: module.AboutPage })),
 )
 const ModBuilderPage = lazy(() =>
   import("@/pages/builder").then((module) => ({ default: module.ModBuilderPage })),
@@ -56,7 +54,8 @@ function AppShell({
   }, [showAdminAlert])
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(127,86,217,0.18),transparent_28%),linear-gradient(180deg,#f6f7fb_0%,#eef1f8_100%)] text-foreground transition-colors dark:bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.12),transparent_28%),linear-gradient(180deg,#06070a_0%,#0f1117_100%)]">
+    <div className="theme-surface relative min-h-screen overflow-x-clip bg-[radial-gradient(circle_at_top,rgba(127,86,217,0.18),transparent_28%),linear-gradient(180deg,#f6f7fb_0%,#eef1f8_100%)] text-foreground dark:bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.12),transparent_28%),linear-gradient(180deg,#06070a_0%,#0f1117_100%)]">
+      <div aria-hidden className="theme-transition-veil" />
       {showAdminAlert && !isAdminAlertDismissed ? (
         <div className="border-b border-amber-200/70 bg-amber-50/95 dark:border-amber-500/20 dark:bg-amber-500/10">
           <div className="mx-auto flex max-w-[1700px] items-center gap-2 px-4 py-1.5 text-xs text-amber-900 sm:px-6 lg:px-6 dark:text-amber-100">
@@ -80,7 +79,7 @@ function AppShell({
           </div>
         </div>
       ) : null}
-      <Navbar title={t("common.appName")} subtitle={subtitle} />
+      <Navbar title="GTAMODX Manager" subtitle={subtitle} />
 
       <main className={showFooter ? "px-4 pb-24 pt-4 lg:px-6" : "px-4 pb-8 pt-4 lg:px-6"}>
         {children}
@@ -275,29 +274,6 @@ function GameWorkspaceRoute({
   )
 }
 
-function AboutRoute({
-  workspace,
-  appInfo,
-}: {
-  workspace: ReturnType<typeof useG2mWorkspace>
-  appInfo?: AppInfoPayload | null
-}) {
-  const { t } = useTranslation()
-  const navbarSubtitle = t("routes.aboutSubtitle") || "About"
-
-  return (
-    <AppShell
-      appInfo={appInfo}
-      subtitle={navbarSubtitle}
-      showAdminAlert={workspace.bootstrap?.isElevated === false}
-    >
-      <Suspense fallback={<RouteLoader />}>
-        <AboutPage />
-      </Suspense>
-    </AppShell>
-  )
-}
-
 function App() {
   const workspace = useG2mWorkspace()
   const [appInfo, setAppInfo] = useState<AppInfoPayload | null>(null)
@@ -340,7 +316,6 @@ function App() {
         <Route path="/" element={<HomeRoute workspace={workspace} appInfo={appInfo} />} />
         <Route path="/builder" element={<BuilderRoute workspace={workspace} appInfo={appInfo} />} />
         <Route path="/settings" element={<SettingsRoute workspace={workspace} appInfo={appInfo} />} />
-        <Route path="/about" element={<AboutRoute workspace={workspace} appInfo={appInfo} />} />
         <Route path="/game/:gameId" element={<GameWorkspaceRoute workspace={workspace} appInfo={appInfo} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

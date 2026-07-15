@@ -17,13 +17,13 @@ import { useTheme } from "next-themes"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
-import { useI18n } from "@/components/app/i18nProvider"
 import { useAppPreferences } from "@/components/app/preferencesProvider"
 import { G2MPageHeroCard } from "@/components/g2m/pageHeroCard"
 import { G2MPanel, G2MPill, G2MSubtlePanel } from "@/components/g2m/surface"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { i18n, localeOptions, STORAGE_KEY, type AppLocale } from "@/i18n"
 import { cn } from "@/lib/utils"
 
 const optionCardClass =
@@ -42,9 +42,14 @@ function SettingsPage() {
     titleBarStyle,
   } = useAppPreferences()
   const { resolvedTheme, setTheme, theme = "system" } = useTheme()
-  const { locale, localeOptions, setLocale } = useI18n()
   const { t } = useTranslation()
+  const locale = (i18n.resolvedLanguage ?? i18n.language) as AppLocale
   const resolvedThemeMode = resolvedTheme === "dark" ? "dark" : "light"
+
+  function setLocale(value: AppLocale) {
+    window.localStorage.setItem(STORAGE_KEY, value)
+    void i18n.changeLanguage(value)
+  }
 
   const currentThemeLabel =
     theme === "system"
@@ -65,21 +70,13 @@ function SettingsPage() {
         : t("settings.builderModeExplorer")
 
   return (
-    <div className="mx-auto max-w-[1380px] space-y-6">
+    <div className="mx-auto max-w-[1700px] space-y-6">
       <G2MPageHeroCard
         eyebrow={t("common.settings")}
         title={t("settings.heroTitle")}
         description={t("settings.heroDescription")}
         actions={
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="cursor-pointer rounded-xl border-border/70 bg-background/70 px-4 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
-              onClick={() => navigate("/about")}
-            >
-              <MonitorCog className="mr-2 size-4" />
-              关于应用
-            </Button>
             <Button
               variant="outline"
               className="cursor-pointer rounded-xl border-border/70 bg-background/70 px-4 backdrop-blur hover:bg-muted/80 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
@@ -93,7 +90,7 @@ function SettingsPage() {
 
       <Tabs defaultValue="appearance">
         <G2MPanel className="overflow-hidden p-2">
-          <div className="rounded-[28px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.68),rgba(248,250,252,0.56))] ring-1 ring-black/[0.04] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.48),rgba(15,23,42,0.3))] dark:ring-white/[0.04]">
+          
             <div className="border-b border-black/5 px-4 py-4 dark:border-white/10 sm:px-5">
               <TabsList className="!grid !h-auto !w-full grid-cols-2 gap-1 rounded-full bg-black/[0.04] p-1 dark:bg-white/[0.05] sm:grid-cols-3 xl:grid-cols-5">
                 <SettingsTabTrigger value="appearance" title={t("settings.appearanceTitle")} />
@@ -277,7 +274,6 @@ function SettingsPage() {
                 </SettingsSectionShell>
               </TabsContent>
             </div>
-          </div>
         </G2MPanel>
       </Tabs>
     </div>

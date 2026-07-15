@@ -26,14 +26,54 @@ pub(crate) fn create_mod_symlinks(
     files: &[ModInstallFileRecord],
     overwrite_targets: &[String],
 ) -> Result<(), String> {
-    cleanup_legacy_mod_root_symlinks(game_path, mod_source_dir, files)?;
+    create_symlinks(
+        game_path,
+        mod_id,
+        mod_source_dir,
+        files,
+        overwrite_targets,
+        true,
+        true,
+    )
+}
+
+pub(crate) fn create_workspace_symlinks(
+    game_path: &Path,
+    owner_id: &str,
+    source_dir: &Path,
+    files: &[ModInstallFileRecord],
+    overwrite_targets: &[String],
+) -> Result<(), String> {
+    create_symlinks(
+        game_path,
+        owner_id,
+        source_dir,
+        files,
+        overwrite_targets,
+        false,
+        false,
+    )
+}
+
+fn create_symlinks(
+    game_path: &Path,
+    owner_id: &str,
+    source_dir: &Path,
+    files: &[ModInstallFileRecord],
+    overwrite_targets: &[String],
+    reserve_install_roots: bool,
+    cleanup_legacy_targets: bool,
+) -> Result<(), String> {
+    if cleanup_legacy_targets {
+        cleanup_legacy_mod_root_symlinks(game_path, source_dir, files)?;
+    }
 
     let overwrite_targets = overwrite_targets
         .iter()
         .map(|target_path| normalize_import_target_path(target_path))
         .collect::<std::collections::HashSet<_>>();
     let directory_candidates =
-        build_directory_symlink_candidates(mod_source_dir, game_path, mod_id, files)?;
+        build_directory_symlink_candidates(source_dir, game_path, owner_id, files, reserve_install_roots)?;
     let covered_targets = directory_candidates
         .iter()
         .flat_map(|candidate| candidate.covered_targets.iter().cloned())
@@ -76,7 +116,7 @@ pub(crate) fn create_mod_symlinks(
 
         let source_path = Path::new(&file.source_path);
         let target_path = resolve_game_target_path(game_path, &file.target_path);
-        let backup_path = resolve_backup_target_path(game_path, mod_id, &file.target_path);
+        let backup_path = resolve_backup_target_path(game_path, owner_id, &file.target_path);
         let should_overwrite = overwrite_targets.contains(&normalize_import_target_path(&file.target_path))
             || backup_path.exists();
 
@@ -197,6 +237,7 @@ fn build_directory_symlink_candidates(
     game_path: &Path,
     mod_id: &str,
     files: &[ModInstallFileRecord],
+    reserve_install_roots: bool,
 ) -> Result<Vec<DirectorySymlinkCandidate>, String> {
     let mut groups = std::collections::BTreeMap::<String, Vec<(&ModInstallFileRecord, String)>>::new();
 
@@ -222,9 +263,10 @@ fn build_directory_symlink_candidates(
 
     let mut candidates = Vec::new();
     for (folder_name, records) in groups {
-        if RESERVED_INSTALL_ROOTS
-            .iter()
-            .any(|reserved| folder_name.eq_ignore_ascii_case(reserved))
+        if reserve_install_roots
+            && RESERVED_INSTALL_ROOTS
+                .iter()
+                .any(|reserved| folder_name.eq_ignore_ascii_case(reserved))
         {
             continue;
         }

@@ -1,45 +1,91 @@
 import { useCallback, useEffect, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener"
 
-import { useI18n } from "@/components/app/i18nProvider"
 import { formatApiErrorMessage, invokeApi } from "@/lib/api"
 import {
   buildGamesFromBackend,
   buildDisplayMods,
   buildWorkspaceStats,
   type BootstrapPayload,
+  type Game,
   type ManagedMod,
+  type WorkspaceStats,
 } from "@/lib/g2m"
 
 import { useWorkspaceState } from "./workspace/useWorkspaceState"
+import { useConflictResolution } from "./workspace/useConflictResolution"
 import { useGameManagement } from "./workspace/useGameManagement"
 import { useModManagement } from "./workspace/useModManagement"
 import { usePrerequisites } from "./workspace/usePrerequisites"
-import { useConflictResolution } from "./workspace/useConflictResolution"
 import type { UseG2mWorkspaceResult } from "./workspace/types"
+import { buildConflictDecisionKey, matchesModSearch } from "./workspace/utils"
 
-function buildConflictDecisionKey(modId: string, conflictId: string): string {
-  return `${modId}::${conflictId}`
+function buildNextConflictDecisions(
+  currentDecisions: Record<string, "overwrite" | "skip">,
+  mods: ManagedMod[],
+): Record<string, "overwrite" | "skip"> {
+  const validKeys = new Set(
+    mods.flatMap((mod) =>
+      mod.conflictFiles.map((conflict) => buildConflictDecisionKey(mod.id, conflict.id)),
+    ),
+  )
+
+  return Object.fromEntries(Object.entries(currentDecisions).filter(([key]) => validKeys.has(key)))
 }
 
-function matchesModSearch(mod: ManagedMod, keyword: string): boolean {
-  return [
-    mod.name,
-    mod.author,
-    mod.type,
-    mod.description,
-    ...mod.targetFolders,
-    ...mod.previewFiles,
-    ...mod.conflictWith,
-  ]
-    .join(" ")
-    .toLowerCase()
-    .includes(keyword)
+function pickRetainedId<TItem extends { id: string }>({
+  items,
+  currentId,
+  fallbackId,
+}: {
+  items: TItem[]
+  currentId: string | null
+  fallbackId: string | null
+}): string | null {
+  if (currentId && items.some((item) => item.id === currentId)) {
+    return currentId
+  }
+
+  return fallbackId
+}
+
+function getGamesFromBootstrap(payload: BootstrapPayload): Game[] {
+  return buildGamesFromBackend(payload.games, payload.mods).sort((left, right) => left.sortOrder - right.sortOrder)
+}
+
+function getActiveGameMods(mods: ManagedMod[], activeGameId: string | null): ManagedMod[] {
+  return mods.filter((mod) => !activeGameId || mod.gameId === activeGameId)
+}
+
+function getVisibleMods(mods: ManagedMod[], modSearchQuery: string): ManagedMod[] {
+  const keyword = modSearchQuery.trim().toLowerCase()
+  if (!keyword) {
+    return mods
+  }
+
+  return mods.filter((mod) => matchesModSearch(mod, keyword))
+}
+
+function getActiveGame(games: Game[], activeGameId: string | null): Game | null {
+  return games.find((game) => game.id === activeGameId) ?? games[0] ?? null
+}
+
+function getSelectedMod(mods: ManagedMod[], selectedModId: string): ManagedMod | null {
+  return mods.find((mod) => mod.id === selectedModId) ?? mods[0] ?? null
+}
+
+function getConfiguredGames(games: Game[]): Game[] {
+  return games.filter((game) => game.status === "ready")
+}
+
+function getWorkspaceStats(mods: ManagedMod[]): WorkspaceStats {
+  return buildWorkspaceStats(mods)
 }
 
 export function useG2mWorkspace(): UseG2mWorkspaceResult {
-  const { copy } = useI18n()
+  const { t } = useTranslation()
   const state = useWorkspaceState()
 
   const applyBootstrap = useCallback(
@@ -48,32 +94,22 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
       const nextMods = buildDisplayMods(payload.mods)
       state.setAllMods(nextMods)
-      state.setConflictDecisions((current) => {
-        const validKeys = new Set(
-          nextMods.flatMap((mod) =>
-            mod.conflictFiles.map((conflict) => buildConflictDecisionKey(mod.id, conflict.id)),
-          ),
-        )
-
-        return Object.fromEntries(
-          Object.entries(current).filter(([key]) => validKeys.has(key)),
-        )
-      })
+      state.setConflictDecisions((current) => buildNextConflictDecisions(current, nextMods))
 
       state.setSelectedModId((currentSelectedModId) => {
-        if (nextMods.some((mod) => mod.id === currentSelectedModId)) {
-          return currentSelectedModId
-        }
-
-        return nextMods[0]?.id ?? ""
+        return pickRetainedId({
+          items: nextMods,
+          currentId: currentSelectedModId,
+          fallbackId: nextMods[0]?.id ?? "",
+        }) ?? ""
       })
 
       state.setActiveGameId((currentActiveGameId) => {
-        if (currentActiveGameId && payload.games.some((game) => game.id === currentActiveGameId)) {
-          return currentActiveGameId
-        }
-
-        return payload.games[0]?.id ?? null
+        return pickRetainedId({
+          items: payload.games,
+          currentId: currentActiveGameId,
+          fallbackId: payload.games[0]?.id ?? null,
+        })
       })
     },
     [state],
@@ -85,13 +121,13 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       const payload = await invokeApi<BootstrapPayload>("bootstrap_app")
       applyBootstrap(payload)
     } catch (error) {
-      toast.error(copy.workspaceActions.initFailed, {
+      toast.error(t("workspaceActions.initFailed"), {
         description: formatApiErrorMessage(error),
       })
     } finally {
       state.setBootstrapping(false)
     }
-  }, [applyBootstrap, copy.workspaceActions.initFailed, state.setBootstrapping])
+  }, [applyBootstrap, state.setBootstrapping, t])
 
   useEffect(() => {
     void refreshWorkspace()
@@ -103,39 +139,26 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
       return []
     }
 
-    return buildGamesFromBackend(state.bootstrap.games, state.bootstrap.mods).sort((a, b) => a.sortOrder - b.sortOrder)
+    return getGamesFromBootstrap(state.bootstrap)
   }, [state.bootstrap])
 
   const activeGameMods = useMemo(
-    () => state.allMods.filter((mod) => !state.activeGameId || mod.gameId === state.activeGameId),
+    () => getActiveGameMods(state.allMods, state.activeGameId),
     [state.activeGameId, state.allMods],
   )
 
-  const mods = useMemo(() => {
-    const keyword = state.modSearchQuery.trim().toLowerCase()
-    if (!keyword) {
-      return activeGameMods
-    }
-
-    return activeGameMods.filter((mod) => matchesModSearch(mod, keyword))
-  }, [activeGameMods, state.modSearchQuery])
-
-  const activeGame = useMemo(
-    () => games.find((game) => game.id === state.activeGameId) ?? games[0] ?? null,
-    [state.activeGameId, games],
+  const mods = useMemo(
+    () => getVisibleMods(activeGameMods, state.modSearchQuery),
+    [activeGameMods, state.modSearchQuery],
   )
 
-  const selectedMod = useMemo(
-    () => mods.find((mod) => mod.id === state.selectedModId) ?? mods[0] ?? null,
-    [mods, state.selectedModId],
-  )
+  const activeGame = useMemo(() => getActiveGame(games, state.activeGameId), [state.activeGameId, games])
 
-  const configuredGames = useMemo(
-    () => games.filter((game) => game.status === "ready"),
-    [games],
-  )
+  const selectedMod = useMemo(() => getSelectedMod(mods, state.selectedModId), [mods, state.selectedModId])
+
+  const configuredGames = useMemo(() => getConfiguredGames(games), [games])
   const hasConfiguredGames = configuredGames.length > 0
-  const stats = useMemo(() => buildWorkspaceStats(activeGameMods), [activeGameMods])
+  const stats = useMemo(() => getWorkspaceStats(activeGameMods), [activeGameMods])
 
   useEffect(() => {
     if (state.currentView === "game" && !activeGame) {
@@ -147,6 +170,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const modManagement = useModManagement(state, activeGame, applyBootstrap)
   const prerequisites = usePrerequisites(state, activeGame, applyBootstrap)
   const conflictResolution = useConflictResolution(state, mods)
+  const { resetImportModState } = modManagement
 
   const goHome = useCallback(() => {
     state.setCurrentView("home")
@@ -179,40 +203,46 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
 
   const openImportModDialog = useCallback(() => {
     state.setIsImportModDialogOpen(true)
-    modManagement.resetImportModState()
-  }, [state, modManagement])
+    resetImportModState()
+  }, [resetImportModState, state])
 
   const openGamesDownloadPage = useCallback(async () => {
     try {
       await openUrl("https://gtamodx.com/games")
-      toast.success(copy.workspaceActions.downloadPageOpened)
+      toast.success(t("workspaceActions.downloadPageOpened"))
     } catch (error) {
-      toast.error(copy.workspaceActions.openDownloadPageFailed, {
+      toast.error(t("workspaceActions.openDownloadPageFailed"), {
         description: formatApiErrorMessage(error),
       })
     }
-  }, [copy.workspaceActions.downloadPageOpened, copy.workspaceActions.openDownloadPageFailed])
+  }, [t])
 
   const openGameDirectory = useCallback(async (gameId?: string) => {
-    const targetGame =
-      (gameId ? games.find((game) => game.id === gameId) : activeGame) ?? activeGame
+    const targetGame = (gameId ? games.find((game) => game.id === gameId) : activeGame) ?? activeGame
 
     if (!targetGame?.gamePath) {
-      toast.warning(copy.workspaceActions.noOpenDirectory)
+      toast.warning(t("workspaceActions.noOpenDirectory"))
       return
     }
 
     try {
       await revealItemInDir(targetGame.gamePath)
-      toast.success(copy.workspaceActions.gameDirectoryOpened, {
+      toast.success(t("workspaceActions.gameDirectoryOpened"), {
         description: targetGame.gamePath,
       })
     } catch (error) {
-      toast.error(copy.workspaceActions.openGameDirectoryFailed, {
+      toast.error(t("workspaceActions.openGameDirectoryFailed"), {
         description: formatApiErrorMessage(error),
       })
     }
-  }, [activeGame, copy, games])
+  }, [activeGame, games, t])
+
+  const setImportModName = useCallback((value: string) => {
+    state.setImportModForm((current) => ({
+      ...current,
+      name: value,
+    }))
+  }, [state])
 
   return {
     ...state,
@@ -237,11 +267,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     openGamesDownloadPage,
     openGameDirectory,
     refreshWorkspace,
-    setImportModName: (value: string) =>
-      state.setImportModForm((current) => ({
-        ...current,
-        name: value,
-      })),
+    setImportModName,
     setImportModMappings: state.setImportModMappingsState,
 
     ...gameManagement,

@@ -359,7 +359,7 @@ function ModBuilderPage() {
       if (form.sourceType === "zip") {
         const selectedPath = await save({
           title: t("builderPage.selectManifestSavePath"),
-          defaultPath: "g2m.json",
+          defaultPath: "modx.json",
           filters: [{ name: "JSON", extensions: ["json"] }],
         })
         if (!selectedPath) return

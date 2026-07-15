@@ -7,6 +7,7 @@ use tauri::{
     AppHandle, Manager,
 };
 
+mod command_support;
 mod commands;
 mod game_prerequisites;
 mod game_repository;

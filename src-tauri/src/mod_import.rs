@@ -913,7 +913,7 @@ fn collect_imported_mod_files(
             .strip_prefix(base_dir)
             .map_err(|error| format!("failed to build relative mod path: {error}"))?;
         let normalized_relative = normalize_path(relative_path);
-        if normalized_relative.eq_ignore_ascii_case("g2m.json") {
+        if normalized_relative.eq_ignore_ascii_case("modx.json") {
             continue;
         }
 

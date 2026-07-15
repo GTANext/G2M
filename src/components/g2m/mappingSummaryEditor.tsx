@@ -1,8 +1,8 @@
 import { FolderTree, GripVertical } from "lucide-react"
+import { TFunction } from "i18next"
 import { useCallback } from "react"
 import { useDrag, useDrop } from "react-dnd"
 
-import type { AppCopy } from "@/components/app/i18nProvider"
 import { canDropToFolder, type DragPayload } from "@/components/g2m/draggableTree"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,7 @@ type MappingSummaryTargetOption = {
 }
 
 type MappingSummaryEditorProps = {
-  copy: AppCopy
+  t: TFunction
   summary: ModMappingSummary
   targetPath: string
   onDragEnd?: () => void
@@ -28,7 +28,7 @@ type MappingSummaryEditorProps = {
 }
 
 function MappingSummaryEditor({
-  copy,
+  t,
   summary,
   targetPath,
   onDragEnd,
@@ -124,10 +124,10 @@ function MappingSummaryEditor({
               {summary.sourcePath}
             </p>
             <Badge variant="secondary" className="rounded-full bg-background/80 px-2.5 py-1 text-xs dark:bg-white/10">
-              {summary.kind === "folder" ? copy.builderPage.summaryFolder : copy.builderPage.summaryFile}
+              {summary.kind === "folder" ? t("builderPage.summaryFolder") : t("builderPage.summaryFile")}
             </Badge>
             <Badge variant="secondary" className="rounded-full bg-background/80 px-2.5 py-1 text-xs dark:bg-white/10">
-              {copy.workspacePage.fileCount} {summary.fileCount}
+              {t("workspacePage.fileCount")} {summary.fileCount}
             </Badge>
           </div>
           <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">
@@ -142,7 +142,7 @@ function MappingSummaryEditor({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-            {copy.workspaceDialogs.installPath}
+            {t("workspaceDialogs.installPath")}
           </p>
           <p className="break-all font-medium text-slate-800 dark:text-slate-200">
             {targetPath}
@@ -153,7 +153,7 @@ function MappingSummaryEditor({
       {showTargetOptions ? (
         <div className="mt-3">
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-            {copy.builderPage.gameTargets}
+            {t("builderPage.gameTargets")}
           </p>
           <div className="flex flex-wrap gap-2">
             {targetOptions.map((option) => {

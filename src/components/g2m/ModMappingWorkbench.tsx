@@ -2,7 +2,6 @@ import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { FolderTree } from "lucide-react"
 
-import type { AppCopy } from "@/components/app/i18nProvider"
 import {
   type DragPayload,
   normalizePath,
@@ -25,8 +24,7 @@ type SummaryTargetState = {
 }
 
 type ModMappingWorkbenchProps = {
-  copy?: AppCopy
-  t?: (key: string) => string
+  t: (key: string) => string
   files: ModImportFileEntry[]
   headerTitle?: string
   headerDescription?: string
@@ -46,28 +44,12 @@ const EMPTY_TARGET_FOLDERS: string[] = []
 function getLabel(
   key: string,
   fallback: string,
-  options?: { copy?: AppCopy; t?: (key: string) => string }
+  options: { t: (key: string) => string }
 ): string {
-  if (options?.t) {
-    return options.t(key)
-  }
-  if (options?.copy) {
-    const keys = key.split('.')
-    let value: any = options.copy
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k]
-      } else {
-        return fallback
-      }
-    }
-    return typeof value === 'string' ? value : fallback
-  }
-  return fallback
+  return options.t(key) || fallback
 }
 
 function ModMappingWorkbenchInner({
-  copy,
   t,
   files,
   initialTargetFolders = EMPTY_TARGET_FOLDERS,
@@ -117,15 +99,15 @@ function ModMappingWorkbenchInner({
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
         <WorkbenchPanel
-          title={getLabel("builderPage.sourceTreeTitle", "Source", { copy, t })}
-          description={getLabel("builderPage.pickSourceDescription", "Drag files or folders to the right", { copy, t })}
+          title={getLabel("builderPage.sourceTreeTitle", "Source", { t })}
+          description={getLabel("builderPage.pickSourceDescription", "Drag files or folders to the right", { t })}
           icon={<FolderTree className="size-4" />}
           headerAction={
             <Badge
               variant="secondary"
               className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
             >
-              {getLabel("workspacePage.fileCount", "", { copy, t })} {files.length}
+              {getLabel("workspacePage.fileCount", "", { t })} {files.length}
             </Badge>
           }
         >
@@ -134,7 +116,7 @@ function ModMappingWorkbenchInner({
               <DraggableTree
                 files={files}
                 mode="source"
-                emptyLabel={getLabel("builderPage.sourceTreeEmpty", "", { copy, t })}
+                emptyLabel={getLabel("builderPage.sourceTreeEmpty", "", { t })}
                 className="pb-8"
                 showFullPath={false}
                 defaultExpandedDepth={2}
@@ -144,15 +126,15 @@ function ModMappingWorkbenchInner({
         </WorkbenchPanel>
 
         <WorkbenchPanel
-          title={getLabel("workspacePage.targetFolders", "Target", { copy, t })}
-          description={targetDescription ?? getLabel("workspaceDialogs.installPath", "", { copy, t })}
+          title={getLabel("workspacePage.targetFolders", "Target", { t })}
+          description={targetDescription ?? getLabel("workspaceDialogs.installPath", "", { t })}
           icon={<FolderTree className="size-4" />}
           headerAction={
             <Badge
               variant="secondary"
               className="rounded-full bg-background/80 px-3 py-1 text-slate-700 dark:bg-white/10 dark:text-slate-200"
             >
-              {getLabel("workspacePage.targetFolders", "", { copy, t })} {targetFolders.length}
+              {getLabel("workspacePage.targetFolders", "", { t })} {targetFolders.length}
             </Badge>
           }
         >
@@ -170,9 +152,9 @@ function ModMappingWorkbenchInner({
                     <Trash2 className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="break-all text-sm font-semibold">{getLabel("workspaceDialogs.doNotInstall", "", { copy, t })}</p>
+                    <p className="break-all text-sm font-semibold">{getLabel("workspaceDialogs.doNotInstall", "", { t })}</p>
                     <p className="mt-1 text-xs text-red-500/80 dark:text-red-400/80">
-                      {getLabel("builderPage.dragToIgnore", "Drag here to ignore files", { copy, t })}
+                      {getLabel("builderPage.dragToIgnore", "Drag here to ignore files", { t })}
                     </p>
                   </div>
                 </div>
@@ -186,8 +168,8 @@ function ModMappingWorkbenchInner({
                 ref={dropRefRoot}
               >
                 <div className="mb-2 flex items-center justify-between px-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span>{getLabel("workspaceDialogs.installToRoot", "", { copy, t })}</span>
-                  <span>{getLabel("builderPage.dragToRoot", "You can also drag directly here", { copy, t })}</span>
+                  <span>{getLabel("workspaceDialogs.installToRoot", "", { t })}</span>
+                  <span>{getLabel("builderPage.dragToRoot", "You can also drag directly here", { t })}</span>
                 </div>
                 <DraggableTree
                   files={files}

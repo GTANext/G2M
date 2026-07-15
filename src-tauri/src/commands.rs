@@ -10,6 +10,11 @@ use tauri::AppHandle;
 
 use crate::{
     AppInfoPayload,
+    command_support::{
+        load_required_game, load_required_mod_install_plan, normalize_optional_string, resolve_game_image,
+        resolve_import_display_name, resolve_updated_game_image,
+        set_mod_symlinks_enabled, DEFAULT_PREREQUISITE_INSTALL_KEYS,
+    },
     game_prerequisites::{detect_game_prerequisites, install_game_prerequisite},
     game_support::{
         canonical_game_name, default_game_name,
@@ -23,12 +28,12 @@ use crate::{
     },
     repository::{
         delete_game_entry_from_database, delete_mod_by_id, delete_mods_for_game,
-        load_game_directories, load_mod_install_plan, load_mods, load_stored_game_by_id,
+        load_game_directories, load_mod_install_plan, load_mods,
         load_stored_games, update_game_entry_in_database, update_mod_enabled_in_database,
     },
     storage::{ensure_game_workspace, ensure_game_workspaces, ensure_storage},
     symlink_install::{
-        cleanup_legacy_mod_root_symlinks, create_mod_symlinks, remove_mod_symlinks,
+        cleanup_legacy_mod_root_symlinks,
         remove_path_if_exists,
     },
     utils::{current_timestamp, is_process_elevated, paths_equal},
@@ -208,6 +213,7 @@ pub(crate) fn save_game_path(
     gameType: String,
     name: String,
     version: Option<String>,
+    exeName: Option<String>,
     coverImageSourcePath: Option<String>,
     existingCoverBase64: Option<String>,
 ) -> CommandResponse<BootstrapPayload> {
@@ -239,17 +245,13 @@ pub(crate) fn save_game_path(
         } else {
             normalized_name.to_string()
         };
-        detected_game.version = version
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_default();
-        detected_game.image_path = if let Some(source_path) = coverImageSourcePath.as_deref() {
-            crate::game_support::read_image_as_base64(source_path)?
-        } else if let Some(existing_b64) = existingCoverBase64 {
-            existing_b64
-        } else {
-            String::new()
-        };
+        let resolved_exe_name = normalize_optional_string(exeName);
+        if !resolved_exe_name.is_empty() {
+            detected_game.exe_name = resolved_exe_name;
+        }
+        detected_game.version = normalize_optional_string(version);
+        detected_game.image_path =
+            resolve_game_image(coverImageSourcePath.as_deref(), existingCoverBase64)?;
         detected_game.created_at = current_timestamp();
         detected_game.updated_at = detected_game.created_at;
 
@@ -282,6 +284,7 @@ pub(crate) fn update_game_entry(
     gameType: String,
     name: String,
     version: Option<String>,
+    exeName: Option<String>,
     coverImageSourcePath: Option<String>,
     existingCoverBase64: Option<String>,
     useDefaultImage: bool,
@@ -290,32 +293,40 @@ pub(crate) fn update_game_entry(
         let paths = ensure_storage(&app)?;
         let normalized_game_type = normalize_game_type(&gameType)?;
         let normalized_name = name.trim();
-        let existing_game = load_stored_game_by_id(&paths.database_path, &gameId)?
-            .ok_or_else(|| "未找到要编辑的游戏".to_string())?;
-        let next_image_path = if let Some(source_path) = coverImageSourcePath.as_deref() {
-            crate::game_support::read_image_as_base64(source_path)?
-        } else if useDefaultImage {
-            String::new()
-        } else if let Some(existing_b64) = existingCoverBase64 {
-            existing_b64
+        let existing_game =
+            load_required_game(&paths.database_path, &gameId, "未找到要编辑的游戏")?;
+        let resolved_name = if normalized_name.is_empty() {
+            canonical_game_name(normalized_game_type).to_string()
         } else {
-            existing_game.image_path.clone()
+            normalized_name.to_string()
         };
+        let resolved_exe_name = {
+            let normalized = normalize_optional_string(exeName);
+            if normalized.is_empty() {
+                if existing_game.game_type == normalized_game_type {
+                    existing_game.exe_name.clone()
+                } else {
+                    crate::canonical_exe_name(normalized_game_type).to_string()
+                }
+            } else {
+                normalized
+            }
+        };
+        let resolved_version = normalize_optional_string(version);
+        let next_image_path = resolve_updated_game_image(
+            &existing_game,
+            coverImageSourcePath.as_deref(),
+            existingCoverBase64,
+            useDefaultImage,
+        )?;
 
         let updated_rows = update_game_entry_in_database(
             &paths.database_path,
             &gameId,
             normalized_game_type,
-            if normalized_name.is_empty() {
-                canonical_game_name(normalized_game_type)
-            } else {
-                normalized_name
-            },
-            version
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty())
-                .unwrap_or_default()
-                .as_str(),
+            &resolved_name,
+            &resolved_exe_name,
+            &resolved_version,
             &next_image_path,
             current_timestamp(),
         )?;
@@ -328,11 +339,7 @@ pub(crate) fn update_game_entry(
         if let Some(game_path) = existing_game.path.as_str().into() {
             crate::workspace_package::update_game_workspace_package_info(
                 std::path::Path::new(game_path),
-                if normalized_name.is_empty() {
-                    canonical_game_name(normalized_game_type)
-                } else {
-                    normalized_name
-                },
+                &resolved_name,
                 normalized_game_type,
                 &next_image_path,
             )?;
@@ -350,7 +357,8 @@ pub(crate) fn delete_game_entry(
 ) -> CommandResponse<BootstrapPayload> {
     wrap_command(|| {
         let paths = ensure_storage(&app)?;
-        let _existing_game = load_stored_game_by_id(&paths.database_path, &gameId)?;
+        let _existing_game =
+            load_required_game(&paths.database_path, &gameId, "未找到要删除的游戏")?;
         delete_mods_for_game(&paths.database_path, &gameId)?;
         let deleted_rows = delete_game_entry_from_database(&paths.database_path, &gameId)?;
 
@@ -400,15 +408,10 @@ pub(crate) fn delete_mod_entry(
 ) -> CommandResponse<BootstrapPayload> {
     wrap_command(|| {
         let paths = ensure_storage(&app)?;
-        let install_plan = load_mod_install_plan(&paths.database_path, &modId)?
-            .ok_or_else(|| "未找到要删除的 Mod".to_string())?;
+        let install_plan =
+            load_required_mod_install_plan(&paths.database_path, &modId, "未找到要删除的 Mod")?;
 
-        remove_mod_symlinks(
-            Path::new(&install_plan.game_path),
-            &install_plan.mod_id,
-            Path::new(&install_plan.source_dir),
-            &install_plan.files,
-        )?;
+        set_mod_symlinks_enabled(&install_plan, false, &[])?;
         delete_mod_by_id(&paths.database_path, &modId)?;
 
         let _ = remove_path_if_exists(Path::new(&install_plan.source_dir));
@@ -426,25 +429,10 @@ pub(crate) fn update_mod_enabled(
 ) -> CommandResponse<BootstrapPayload> {
     wrap_command(|| {
         let paths = ensure_storage(&app)?;
-        let install_plan = load_mod_install_plan(&paths.database_path, &modId)?
-            .ok_or_else(|| "未找到要更新的 Mod".to_string())?;
+        let install_plan =
+            load_required_mod_install_plan(&paths.database_path, &modId, "未找到要更新的 Mod")?;
 
-        if enabled {
-            create_mod_symlinks(
-                Path::new(&install_plan.game_path),
-                &install_plan.mod_id,
-                Path::new(&install_plan.source_dir),
-                &install_plan.files,
-                &[],
-            )?;
-        } else {
-            remove_mod_symlinks(
-                Path::new(&install_plan.game_path),
-                &install_plan.mod_id,
-                Path::new(&install_plan.source_dir),
-                &install_plan.files,
-            )?;
-        }
+        set_mod_symlinks_enabled(&install_plan, enabled, &[])?;
 
         let updated_rows = update_mod_enabled_in_database(&paths.database_path, &modId, enabled)?;
 
@@ -468,18 +456,15 @@ pub(crate) fn preview_mod_directory(
         let paths = ensure_storage(&app)?;
         let (game, source) = resolve_import_source(&paths.database_path, &gameId, &modPath)?;
         
-        let mod_name_override = modName
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or(source.display_name.as_str());
+        let mod_name_override =
+            resolve_import_display_name(modName.as_deref(), source.display_name.as_str())?;
 
         build_mod_import_preview(
             &paths.database_path,
             &gameId,
             &game.game_type,
             &source,
-            Some(mod_name_override),
+            Some(mod_name_override.as_str()),
         )
     })
 }
@@ -492,13 +477,10 @@ pub(crate) fn inspect_mod_source(
 ) -> CommandResponse<ModImportPreviewPayload> {
     wrap_command(|| {
         let source = prepare_import_source(&modPath)?;
-        let mod_name_override = modName
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or(source.display_name.as_str());
+        let mod_name_override =
+            resolve_import_display_name(modName.as_deref(), source.display_name.as_str())?;
 
-        build_mod_source_preview(&source, Some(mod_name_override))
+        build_mod_source_preview(&source, Some(mod_name_override.as_str()))
     })
 }
 
@@ -521,15 +503,9 @@ pub(crate) fn import_mod_directory(
         fs::create_dir_all(&workspace_mods_dir)
             .map_err(|error| format!("failed to create workspace mods directory: {error}"))?;
 
-        let source_name = modName
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or(source.display_name.as_str());
-        if source_name.is_empty() {
-            return Err("无法识别 Mod 文件夹名称".to_string());
-        }
-        let target_dir = unique_directory_path(&workspace_mods_dir, source_name);
+        let source_name =
+            resolve_import_display_name(modName.as_deref(), source.display_name.as_str())?;
+        let target_dir = unique_directory_path(&workspace_mods_dir, &source_name);
 
         copy_directory_recursive(&source.source_dir, &target_dir, Some(&game.game_type))?;
 
@@ -551,7 +527,7 @@ pub(crate) fn import_mod_directory(
             &game.game_type,
             Path::new(&game.path),
             &source,
-            Some(source_name),
+            Some(source_name.as_str()),
             file_overrides.as_deref(),
         );
 
@@ -563,8 +539,11 @@ pub(crate) fn import_mod_directory(
             }
         };
 
-        let install_plan = load_mod_install_plan(&paths.database_path, &mod_id)?
-            .ok_or_else(|| "导入后的 Mod 安装计划不存在".to_string())?;
+        let install_plan = load_required_mod_install_plan(
+            &paths.database_path,
+            &mod_id,
+            "导入后的 Mod 安装计划不存在",
+        )?;
         let overwrite_targets = file_overrides
             .as_ref()
             .map(|files| {
@@ -575,19 +554,8 @@ pub(crate) fn import_mod_directory(
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        if let Err(error) = create_mod_symlinks(
-            Path::new(&game.path),
-            &install_plan.mod_id,
-            Path::new(&install_plan.source_dir),
-            &install_plan.files,
-            &overwrite_targets,
-        ) {
-            let _ = remove_mod_symlinks(
-                Path::new(&game.path),
-                &install_plan.mod_id,
-                Path::new(&install_plan.source_dir),
-                &install_plan.files,
-            );
+        if let Err(error) = set_mod_symlinks_enabled(&install_plan, true, &overwrite_targets) {
+            let _ = set_mod_symlinks_enabled(&install_plan, false, &[]);
             let _ = delete_mod_by_id(&paths.database_path, &mod_id);
             let _ = fs::remove_dir_all(&target_dir);
             return Err(error);
@@ -606,8 +574,8 @@ pub(crate) fn install_game_prerequisite_module(
 ) -> CommandResponse<BootstrapPayload> {
     wrap_command(|| {
         let paths = ensure_storage(&app)?;
-        let game = load_stored_game_by_id(&paths.database_path, &gameId)?
-            .ok_or_else(|| "未找到要安装前置组件的游戏".to_string())?;
+        let game =
+            load_required_game(&paths.database_path, &gameId, "未找到要安装前置组件的游戏")?;
 
         install_game_prerequisite(
             &paths.app_dir,
@@ -628,17 +596,20 @@ pub(crate) fn install_all_game_prerequisites(
 ) -> CommandResponse<BootstrapPayload> {
     wrap_command(|| {
         let paths = ensure_storage(&app)?;
-        let game = load_stored_game_by_id(&paths.database_path, &gameId)?
-            .ok_or_else(|| "未找到要安装前置组件的游戏".to_string())?;
+        let game =
+            load_required_game(&paths.database_path, &gameId, "未找到要安装前置组件的游戏")?;
 
         let game_path = Path::new(&game.path);
         let game_type = &game.game_type;
 
-        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "asiloader");
-        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "modloader");
-        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "cleo");
-        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "cleo_redux");
-        let _ = install_game_prerequisite(&paths.app_dir, game_path, game_type, "silentpatch");
+        for prerequisite_key in DEFAULT_PREREQUISITE_INSTALL_KEYS {
+            let _ = install_game_prerequisite(
+                &paths.app_dir,
+                game_path,
+                game_type,
+                prerequisite_key,
+            );
+        }
 
         bootstrap_app_payload(&app)
     })

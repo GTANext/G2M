@@ -3,7 +3,6 @@ import {
   AppWindowMac,
   FileCode2,
   House,
-  Maximize2,
   Minimize2,
   MoonStar,
   Settings2,
@@ -12,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import { useTranslation } from "react-i18next";
@@ -26,9 +25,15 @@ type NavbarProps = {
   title: string;
 };
 
+const navbarControlGroupClass =
+  "flex h-11 items-center rounded-[18px] border border-black/5 bg-white/62 p-1 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.03] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]";
+
 function Navbar({ subtitle, title }: NavbarProps) {
   const appWindow = useMemo(() => getCurrentWindow(), []);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isThemeAnimating, setIsThemeAnimating] = useState(false);
+  const themeApplyFrameRef = useRef<number | null>(null);
+  const themeCleanupTimerRef = useRef<number | null>(null);
   const location = useLocation();
   const { resolvedTheme, setTheme } = useTheme();
   const { t } = useTranslation();
@@ -39,6 +44,23 @@ function Navbar({ subtitle, title }: NavbarProps) {
       setIsMaximized(await appWindow.isMaximized());
     })();
   }, [appWindow]);
+
+  useEffect(() => {
+    return () => {
+      const root = document.documentElement;
+
+      if (themeApplyFrameRef.current !== null) {
+        window.cancelAnimationFrame(themeApplyFrameRef.current);
+      }
+
+      if (themeCleanupTimerRef.current !== null) {
+        window.clearTimeout(themeCleanupTimerRef.current);
+      }
+
+      root.classList.remove("theme-transitioning");
+      delete root.dataset.themeTransition;
+    };
+  }, []);
 
   async function handleToggleMaximize() {
     await appWindow.toggleMaximize();
@@ -58,23 +80,57 @@ function Navbar({ subtitle, title }: NavbarProps) {
   }
 
   function handleCycleTheme() {
+    if (isThemeAnimating) {
+      return;
+    }
+
+    const root = document.documentElement;
     const nextTheme = resolvedThemeMode === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (prefersReducedMotion) {
+      setTheme(nextTheme);
+      return;
+    }
+
+    root.dataset.themeTransition = nextTheme;
+    root.classList.add("theme-transitioning");
+    setIsThemeAnimating(true);
+
+    if (themeApplyFrameRef.current !== null) {
+      window.cancelAnimationFrame(themeApplyFrameRef.current);
+    }
+
+    if (themeCleanupTimerRef.current !== null) {
+      window.clearTimeout(themeCleanupTimerRef.current);
+    }
+
+    themeApplyFrameRef.current = window.requestAnimationFrame(() => {
+      themeApplyFrameRef.current = window.requestAnimationFrame(() => {
+        setTheme(nextTheme);
+        themeApplyFrameRef.current = null;
+      });
+    });
+
+    themeCleanupTimerRef.current = window.setTimeout(() => {
+      root.classList.remove("theme-transitioning");
+      delete root.dataset.themeTransition;
+      setIsThemeAnimating(false);
+      themeCleanupTimerRef.current = null;
+    }, 240);
   }
 
   const resolvedThemeMode = resolvedTheme === "dark" ? "dark" : "light";
   const themeMeta =
     resolvedThemeMode === "dark"
       ? {
-          icon: MoonStar,
           title: t("navbar.darkTitle"),
         }
       : {
-          icon: SunMedium,
           title: t("navbar.lightTitle"),
         };
-
-  const ThemeIcon = themeMeta.icon;
   const isMacStyle = titleBarStyle === "mac";
   const isHomeRoute = location.pathname === "/";
   const isBuilderRoute = location.pathname === "/builder";
@@ -169,16 +225,15 @@ function Navbar({ subtitle, title }: NavbarProps) {
               isMacStyle && "pl-4",
             )}
           >
-            <div className="hidden items-center gap-1 rounded-full border border-black/5 bg-white/62 p-1 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.03] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04] md:flex">
+            <div className={cn(navbarControlGroupClass, "hidden gap-1 md:flex")}>
               <Button
                 asChild
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "cursor-pointer rounded-full px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
+                  "h-9 cursor-pointer rounded-[14px] px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
                   isHomeRoute &&
                     "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
-                  isMacStyle && "h-9 px-3",
                 )}
               >
                 <NavLink to="/" title={t("navbar.openHome")}>
@@ -191,10 +246,9 @@ function Navbar({ subtitle, title }: NavbarProps) {
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "cursor-pointer rounded-full px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
+                  "h-9 cursor-pointer rounded-[14px] px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
                   isBuilderRoute &&
                     "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
-                  isMacStyle && "h-9 px-3",
                 )}
               >
                 <NavLink to="/builder" title={t("navbar.openBuilder")}>
@@ -207,10 +261,9 @@ function Navbar({ subtitle, title }: NavbarProps) {
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "cursor-pointer rounded-full px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
+                  "h-9 cursor-pointer rounded-[14px] px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
                   isSettingsRoute &&
                     "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
-                  isMacStyle && "h-9 px-3",
                 )}
               >
                 <NavLink to="/settings" title={t("navbar.openSettings")}>
@@ -220,51 +273,71 @@ function Navbar({ subtitle, title }: NavbarProps) {
               </Button>
             </div>
 
-            <div className="flex items-center gap-2 rounded-full border border-black/5 bg-white/62 p-1 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.03] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
+            <div className={cn(navbarControlGroupClass, "gap-2")}>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 className={cn(
-                  "cursor-pointer rounded-full text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
-                  isMacStyle && "size-9",
+                  "size-9 cursor-pointer rounded-[14px] text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
                 )}
                 onClick={handleCycleTheme}
                 title={themeMeta.title}
+                aria-label={themeMeta.title}
               >
-                <ThemeIcon className="size-4" />
+                <span
+                  className={cn(
+                    "theme-toggle-glyph relative inline-flex size-4 items-center justify-center",
+                    isThemeAnimating && "theme-toggle-glyph-active",
+                  )}
+                >
+                  <SunMedium
+                    className={cn(
+                      "absolute inset-0 size-4 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                      resolvedThemeMode === "light"
+                        ? "scale-100 rotate-0 opacity-100"
+                        : "scale-75 -rotate-30 opacity-0",
+                    )}
+                  />
+                  <MoonStar
+                    className={cn(
+                      "absolute inset-0 size-4 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                      resolvedThemeMode === "dark"
+                        ? "scale-100 rotate-0 opacity-100"
+                        : "scale-75 rotate-30 opacity-0",
+                    )}
+                  />
+                </span>
               </Button>
               <ModxAuthDialog />
             </div>
 
             {!isMacStyle && (
-              <div className="ml-1 flex items-center gap-1">
+              <div
+                className={cn(
+                  navbarControlGroupClass,
+                  "ml-2 gap-1 bg-slate-950/[0.045] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_10px_30px_rgba(15,23,42,0.08)] dark:bg-white/[0.035] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_30px_rgba(0,0,0,0.2)]",
+                )}
+              >
                 <WindowActionButton
+                  kind="minimize"
                   title={t("navbar.minimizeWindow")}
                   onClick={() => void appWindow.minimize()}
-                >
-                  <Minimize2 className="size-4" />
-                </WindowActionButton>
+                />
                 <WindowActionButton
+                  kind={isMaximized ? "restore" : "maximize"}
                   title={
                     isMaximized
                       ? t("navbar.restoreWindow")
                       : t("navbar.maximizeWindow")
                   }
                   onClick={() => void handleToggleMaximize()}
-                >
-                  {isMaximized ? (
-                    <Square className="size-4" />
-                  ) : (
-                    <Maximize2 className="size-4" />
-                  )}
-                </WindowActionButton>
+                />
                 <WindowActionButton
+                  kind="close"
                   tone="danger"
                   title={t("navbar.closeWindow")}
                   onClick={() => void appWindow.close()}
-                >
-                  <X className="size-4" />
-                </WindowActionButton>
+                />
               </div>
             )}
           </div>
@@ -307,12 +380,12 @@ function WindowTrafficLight({
 }
 
 function WindowActionButton({
-  children,
+  kind,
   onClick,
   title,
   tone = "default",
 }: {
-  children: React.ReactNode;
+  kind: "minimize" | "maximize" | "restore" | "close";
   onClick: () => void;
   title: string;
   tone?: "default" | "danger";
@@ -320,17 +393,48 @@ function WindowActionButton({
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="sm"
       className={cn(
-        "cursor-pointer rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
+        "relative h-9 w-10 cursor-pointer rounded-[12px] border-0 px-0 text-slate-600 transition-colors hover:bg-slate-950/[0.07] hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/[0.08] dark:hover:text-white",
         tone === "danger" &&
-          "hover:bg-red-500 hover:text-white dark:hover:bg-red-500",
+          "hover:bg-[#e81123] hover:text-white dark:hover:bg-[#e81123]",
       )}
       onClick={onClick}
       title={title}
+      aria-label={title}
     >
-      {children}
+      <WindowActionGlyph kind={kind} />
     </Button>
+  );
+}
+
+function WindowActionGlyph({
+  kind,
+}: {
+  kind: "minimize" | "maximize" | "restore" | "close";
+}) {
+  if (kind === "minimize") {
+    return <span className="block h-px w-3 bg-current" />;
+  }
+
+  if (kind === "maximize") {
+    return <span className="block size-3 border border-current" />;
+  }
+
+  if (kind === "restore") {
+    return (
+      <span className="relative block size-3.5">
+        <span className="absolute right-0 top-0 size-[10px] border border-current bg-transparent" />
+        <span className="absolute bottom-0 left-0 size-[10px] border border-current bg-transparent" />
+      </span>
+    );
+  }
+
+  return (
+    <span className="relative block size-3.5">
+      <span className="absolute left-1/2 top-1/2 h-px w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-current" />
+      <span className="absolute left-1/2 top-1/2 h-px w-4 -translate-x-1/2 -translate-y-1/2 -rotate-45 bg-current" />
+    </span>
   );
 }
 

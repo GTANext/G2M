@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { UseG2mWorkspaceResult } from "@/hooks/useG2MWorkspace"
 import {
   buildMappingTargetNodes,
@@ -236,6 +237,9 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
 
   const hasDirectory = Boolean(workspace.addGameForm.dir.trim())
   const hasDetectedType = Boolean(workspace.addGameForm.type)
+  const hasAutoDetectedGame = Boolean(
+    workspace.addGameForm.isExeAutoDetected && workspace.addGameForm.exeName.trim(),
+  )
   const usingCustomCover = !workspace.addGameForm.useDefaultImage && Boolean(workspace.addGameForm.imagePath)
 
   return (
@@ -298,15 +302,23 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                 <Alert className="mt-5 rounded-2xl border-emerald-200 bg-emerald-50/80 dark:border-emerald-500/20 dark:bg-emerald-500/10">
                   <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
                   <AlertTitle className="text-emerald-900 dark:text-emerald-100">
-                    {hasDetectedType ? t("workspaceDialogs.directoryDetected") : t("workspaceDialogs.directorySelected")}
+                    {hasAutoDetectedGame
+                      ? t("workspaceDialogs.directoryDetected")
+                      : hasDetectedType
+                        ? t("workspaceDialogs.gameTypeSelected")
+                        : t("workspaceDialogs.directorySelected")}
                   </AlertTitle>
                   <AlertDescription className="text-emerald-800/90 dark:text-emerald-200/90">
-                    {hasDetectedType
+                    {hasAutoDetectedGame
                       ? t("workspaceDialogs.detectedSummary", {
-                          name: workspace.addGameForm.name || t("workspaceActions.currentGame"),
+                          gameName: workspace.addGameForm.name || t("workspaceActions.currentGame"),
                           gameType: getGameTypeLabel(workspace.addGameForm.type, t),
                           exeName: workspace.addGameForm.exeName || t("workspaceDialogs.detectedExe"),
                         })
+                      : hasDetectedType
+                        ? t("workspaceDialogs.manualTypeSummary", {
+                            gameType: getGameTypeLabel(workspace.addGameForm.type, t),
+                          })
                       : t("workspaceDialogs.directoryWaitingDetection")}
                   </AlertDescription>
                 </Alert>
@@ -323,16 +335,12 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                 </FieldBlock>
 
                 <FieldBlock label={t("workspaceDialogs.gameType")}>
-                  <select
+                  <GameTypeSelectField
                     value={workspace.addGameForm.type}
-                    onChange={(event) => workspace.setAddGameForm({ type: event.currentTarget.value as "sa" | "vc" | "iii" })}
-                    className="flex h-11 w-full rounded-2xl border border-border/70 bg-background/70 px-3 text-sm text-slate-900 outline-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100"
-                  >
-                    <option value="">{t("workspaceDialogs.chooseType")}</option>
-                    <option value="iii">{t("workspaceDialogs.gameTypeIii")}</option>
-                    <option value="vc">{t("workspaceDialogs.gameTypeVc")}</option>
-                    <option value="sa">{t("workspaceDialogs.gameTypeSa")}</option>
-                  </select>
+                    onValueChange={(value) => workspace.setAddGameForm({ type: value })}
+                    placeholder={t("workspaceDialogs.chooseType")}
+                    t={t}
+                  />
                 </FieldBlock>
 
                 <FieldBlock label={t("workspaceDialogs.version")} optionalLabel={t("workspaceDialogs.optional")} optional>
@@ -345,11 +353,14 @@ function AddGameDialog({ workspace }: { workspace: WorkspaceState }) {
                 </FieldBlock>
 
                 <FieldBlock label={t("workspaceDialogs.detectedExe")}>
-                  <Input
+                  <ExecutableField
                     value={workspace.addGameForm.exeName}
-                    readOnly
                     placeholder={t("workspaceDialogs.notDetectedYet")}
-                    className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+                    actionLabel={t("workspaceDialogs.selectExecutable")}
+                    onChange={(value) =>
+                      workspace.setAddGameForm({ exeName: value, isExeAutoDetected: false })
+                    }
+                    onSelect={() => void workspace.pickAddGameExecutable()}
                   />
                 </FieldBlock>
               </div>
@@ -489,15 +500,12 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                 </FieldBlock>
 
                 <FieldBlock label={t("workspaceDialogs.gameType")}>
-                  <select
+                  <GameTypeSelectField
                     value={workspace.editGameForm.type}
-                    onChange={(event) => workspace.setEditGameForm({ type: event.currentTarget.value as "sa" | "vc" | "iii" })}
-                    className="flex h-11 w-full rounded-2xl border border-border/70 bg-background/70 px-3 text-sm text-slate-900 outline-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100"
-                  >
-                    <option value="iii">{t("workspaceDialogs.gameTypeIii")}</option>
-                    <option value="vc">{t("workspaceDialogs.gameTypeVc")}</option>
-                    <option value="sa">{t("workspaceDialogs.gameTypeSa")}</option>
-                  </select>
+                    onValueChange={(value) => workspace.setEditGameForm({ type: value })}
+                    placeholder={t("workspaceDialogs.chooseType")}
+                    t={t}
+                  />
                 </FieldBlock>
 
                 <FieldBlock label={t("workspaceDialogs.gameDirectory")} className="md:col-span-2">
@@ -517,10 +525,14 @@ function EditGameDialog({ workspace }: { workspace: WorkspaceState }) {
                 </FieldBlock>
 
                 <FieldBlock label={t("workspaceDialogs.detectedExe")}>
-                  <Input
+                  <ExecutableField
                     value={workspace.editGameForm.exeName}
-                    readOnly
-                    className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+                    placeholder={t("workspaceDialogs.notDetectedYet")}
+                    actionLabel={t("workspaceDialogs.selectExecutable")}
+                    onChange={(value) =>
+                      workspace.setEditGameForm({ exeName: value, isExeAutoDetected: false })
+                    }
+                    onSelect={() => void workspace.pickEditGameExecutable()}
                   />
                 </FieldBlock>
 
@@ -1609,6 +1621,72 @@ function FieldBlock({
       </div>
       {children}
     </div>
+  )
+}
+
+function ExecutableField({
+  value,
+  placeholder,
+  actionLabel,
+  onChange,
+  onSelect,
+}: {
+  value: string
+  placeholder: string
+  actionLabel: string
+  onChange: (value: string) => void
+  onSelect: () => void
+}) {
+  return (
+    <div className="flex gap-3">
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        placeholder={placeholder}
+        className="h-11 rounded-2xl border-border/70 bg-background/70 shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className={`h-11 shrink-0 rounded-2xl px-4 ${softOutlineButtonClass}`}
+        onClick={onSelect}
+      >
+        <FolderOpen className="size-4" />
+        {actionLabel}
+      </Button>
+    </div>
+  )
+}
+
+function GameTypeSelectField({
+  value,
+  onValueChange,
+  placeholder,
+  t,
+}: {
+  value: "" | "iii" | "vc" | "sa"
+  onValueChange: (value: "iii" | "vc" | "sa" | "") => void
+  placeholder: string
+  t: ReturnType<typeof useTranslation>["t"]
+}) {
+  return (
+    <Select
+      value={value || undefined}
+      onValueChange={(nextValue) => onValueChange(nextValue as "iii" | "vc" | "sa")}
+    >
+      <SelectTrigger className="h-11 w-full rounded-xl border-border/70 bg-background/70 px-3.5 text-sm shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        sideOffset={6}
+        className="rounded-xl border-border/70 bg-background/95 p-1.5 backdrop-blur-xl dark:border-white/10 dark:bg-[#10131a]/95"
+      >
+        <SelectItem className="rounded-lg px-2.5 py-2" value="iii">{t("workspaceDialogs.gameTypeIii")}</SelectItem>
+        <SelectItem className="rounded-lg px-2.5 py-2" value="vc">{t("workspaceDialogs.gameTypeVc")}</SelectItem>
+        <SelectItem className="rounded-lg px-2.5 py-2" value="sa">{t("workspaceDialogs.gameTypeSa")}</SelectItem>
+      </SelectContent>
+    </Select>
   )
 }
 
