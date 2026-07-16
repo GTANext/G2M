@@ -1,4 +1,7 @@
-use std::process::Command;
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 use winreg::enums::*;
 use winreg::RegKey;
 
@@ -28,31 +31,22 @@ pub fn perform_startup_checks() {
             "系统未安装 WebView2 运行环境，点击确定将启动安装程序。\n安装完成后请重新运行本程序。",
         );
 
-        // Launch installer from assets/Webview2Setup.exe
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(parent) = exe_path.parent() {
-                // When running from bundle, assets might be in a different relative path, but assuming it's near the exe or in _up_
-                // Let's try relative to current exe first.
-                let mut installer_path = parent.join("assets").join("Webview2Setup.exe");
-                
-                // Fallback for dev environment or specific packaging structures
-                if !installer_path.exists() {
-                    // Try src-tauri/assets
-                    installer_path = std::env::current_dir()
-                        .unwrap_or_default()
-                        .join("assets")
-                        .join("Webview2Setup.exe");
-                }
-
-                if installer_path.exists() {
-                    let _ = Command::new(installer_path).spawn();
-                } else {
-                    show_message_box("错误", "未找到 WebView2 安装程序，请手动下载并安装。");
-                }
-            }
+        if let Some(installer_path) = resolve_webview2_installer_path() {
+            let _ = Command::new(installer_path).spawn();
+        } else {
+            show_message_box("错误", "未找到 WebView2 安装程序，请手动下载并安装。");
         }
         std::process::exit(1);
     }
+}
+
+fn resolve_webview2_installer_path() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()?
+        .parent()
+        .map(Path::to_path_buf)
+        .map(|resource_dir| resource_dir.join("Webview2Setup.exe"))
+        .filter(|path| path.is_file())
 }
 
 fn check_webview2_installed() -> bool {

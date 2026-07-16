@@ -80,7 +80,7 @@ fn bootstrap_app_payload(app: &AppHandle) -> Result<BootstrapPayload, String> {
     import_game_packages_into_database(&paths.database_path, &games)?;
     let games = load_game_directories(&paths.database_path)?
         .into_iter()
-        .map(|game| detect_game_prerequisites(&paths.app_dir, game))
+        .map(|game| detect_game_prerequisites(&paths, game))
         .collect::<Vec<_>>();
     sync_game_packages(&paths.database_path, &games)?;
     let mods = load_mods(&paths.database_path)?;
@@ -105,7 +105,7 @@ fn bootstrap_app_payload(app: &AppHandle) -> Result<BootstrapPayload, String> {
     }
 
     Ok(BootstrapPayload {
-        data_dir: paths.app_dir.to_string_lossy().to_string(),
+        data_dir: paths.assets_dir.to_string_lossy().to_string(),
         database_path: paths.database_path.to_string_lossy().to_string(),
         is_elevated: is_process_elevated(),
         games,
@@ -757,7 +757,7 @@ pub(crate) fn install_game_prerequisite_module(
             load_required_game(&paths.database_path, &gameId, "未找到要安装前置组件的游戏")?;
 
         install_game_prerequisite(
-            &paths.app_dir,
+            &paths,
             Path::new(&game.path),
             &game.game_type,
             &prerequisiteKey,
@@ -780,7 +780,7 @@ pub(crate) fn install_all_game_prerequisites(
 
         let game_path = Path::new(&game.path);
         let game_type = &game.game_type;
-        let missing_keys = detect_game_prerequisite_payloads(&paths.app_dir, game_path, game_type)
+        let missing_keys = detect_game_prerequisite_payloads(&paths, game_path, game_type)
             .into_iter()
             .filter(|prerequisite| prerequisite.can_install && !prerequisite.detected)
             .map(|prerequisite| prerequisite.key)
@@ -788,7 +788,7 @@ pub(crate) fn install_all_game_prerequisites(
 
         for prerequisite_key in missing_keys {
             let _ = install_game_prerequisite(
-                &paths.app_dir,
+                &paths,
                 game_path,
                 game_type,
                 &prerequisite_key,
@@ -812,7 +812,7 @@ pub(crate) fn uninstall_game_prerequisite_module(
             load_required_game(&paths.database_path, &gameId, "未找到要卸载前置组件的游戏")?;
 
         uninstall_game_prerequisite(
-            &paths.app_dir,
+            &paths,
             Path::new(&game.path),
             &game.game_type,
             &prerequisiteKey,
@@ -836,7 +836,7 @@ pub(crate) fn repair_game_symlinks(
             .filter(|mod_entry| mod_entry.enabled && mod_entry.game_id == gameId)
             .collect::<Vec<_>>();
 
-        repair_game_prerequisites(&paths.app_dir, Path::new(&game.path), &game.game_type)?;
+        repair_game_prerequisites(&paths, Path::new(&game.path), &game.game_type)?;
 
         let mut failed_mods = Vec::new();
         for mod_entry in enabled_mods {
@@ -881,7 +881,7 @@ pub(crate) fn resolve_prerequisite_conflict(
         let paths = ensure_storage(&app)?;
         let game = load_required_game(&paths.database_path, &gameId, "未找到要处理前置组件冲突的游戏")?;
         resolve_prerequisite_asi_conflict(
-            &paths.app_dir,
+            &paths,
             Path::new(&game.path),
             &game.game_type,
             &prerequisiteKey,

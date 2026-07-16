@@ -7,7 +7,7 @@ use std::{
 use crate::{
     paths_equal,
     resolve_game_target_path,
-    storage::ensure_game_workspace,
+    storage::{ensure_game_workspace, StoragePaths},
     symlink_install::{
         backup_existing_target, remove_path_if_exists, resolve_backup_target_path,
         restore_target_from_backup,
@@ -48,45 +48,45 @@ struct PrerequisiteFileMapping {
     target_path: String,
 }
 
-pub(crate) fn detect_game_prerequisites(app_dir: &Path, mut game: GameDirectory) -> GameDirectory {
-    game.prerequisites = detect_game_prerequisite_payloads(app_dir, Path::new(&game.path), &game.game_type);
+pub(crate) fn detect_game_prerequisites(paths: &StoragePaths, mut game: GameDirectory) -> GameDirectory {
+    game.prerequisites = detect_game_prerequisite_payloads(paths, Path::new(&game.path), &game.game_type);
     game
 }
 
 pub(crate) fn detect_game_prerequisite_payloads(
-    app_dir: &Path,
+    paths: &StoragePaths,
     game_path: &Path,
     game_type: &str,
 ) -> Vec<GamePrerequisitePayload> {
-    detect_for_path(app_dir, game_path, game_type)
+    detect_for_path(paths, game_path, game_type)
 }
 
 pub(crate) fn install_game_prerequisite(
-    app_dir: &Path,
+    paths: &StoragePaths,
     game_path: &Path,
     game_type: &str,
     prerequisite_key: &str,
 ) -> Result<(), String> {
-    let modules_dir = resolve_modules_dir(app_dir)?;
+    let modules_dir = resolve_modules_dir(paths)?;
     install_named_prerequisite(&modules_dir, game_path, game_type, prerequisite_key)
 }
 
 pub(crate) fn uninstall_game_prerequisite(
-    app_dir: &Path,
+    paths: &StoragePaths,
     game_path: &Path,
     game_type: &str,
     prerequisite_key: &str,
 ) -> Result<(), String> {
-    let modules_dir = resolve_modules_dir(app_dir)?;
+    let modules_dir = resolve_modules_dir(paths)?;
     uninstall_named_prerequisite(&modules_dir, game_path, game_type, prerequisite_key)
 }
 
 pub(crate) fn repair_game_prerequisites(
-    app_dir: &Path,
+    paths: &StoragePaths,
     game_path: &Path,
     game_type: &str,
 ) -> Result<(), String> {
-    let modules_dir = resolve_modules_dir(app_dir)?;
+    let modules_dir = resolve_modules_dir(paths)?;
     for prerequisite_key in ["asiloader", "modloader"] {
         install_named_prerequisite(&modules_dir, game_path, game_type, prerequisite_key)?;
     }
@@ -115,7 +115,7 @@ pub(crate) fn repair_game_prerequisites(
 }
 
 pub(crate) fn resolve_prerequisite_asi_conflict(
-    app_dir: &Path,
+    paths: &StoragePaths,
     game_path: &Path,
     game_type: &str,
     prerequisite_key: &str,
@@ -144,14 +144,14 @@ pub(crate) fn resolve_prerequisite_asi_conflict(
         remove_path_if_exists(&path)?;
     }
 
-    install_game_prerequisite(app_dir, game_path, game_type, &normalized_key)
+    install_game_prerequisite(paths, game_path, game_type, &normalized_key)
 }
 
-fn detect_for_path(app_dir: &Path, game_path: &Path, game_type: &str) -> Vec<GamePrerequisitePayload> {
-    resolve_modules_dir(app_dir)
+fn detect_for_path(paths: &StoragePaths, game_path: &Path, game_type: &str) -> Vec<GamePrerequisitePayload> {
+    resolve_modules_dir(paths)
         .ok()
         .and_then(|modules_dir| detect_definitions_from_modules(&modules_dir, game_path, game_type).ok())
-        .unwrap_or_else(|| detect_for_path_legacy(game_path, game_type))
+        .unwrap_or_default()
 }
 
 fn detect_definitions_from_modules(
@@ -1085,156 +1085,15 @@ fn collect_relative_file_paths_recursive(
     Ok(())
 }
 
-fn resolve_modules_dir(app_dir: &Path) -> Result<PathBuf, String> {
-    let runtime_modules_dir = app_dir.join("assets").join("modules");
-    if runtime_modules_dir.is_dir() {
-        return Ok(runtime_modules_dir);
+fn resolve_modules_dir(paths: &StoragePaths) -> Result<PathBuf, String> {
+    let modules_dir = paths.resource_dir.join("modules");
+    if modules_dir.is_dir() {
+        return Ok(modules_dir);
     }
-
-    let source_modules_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join("modules");
-    if source_modules_dir.is_dir() {
-        return Ok(source_modules_dir);
-    }
-
-    Err("未找到内置前置组件资源目录".to_string())
-}
-
-fn detect_for_path_legacy(game_path: &Path, game_type: &str) -> Vec<GamePrerequisitePayload> {
-    let asiloader = detect_root_file("asiloader", "ASILoader", game_path.join("dinput8.dll"), true, true);
-    let asiloader_detected = asiloader.detected;
-
-    vec![
-        asiloader,
-        GamePrerequisitePayload {
-            key: "modloader".to_string(),
-            label: "ModLoader".to_string(),
-            detected: detect_asi_file_path("modloader.asi", game_path).is_some(),
-            can_install: true,
-            can_uninstall: true,
-            required: true,
-            scan_scope: SCRIPTS_PLUGINS_SCOPE.to_string(),
-            detected_path: detect_asi_file_path("modloader.asi", game_path)
-                .map(|path| path.to_string_lossy().to_string()),
-        },
-        detect_directory("cleo", "CLEO", game_path.join("CLEO"), asiloader_detected, true),
-        detect_asi_file(
-            "cleo_redux",
-            "CLEO Redux",
-            "cleo_redux.asi",
-            game_path,
-            asiloader_detected,
-            true,
-        ),
-        detect_asi_file(
-            "silentpatch",
-            silent_patch_label(game_type),
-            silent_patch_file_name(game_type),
-            game_path,
-            asiloader_detected,
-            true,
-        ),
-        detect_root_file("d3d8to9", "D3D8to9", game_path.join("d3d8.dll"), true, true),
-    ]
-}
-
-fn detect_directory(
-    key: &str,
-    label: &str,
-    directory_path: PathBuf,
-    can_install: bool,
-    can_uninstall: bool,
-) -> GamePrerequisitePayload {
-    let detected = directory_path.is_dir();
-
-    GamePrerequisitePayload {
-        key: key.to_string(),
-        label: label.to_string(),
-        detected,
-        can_install,
-        can_uninstall,
-        required: false,
-        scan_scope: ROOT_SCOPE.to_string(),
-        detected_path: detected.then(|| directory_path.to_string_lossy().to_string()),
-    }
-}
-
-fn detect_root_file(
-    key: &str,
-    label: &str,
-    file_path: PathBuf,
-    can_install: bool,
-    can_uninstall: bool,
-) -> GamePrerequisitePayload {
-    let detected = file_path.is_file();
-
-    GamePrerequisitePayload {
-        key: key.to_string(),
-        label: label.to_string(),
-        detected,
-        can_install,
-        can_uninstall,
-        required: key == "asiloader" || key == "modloader",
-        scan_scope: ROOT_SCOPE.to_string(),
-        detected_path: detected.then(|| file_path.to_string_lossy().to_string()),
-    }
-}
-
-fn detect_asi_file(
-    key: &str,
-    label: &str,
-    file_name: &str,
-    game_path: &Path,
-    can_install: bool,
-    can_uninstall: bool,
-) -> GamePrerequisitePayload {
-    let detected_path = detect_asi_file_path(file_name, game_path);
-
-    GamePrerequisitePayload {
-        key: key.to_string(),
-        label: label.to_string(),
-        detected: detected_path.is_some(),
-        can_install,
-        can_uninstall,
-        required: key == "modloader",
-        scan_scope: SCRIPTS_PLUGINS_SCOPE.to_string(),
-        detected_path: detected_path.map(|path| path.to_string_lossy().to_string()),
-    }
-}
-
-fn detect_asi_file_path(file_name: &str, game_path: &Path) -> Option<PathBuf> {
-    ["scripts", "plugins"]
-        .iter()
-        .map(|folder| game_path.join(folder))
-        .find_map(|directory| find_file_case_insensitive(&directory, file_name))
-}
-
-fn find_file_case_insensitive(directory: &Path, file_name: &str) -> Option<PathBuf> {
-    if !directory.is_dir() {
-        return None;
-    }
-
-    let target_name = file_name.to_ascii_lowercase();
-    let entries = fs::read_dir(directory).ok()?;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-
-        if path.is_dir() {
-            if let Some(found) = find_file_case_insensitive(&path, file_name) {
-                return Some(found);
-            }
-            continue;
-        }
-
-        let entry_name = path.file_name()?.to_string_lossy().to_ascii_lowercase();
-        if entry_name == target_name {
-            return Some(path);
-        }
-    }
-
-    None
+    Err(format!(
+        "未找到新的内置前置组件资源目录: {}",
+        modules_dir.to_string_lossy()
+    ))
 }
 
 fn silent_patch_file_name(game_type: &str) -> &'static str {
