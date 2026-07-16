@@ -929,6 +929,8 @@ function ImportModDialog({ workspace }: { workspace: WorkspaceState }) {
                           t={t}
                           files={importFiles}
                           onDropToFolder={handleDropToFolder}
+                          gameTargetsByPath={{}}
+                          toggleGameType={() => {}}
                         />
                       )}
                     </div>

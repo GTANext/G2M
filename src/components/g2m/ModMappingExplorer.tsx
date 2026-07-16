@@ -4,9 +4,9 @@ import { useDroppable, DndContext, DragOverlay, useSensor, useSensors, PointerSe
 import { open } from "@tauri-apps/plugin-dialog"
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger, DrawerClose, DrawerHeader, DrawerFooter } from "@/components/ui/drawer"
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
+import { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { Badge } from "@/components/ui/badge"
-import type { ModImportFileEntry } from "@/lib/g2m"
+import type { GameTypeTarget, ModImportFileEntry } from "@/lib/g2m"
 import { invokeApi } from "@/lib/api"
 import { useG2mWorkspace } from "@/hooks/useG2MWorkspace"
 import { Button } from "@/components/ui/button"
@@ -30,7 +30,15 @@ type ModMappingExplorerProps = {
   t: (key: string) => string
   files: ModImportFileEntry[]
   onDropToFolder: (targetFolder: string, payload: DragPayload) => void
+  gameTargetsByPath: Record<string, GameTypeTarget[]>
+  toggleGameType: (path: string, type: GameTypeTarget) => void
 }
+
+const GAME_TARGET_OPTIONS: Array<{ value: GameTypeTarget; labelKey: string }> = [
+  { value: "iii", labelKey: "workspaceDialogs.gameTypeIii" },
+  { value: "vc", labelKey: "workspaceDialogs.gameTypeVc" },
+  { value: "sa", labelKey: "workspaceDialogs.gameTypeSa" },
+]
 
 function getLabel(
   key: string,
@@ -40,7 +48,13 @@ function getLabel(
   return options.t(key) || fallback
 }
 
-export function ModMappingExplorer({ t, files, onDropToFolder }: ModMappingExplorerProps) {
+export function ModMappingExplorer({
+  t,
+  files,
+  onDropToFolder,
+  gameTargetsByPath,
+  toggleGameType,
+}: ModMappingExplorerProps) {
   const workspace = useG2mWorkspace()
   const { showHomeGameDetails } = useAppPreferences()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -394,6 +408,8 @@ export function ModMappingExplorer({ t, files, onDropToFolder }: ModMappingExplo
                     key={file.relativePath}
                     file={file}
                     isMapped
+                    gameTargets={gameTargetsByPath[normalizePath(file.relativePath)] ?? []}
+                    onToggleGameType={toggleGameType}
                     onRemoveMapping={() => onDropToFolder(SKIP_INSTALL_TARGET, {
                       kind: "file",
                       mode: "target",
@@ -481,15 +497,20 @@ function ExplorerFolderItem({
 function ExplorerFileItem({ 
   file, 
   isMapped,
+  gameTargets,
+  onToggleGameType,
   onRemoveMapping,
   t
 }: { 
   file: ModImportFileEntry
   isMapped?: boolean
+  gameTargets?: GameTypeTarget[]
+  onToggleGameType?: (path: string, type: GameTypeTarget) => void
   onRemoveMapping?: () => void
   t?: (key: string) => string
 }) {
   const name = getBaseName(file.targetPath)
+  const normalizedRelativePath = normalizePath(file.relativePath)
   
   const content = (
     <div
@@ -520,6 +541,30 @@ function ExplorerFileItem({
         {content}
       </ContextMenuTrigger>
       <ContextMenuContent>
+        {normalizedRelativePath ? (
+          <>
+            <ContextMenuLabel>
+              {getLabel("builderPage.gameTargets", "适用游戏", { t: t! })}
+            </ContextMenuLabel>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                {getLabel("builderPage.gameTargets", "适用游戏", { t: t! })}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                {GAME_TARGET_OPTIONS.map((option) => (
+                  <ContextMenuCheckboxItem
+                    key={`${normalizedRelativePath}-${option.value}`}
+                    checked={(gameTargets ?? []).includes(option.value)}
+                    onCheckedChange={() => onToggleGameType?.(normalizedRelativePath, option.value)}
+                  >
+                    {t?.(option.labelKey) ?? option.value.toUpperCase()}
+                  </ContextMenuCheckboxItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuSeparator />
+          </>
+        ) : null}
         <ContextMenuItem onClick={onRemoveMapping} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:text-red-400 dark:focus:text-red-400 dark:focus:bg-red-500/10 cursor-pointer">
           <Trash2 className="mr-2 size-4" />
           {getLabel("workspaceDialogs.removeMapping", "Remove", { t: t! })}
