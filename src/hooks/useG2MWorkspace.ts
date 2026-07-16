@@ -11,8 +11,10 @@ import {
   type BootstrapPayload,
   type Game,
   type ManagedMod,
+  type ModSortRule,
   type WorkspaceStats,
 } from "@/lib/g2m"
+import { useAppPreferences } from "@/components/app/preferencesProvider"
 
 import { useWorkspaceState } from "./workspace/useWorkspaceState"
 import { useConflictResolution } from "./workspace/useConflictResolution"
@@ -59,13 +61,50 @@ function getActiveGameMods(mods: ManagedMod[], activeGameId: string | null): Man
   return mods.filter((mod) => !activeGameId || mod.gameId === activeGameId)
 }
 
-function getVisibleMods(mods: ManagedMod[], modSearchQuery: string): ManagedMod[] {
+function sortMods(mods: ManagedMod[], modSortRule: ModSortRule): ManagedMod[] {
+  const sortedMods = [...mods]
+
+  sortedMods.sort((left, right) => {
+    if (modSortRule === "installedAtAsc") {
+      const timestampDiff = left.installedAtTimestamp - right.installedAtTimestamp
+      if (timestampDiff !== 0) {
+        return timestampDiff
+      }
+    }
+
+    if (modSortRule === "installedAtDesc") {
+      const timestampDiff = right.installedAtTimestamp - left.installedAtTimestamp
+      if (timestampDiff !== 0) {
+        return timestampDiff
+      }
+    }
+
+    const nameDiff = left.name.localeCompare(right.name, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    })
+    if (modSortRule === "nameAsc" && nameDiff !== 0) {
+      return nameDiff
+    }
+    if (modSortRule === "nameDesc" && nameDiff !== 0) {
+      return -nameDiff
+    }
+
+    return left.id.localeCompare(right.id)
+  })
+
+  return sortedMods
+}
+
+function getVisibleMods(mods: ManagedMod[], modSearchQuery: string, modSortRule: ModSortRule): ManagedMod[] {
   const keyword = modSearchQuery.trim().toLowerCase()
+  const sortedMods = sortMods(mods, modSortRule)
+
   if (!keyword) {
-    return mods
+    return sortedMods
   }
 
-  return mods.filter((mod) => matchesModSearch(mod, keyword))
+  return sortedMods.filter((mod) => matchesModSearch(mod, keyword))
 }
 
 function getActiveGame(games: Game[], activeGameId: string | null): Game | null {
@@ -73,7 +112,11 @@ function getActiveGame(games: Game[], activeGameId: string | null): Game | null 
 }
 
 function getSelectedMod(mods: ManagedMod[], selectedModId: string): ManagedMod | null {
-  return mods.find((mod) => mod.id === selectedModId) ?? mods[0] ?? null
+  if (!selectedModId) {
+    return null
+  }
+
+  return mods.find((mod) => mod.id === selectedModId) ?? null
 }
 
 function getConfiguredGames(games: Game[]): Game[] {
@@ -87,6 +130,7 @@ function getWorkspaceStats(mods: ManagedMod[]): WorkspaceStats {
 export function useG2mWorkspace(): UseG2mWorkspaceResult {
   const { t } = useTranslation()
   const state = useWorkspaceState()
+  const { modSortRule } = useAppPreferences()
 
   const applyBootstrap = useCallback(
     (payload: BootstrapPayload) => {
@@ -100,7 +144,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
         return pickRetainedId({
           items: nextMods,
           currentId: currentSelectedModId,
-          fallbackId: nextMods[0]?.id ?? "",
+          fallbackId: "",
         }) ?? ""
       })
 
@@ -148,13 +192,16 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
   )
 
   const mods = useMemo(
-    () => getVisibleMods(activeGameMods, state.modSearchQuery),
-    [activeGameMods, state.modSearchQuery],
+    () => getVisibleMods(activeGameMods, state.modSearchQuery, modSortRule),
+    [activeGameMods, state.modSearchQuery, modSortRule],
   )
 
   const activeGame = useMemo(() => getActiveGame(games, state.activeGameId), [state.activeGameId, games])
 
-  const selectedMod = useMemo(() => getSelectedMod(mods, state.selectedModId), [mods, state.selectedModId])
+  const selectedMod = useMemo(
+    () => getSelectedMod(activeGameMods, state.selectedModId),
+    [activeGameMods, state.selectedModId],
+  )
 
   const configuredGames = useMemo(() => getConfiguredGames(games), [games])
   const hasConfiguredGames = configuredGames.length > 0
@@ -237,6 +284,33 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     }
   }, [activeGame, games, t])
 
+  const launchGame = useCallback(async (gameId?: string) => {
+    const targetGame = (gameId ? games.find((game) => game.id === gameId) : activeGame) ?? activeGame
+
+    if (!targetGame?.id) {
+      toast.warning(t("workspaceActions.currentGame"))
+      return
+    }
+
+    if (!targetGame.exeName.trim()) {
+      toast.warning(t("workspaceActions.gameExecutableMissing"))
+      return
+    }
+
+    try {
+      const launchedPath = await invokeApi<string>("launch_game_executable", {
+        gameId: targetGame.id,
+      })
+      toast.success(t("workspaceActions.gameLaunched"), {
+        description: launchedPath,
+      })
+    } catch (error) {
+      toast.error(t("workspaceActions.launchGameFailed"), {
+        description: formatApiErrorMessage(error),
+      })
+    }
+  }, [activeGame, games, t])
+
   const setImportModName = useCallback((value: string) => {
     state.setImportModForm((current) => ({
       ...current,
@@ -248,6 +322,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     ...state,
     activeGame,
     activeGameMods,
+    allMods: state.allMods,
     allModsCount: activeGameMods.length,
     configuredGames,
     hasConfiguredGames,
@@ -266,6 +341,7 @@ export function useG2mWorkspace(): UseG2mWorkspaceResult {
     openImportModDialog,
     openGamesDownloadPage,
     openGameDirectory,
+    launchGame,
     refreshWorkspace,
     setImportModName,
     setImportModMappings: state.setImportModMappingsState,

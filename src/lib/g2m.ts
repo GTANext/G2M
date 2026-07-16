@@ -17,6 +17,15 @@ export type Game = {
   sortOrder: number
   status: "ready" | "pending"
   prerequisites: GamePrerequisite[]
+  linkHealth: GameLinkHealth
+}
+
+export type GameLinkHealth = {
+  hasIssues: boolean
+  issueCount: number
+  missingSourceCount: number
+  missingTargetCount: number
+  repairableModCount: number
 }
 
 export type GamePrerequisite = {
@@ -24,11 +33,14 @@ export type GamePrerequisite = {
   label: string
   detected: boolean
   canInstall: boolean
+  canUninstall: boolean
+  required: boolean
   scanScope: "root" | "scriptsPlugins" | string
   detectedPath: string | null
 }
 
 export type ModType = "ModLoader" | "CLEO" | "CLEO Redux" | "ASI" | "Mixed"
+export type ModSortRule = "installedAtDesc" | "installedAtAsc" | "nameAsc" | "nameDesc"
 
 export type ModConflictItem = {
   id: string
@@ -83,6 +95,8 @@ export type ExistingBuilderManifest = {
   name: string
   version: string
   author: string
+  description: string
+  iconBase64: string
   modType: string
   links: ExistingBuilderManifestLink[]
   prerequisites: string[]
@@ -110,6 +124,7 @@ export type ManagedMod = {
   id: string
   gameId: string
   name: string
+  iconBase64: string
   rawVersion: string
   version: string
   type: ModType
@@ -119,6 +134,7 @@ export type ManagedMod = {
   conflicts: number
   health: "healthy" | "warning"
   size: string
+  installedAtTimestamp: number
   installedAt: string
   description: string
   targetFolders: string[]
@@ -142,6 +158,7 @@ export type BackendGame = {
   configured: boolean
   sortOrder: number
   prerequisites: GamePrerequisite[]
+  linkHealth: GameLinkHealth
 }
 
 export interface DetectedGame {
@@ -157,6 +174,7 @@ export type BackendMod = {
   id: string
   gameId: string
   name: string
+  iconBase64: string
   version: string
   modType: ModType
   author: string
@@ -230,6 +248,7 @@ export function buildDisplayMods(sourceMods: BackendMod[]): ManagedMod[] {
     id: mod.id,
     gameId: mod.gameId,
     name: mod.name,
+    iconBase64: mod.iconBase64 ?? "",
     rawVersion: mod.version,
     version: mod.version || i18n.t("common.notProvided"),
     type: mod.modType,
@@ -239,6 +258,7 @@ export function buildDisplayMods(sourceMods: BackendMod[]): ManagedMod[] {
     conflicts: mod.conflicts,
     health: mod.conflicts > 0 ? "warning" : "healthy",
     size: formatFileSize(mod.sizeBytes),
+    installedAtTimestamp: mod.installedAt,
     installedAt: formatGameTimestamp(mod.installedAt),
     description: mod.description || i18n.t("demo.syncedDescription"),
     targetFolders: mod.targetFolders.length > 0 ? mod.targetFolders : [i18n.t("demo.targetPending")],
@@ -283,6 +303,13 @@ export function buildGamesFromBackend(
     sortOrder: game.sortOrder,
     status: game.configured ? "ready" : "pending",
     prerequisites: game.prerequisites ?? [],
+    linkHealth: game.linkHealth ?? {
+      hasIssues: false,
+      issueCount: 0,
+      missingSourceCount: 0,
+      missingTargetCount: 0,
+      repairableModCount: 0,
+    },
   }))
 }
 

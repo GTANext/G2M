@@ -6,14 +6,6 @@ use crate::{
     symlink_install::{create_mod_symlinks, remove_mod_symlinks},
 };
 
-pub(crate) const DEFAULT_PREREQUISITE_INSTALL_KEYS: [&str; 5] = [
-    "asiloader",
-    "modloader",
-    "cleo",
-    "cleo_redux",
-    "silentpatch",
-];
-
 pub(crate) fn normalize_optional_string(value: Option<String>) -> String {
     value
         .map(|current| current.trim().to_string())

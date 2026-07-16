@@ -32,6 +32,17 @@ pub(crate) struct GameDirectory {
     pub(crate) configured: bool,
     pub(crate) sort_order: i64,
     pub(crate) prerequisites: Vec<GamePrerequisitePayload>,
+    pub(crate) link_health: GameLinkHealthPayload,
+}
+
+#[derive(Debug, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GameLinkHealthPayload {
+    pub(crate) has_issues: bool,
+    pub(crate) issue_count: i64,
+    pub(crate) missing_source_count: i64,
+    pub(crate) missing_target_count: i64,
+    pub(crate) repairable_mod_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,6 +52,8 @@ pub(crate) struct GamePrerequisitePayload {
     pub(crate) label: String,
     pub(crate) detected: bool,
     pub(crate) can_install: bool,
+    pub(crate) can_uninstall: bool,
+    pub(crate) required: bool,
     pub(crate) scan_scope: String,
     pub(crate) detected_path: Option<String>,
 }
@@ -62,6 +75,7 @@ pub(crate) struct StoredMod {
     pub(crate) id: String,
     pub(crate) game_id: String,
     pub(crate) name: String,
+    pub(crate) icon_base64: String,
     pub(crate) version: String,
     pub(crate) mod_type: String,
     pub(crate) author: String,
@@ -136,6 +150,8 @@ pub(crate) struct ExistingBuilderManifestPayload {
     pub(crate) name: String,
     pub(crate) version: String,
     pub(crate) author: String,
+    pub(crate) description: String,
+    pub(crate) icon_base64: String,
     pub(crate) mod_type: String,
     pub(crate) links: Vec<ExistingBuilderManifestLinkPayload>,
     pub(crate) prerequisites: Vec<String>,

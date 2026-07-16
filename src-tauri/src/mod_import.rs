@@ -21,6 +21,7 @@ pub(crate) struct ImportedModFile {
     pub(crate) source_path: String,
     pub(crate) target_path: String,
     pub(crate) target_folder: String,
+    wrap_modloader_target: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +37,8 @@ struct ImportedModSummary {
     name: String,
     version: String,
     author: String,
+    description: String,
+    icon_base64: String,
     mod_type: String,
     file_count: i64,
     size_bytes: i64,
@@ -63,6 +66,10 @@ struct ExistingBuilderManifestInput {
     version: String,
     #[serde(default)]
     author: String,
+    #[serde(default)]
+    description: String,
+    #[serde(alias = "iconBase64", default)]
+    icon_base64: String,
     #[serde(rename = "type", default)]
     mod_type: String,
     #[serde(default)]
@@ -73,7 +80,7 @@ struct ExistingBuilderManifestInput {
     links: Vec<ExistingBuilderManifestLinkInput>,
     #[serde(default)]
     prerequisites: Vec<String>,
-    #[serde(default)]
+    #[serde(alias = "customPrerequisites", default)]
     custom_prerequisites: Vec<ExistingBuilderManifestCustomPrerequisiteInput>,
     #[serde(default)]
     update: Option<ExistingBuilderManifestUpdateInput>,
@@ -169,12 +176,14 @@ pub(crate) fn prepare_import_source(mod_path: &str) -> Result<PreparedImportSour
         return Err("当前仅支持选择文件夹或 ZIP 压缩包".to_string());
     }
 
-    let display_name = source_path
-        .file_stem()
+    let archive_file_name = source_path
+        .file_name()
         .and_then(|value| value.to_str())
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| "无法识别压缩包名称".to_string())?
+        .ok_or_else(|| "无法识别压缩包名称".to_string())?;
+    let display_name = strip_supported_archive_extension(archive_file_name)
+        .trim()
         .to_string();
     let extraction_parent = std::env::temp_dir().join(format!("g2m-import-{}", random_suffix()));
     let extraction_root = extraction_parent.join(sanitize_folder_name(&display_name));
@@ -239,17 +248,19 @@ pub(crate) fn import_mod_into_database(
     game_id: &str,
     game_type: &str,
     game_path: &Path,
-    prepared_source: &PreparedImportSource,
+    source_dir: &Path,
+    original_source_is_zip: bool,
+    original_source_zip_path: Option<&Path>,
     mod_name_override: Option<&str>,
     file_overrides: Option<&[ImportFileOverride]>,
 ) -> Result<String, String> {
     let mut import_summary =
         scan_imported_mod_directory(
-            &prepared_source.source_dir,
+            source_dir,
             mod_name_override,
             Some(game_type),
-            prepared_source.original_is_zip,
-            prepared_source.original_zip_path.as_deref()
+            original_source_is_zip,
+            original_source_zip_path,
         )?;
     apply_import_file_overrides(&mut import_summary.files, file_overrides)?;
     wrap_modloader_targets(&mut import_summary.files, &import_summary.name);
@@ -267,17 +278,19 @@ pub(crate) fn import_mod_into_database(
         .execute(
             "
             INSERT INTO mods (
-                id, game_id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
+                id, game_id, name, icon_base64, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, '', ?7, ?8, ?9, 1, ?10, ?11)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, ?12, ?13)
             ",
             params![
                 mod_id,
                 game_id,
                 import_summary.name,
+                import_summary.icon_base64,
                 import_summary.version,
                 import_summary.mod_type,
                 import_summary.author,
+                import_summary.description,
                 build_game_scoped_storage_path(game_path, Path::new(&import_summary.source_dir)),
                 installed_at,
                 import_summary.size_bytes,
@@ -612,6 +625,14 @@ fn scan_imported_mod_directory(
         .as_ref()
         .map(|manifest| manifest.author.trim().to_string())
         .unwrap_or_default();
+    let description = existing_manifest
+        .as_ref()
+        .map(|manifest| manifest.description.trim().to_string())
+        .unwrap_or_default();
+    let icon_base64 = existing_manifest
+        .as_ref()
+        .map(|manifest| manifest.icon_base64.trim().to_string())
+        .unwrap_or_default();
     let version = existing_manifest
         .as_ref()
         .map(|manifest| manifest.version.trim().to_string())
@@ -621,6 +642,8 @@ fn scan_imported_mod_directory(
         name: mod_name,
         version,
         author,
+        description,
+        icon_base64,
         mod_type,
         file_count: files.len() as i64,
         size_bytes: total_size,
@@ -653,6 +676,8 @@ fn parse_builder_manifest_content(content: &str) -> Result<Option<ExistingBuilde
         name: parsed.name.trim().to_string(),
         version: parsed.version.trim().to_string(),
         author: parsed.author.trim().to_string(),
+        description: parsed.description.trim().to_string(),
+        icon_base64: parsed.icon_base64.trim().to_string(),
         mod_type: parsed.mod_type.trim().to_string(),
         links,
         prerequisites: parsed.prerequisites,
@@ -797,10 +822,12 @@ fn apply_existing_manifest_mappings(
             if !manifest_entry_applies_to_game(games, game_type) {
                 file.target_path.clear();
                 file.target_folder.clear();
+                file.wrap_modloader_target = false;
                 continue;
             }
             file.target_path = install_to.clone();
             file.target_folder = infer_target_folder_from_target_path(install_to);
+            file.wrap_modloader_target = false;
             continue;
         }
 
@@ -811,6 +838,7 @@ fn apply_existing_manifest_mappings(
             if !manifest_entry_applies_to_game(games, game_type) {
                 file.target_path.clear();
                 file.target_folder.clear();
+                file.wrap_modloader_target = false;
                 continue;
             }
             let suffix = normalized_relative_path
@@ -820,6 +848,7 @@ fn apply_existing_manifest_mappings(
             let target_path = join_folder_target_path(install_to, path, suffix);
             file.target_path = target_path.clone();
             file.target_folder = infer_target_folder_from_target_path(&target_path);
+            file.wrap_modloader_target = false;
         }
     }
 }
@@ -917,7 +946,7 @@ fn collect_imported_mod_files(
             continue;
         }
 
-        let (target_path, target_folder) = infer_target_path(relative_path);
+        let (target_path, target_folder, wrap_modloader_target) = infer_target_path(relative_path);
 
         match target_folder.as_str() {
             "modloader" => *has_modloader = true,
@@ -936,13 +965,14 @@ fn collect_imported_mod_files(
             source_path: path.to_string_lossy().to_string(),
             target_path,
             target_folder,
+            wrap_modloader_target,
         });
     }
 
     Ok(())
 }
 
-fn infer_target_path(relative_path: &Path) -> (String, String) {
+fn infer_target_path(relative_path: &Path) -> (String, String, bool) {
     let normalized_relative = normalize_path(relative_path);
     let file_name = relative_path
         .file_name()
@@ -953,13 +983,16 @@ fn infer_target_path(relative_path: &Path) -> (String, String) {
     let lower_file_name = file_name_normalized.to_lowercase();
 
     if lower_relative.starts_with("modloader/") {
-        return (normalized_relative, "modloader".to_string());
+        return (normalized_relative, "modloader".to_string(), false);
     }
     if lower_relative.starts_with("cleo/") {
-        return (normalized_relative, "cleo".to_string());
+        return (normalized_relative, "cleo".to_string(), false);
     }
     if lower_relative.starts_with("plugins/") {
-        return (normalized_relative, "plugins".to_string());
+        return (normalized_relative, "plugins".to_string(), false);
+    }
+    if lower_relative.starts_with("scripts/") {
+        return (normalized_relative, "scripts".to_string(), false);
     }
 
     if lower_file_name.ends_with(".cs")
@@ -968,18 +1001,19 @@ fn infer_target_path(relative_path: &Path) -> (String, String) {
         || lower_file_name.ends_with(".cleo")
         || lower_file_name.ends_with(".csa")
     {
-        return (format!("cleo/{file_name_normalized}"), "cleo".to_string());
+        return (format!("cleo/{file_name_normalized}"), "cleo".to_string(), false);
     }
     if lower_file_name.ends_with(".asi")
         || lower_file_name.ends_with(".dll")
         || lower_file_name.ends_with(".ini")
     {
-        return (format!("plugins/{file_name_normalized}"), "plugins".to_string());
+        return (format!("plugins/{file_name_normalized}"), "plugins".to_string(), false);
     }
 
     (
         format!("modloader/{normalized_relative}"),
         "modloader".to_string(),
+        true,
     )
 }
 
@@ -1016,9 +1050,11 @@ fn apply_import_file_overrides(
             if let Some(target_path) = target_path {
                 file.target_path = target_path.clone();
                 file.target_folder = infer_target_folder_from_target_path(target_path);
+                file.wrap_modloader_target = false;
             } else {
                 file.target_path.clear();
                 file.target_folder.clear();
+                file.wrap_modloader_target = false;
             }
             applied.insert(file.relative_path.clone());
         }
@@ -1105,7 +1141,7 @@ fn wrap_modloader_targets(files: &mut [ImportedModFile], mod_name: &str) {
     let wrapper_prefix = format!("modloader/{}/", wrapper_dir).to_lowercase();
     
     for file in files {
-        if file.target_folder.eq_ignore_ascii_case("modloader") {
+        if file.target_folder.eq_ignore_ascii_case("modloader") && file.wrap_modloader_target {
             let target_lower = file.target_path.to_lowercase();
             if target_lower.starts_with(&wrapper_prefix) {
                 continue;
@@ -1130,13 +1166,17 @@ fn normalize_import_mod_name(value: &str, original_source_is_zip: bool) -> Strin
         return trimmed.to_string();
     }
 
-    Path::new(trimmed)
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .map(str::trim)
-        .filter(|stem| !stem.is_empty())
-        .unwrap_or(trimmed)
-        .to_string()
+    strip_supported_archive_extension(trimmed).trim().to_string()
+}
+
+fn strip_supported_archive_extension(value: &str) -> &str {
+    for extension in [".zip", ".rar", ".7z"] {
+        if value.len() > extension.len() && value.to_ascii_lowercase().ends_with(extension) {
+            return &value[..value.len() - extension.len()];
+        }
+    }
+
+    value
 }
 
 fn infer_target_folder_from_target_path(target_path: &str) -> String {

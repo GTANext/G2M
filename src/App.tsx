@@ -259,7 +259,9 @@ function GameWorkspaceRoute({
   appInfo?: AppInfoPayload | null
 }) {
   const { t } = useTranslation()
-  const navbarSubtitle = t("routes.workspaceSubtitle", { gameName: workspace.activeGame?.name })
+  const navbarSubtitle = workspace.activeGame?.name
+    ? t("routes.workspaceSubtitle", { gameName: workspace.activeGame.name })
+    : t("routes.workspaceSubtitleFallback")
 
   return (
     <AppShell

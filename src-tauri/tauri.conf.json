@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "G2M",
-  "version": "0.0.1",
   "identifier": "com.gtamodx.manager",
   "build": {
     "beforeDevCommand": "pnpm dev",

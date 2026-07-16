@@ -37,8 +37,10 @@ export function useWorkspaceState(): WorkspaceState {
   const [bootstrapping, setBootstrapping] = useState(true)
   const [savingGameId, setSavingGameId] = useState<string | null>(null)
   const [deletingModId, setDeletingModId] = useState<string | null>(null)
+  const [renamingModId, setRenamingModId] = useState<string | null>(null)
   const [togglingModId, setTogglingModId] = useState<string | null>(null)
   const [installingPrerequisiteKey, setInstallingPrerequisiteKey] = useState<string | null>(null)
+  const [repairingGameLinksId, setRepairingGameLinksId] = useState<string | null>(null)
 
   return {
     activeGameId,
@@ -91,9 +93,13 @@ export function useWorkspaceState(): WorkspaceState {
     setSavingGameId,
     deletingModId,
     setDeletingModId,
+    renamingModId,
+    setRenamingModId,
     togglingModId,
     setTogglingModId,
     installingPrerequisiteKey,
     setInstallingPrerequisiteKey,
+    repairingGameLinksId,
+    setRepairingGameLinksId,
   }
 }

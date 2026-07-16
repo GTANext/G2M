@@ -1,4 +1,4 @@
-import { AlertTriangle, Boxes, CheckCircle2, FolderOpen, HardDriveDownload, Layers3, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react"
+import { AlertTriangle, Boxes, CheckCircle2, FolderOpen, HardDriveDownload, Layers3, Play, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 
@@ -13,7 +13,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { UseG2mWorkspaceResult } from "@/hooks/useG2MWorkspace"
+import { useAppPreferences } from "@/components/app/preferencesProvider"
 import {
   type MissingLoadedModPrerequisite,
   useWorkspacePrerequisiteState,
@@ -31,6 +33,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
   const { gameId = "" } = useParams()
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false)
   const { t } = useTranslation()
+  const { modListViewMode, modSortRule, setModSortRule } = useAppPreferences()
 
   useEffect(() => {
     if (!gameId) {
@@ -57,7 +60,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
     localSelectedPrerequisiteKeys,
     missingLoadedModPrerequisites,
     missingPrerequisiteSummary,
-    misplacedCleoRedux,
+    duplicateAsiPrerequisites,
     onTogglePrerequisiteKey,
     setIsPrerequisiteDrawerOpen,
   } = useWorkspacePrerequisiteState({
@@ -73,6 +76,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
 
   const hasMods = workspace.mods.length > 0
   const hasConflicts = (workspace.selectedMod?.conflictFiles.length ?? 0) > 0
+  const hasLinkIssues = activeGame.linkHealth.hasIssues
 
   return (
     <div className="mx-auto max-w-[1700px] space-y-4">
@@ -84,6 +88,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
       <G2MWorkspaceHero
         game={activeGame}
         stats={workspace.stats}
+        onLaunchGame={() => void workspace.launchGame()}
         onOpenDirectory={() => void workspace.openGameDirectory()}
         onEditGame={() => workspace.openEditGameDialog(activeGame.id)}
       />
@@ -114,6 +119,14 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                   >
                     <HardDriveDownload className="size-4" />
                     {t("workspacePage.importMod")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className={softOutlineButtonClass}
+                    onClick={() => void workspace.launchGame()}
+                  >
+                    <Play className="size-4" />
+                    {t("workspacePage.launchGame")}
                   </Button>
                   <Button
                     variant="outline"
@@ -198,9 +211,9 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                   <div>
                     <AlertTitle>{t("workspacePage.conflictTitle")}</AlertTitle>
                     <AlertDescription>
-                      {t("workspacePage.conflictWarningDescription", { 
+                      {t("workspacePage.conflictWarningDescription", {
                         modName: workspace.selectedMod.name, 
-                        conflictCount: workspace.selectedMod.conflictFiles.length 
+                        count: workspace.selectedMod.conflictFiles.length,
                       })}
                     </AlertDescription>
                   </div>
@@ -216,25 +229,62 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
             </Alert>
           )}
 
-          {misplacedCleoRedux && misplacedCleoRedux.detectedPath && (
-            <Alert className="border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+          {duplicateAsiPrerequisites.map((item) => (
+            <Alert
+              key={item.key}
+              className="border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100"
+            >
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="flex gap-3">
                   <AlertTriangle className="mt-0.5 size-5 shrink-0 text-rose-600 dark:text-rose-300" />
                   <div>
-                    <AlertTitle>发现位置错误的 CLEO Redux 核心组件</AlertTitle>
+                    <AlertTitle>
+                      {t("workspacePage.duplicateAsiAlertTitle", { name: item.label })}
+                    </AlertTitle>
                     <AlertDescription>
-                      检测到 plugins 目录下存在 cleo_redux.asi，这会导致 js/ts 脚本加载失败。请将其移动到游戏根目录下。
+                      {t("workspacePage.duplicateAsiAlertDescription", {
+                        path: item.detectedPath ?? "",
+                      })}
                     </AlertDescription>
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   className="cursor-pointer rounded-xl border-rose-300 bg-white/90 text-rose-900 backdrop-blur hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100 dark:hover:bg-rose-500/15"
-                  onClick={() => void workspace.fixMisplacedPrerequisite(misplacedCleoRedux.detectedPath!)}
+                  onClick={() => void workspace.resolvePrerequisiteConflict(item.key)}
                 >
-                  一键修复
+                  {t("workspacePage.fixMisplacedPrerequisite")}
                 </Button>
+              </div>
+            </Alert>
+          ))}
+
+          {hasLinkIssues && (
+            <Alert className="border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="flex gap-3">
+                  <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-300" />
+                  <div>
+                    <AlertTitle>{t("workspacePage.linkRepairAlertTitle")}</AlertTitle>
+                    <AlertDescription>
+                      {t("workspacePage.linkRepairAlertDescription", {
+                        issues: activeGame.linkHealth.issueCount,
+                        missingSources: activeGame.linkHealth.missingSourceCount,
+                        missingTargets: activeGame.linkHealth.missingTargetCount,
+                      })}
+                    </AlertDescription>
+                  </div>
+                </div>
+                {activeGame.linkHealth.repairableModCount > 0 ? (
+                  <Button
+                    variant="outline"
+                    className="cursor-pointer rounded-xl border-amber-300 bg-white/90 text-amber-900 backdrop-blur hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/15"
+                    disabled={workspace.repairingGameLinksId === activeGame.id}
+                    onClick={() => void workspace.repairGameSymlinks()}
+                  >
+                    {t("workspacePage.repairGameLinks")}
+                  </Button>
+                ) : null}
               </div>
             </Alert>
           )}
@@ -248,7 +298,7 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                     <AlertTitle>{t("workspacePage.missingPrerequisitesAlertTitle")}</AlertTitle>
                     <AlertDescription>
                       {t("workspacePage.missingPrerequisitesAlertDescription", {
-                        prerequisites: missingPrerequisiteSummary,
+                        items: missingPrerequisiteSummary,
                       })}
                     </AlertDescription>
                   </div>
@@ -280,18 +330,40 @@ function GameWorkspacePage({ workspace }: { workspace: WorkspaceState }) {
                   </G2MPill>
                   {workspace.selectedMod && (
                     <G2MPill className="bg-background/80 px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
-                      {t("workspacePage.currentFocusLabel", { modName: workspace.selectedMod.name })}
+                      {t("workspacePage.currentFocusLabel", { name: workspace.selectedMod.name })}
                     </G2MPill>
                   )}
                 </div>
               </div>
 
               <div className="mt-5 space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-slate-500 dark:text-slate-400">
+                    {t("workspacePage.disabledCount", { count: workspace.stats.disabled })}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      {t("settings.workspaceSortModeLabel")}
+                    </span>
+                    <Select value={modSortRule} onValueChange={(value) => setModSortRule(value as typeof modSortRule)}>
+                      <SelectTrigger className="h-11 min-w-[220px] rounded-xl border-border/70 bg-background/75 px-3.5 text-sm shadow-none backdrop-blur dark:border-white/10 dark:bg-white/[0.04]">
+                        <SelectValue placeholder={t("settings.workspaceSortModeLabel")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="installedAtDesc">{t("workspacePage.sortInstalledNewest")}</SelectItem>
+                        <SelectItem value="installedAtAsc">{t("workspacePage.sortInstalledOldest")}</SelectItem>
+                        <SelectItem value="nameAsc">{t("workspacePage.sortNameAsc")}</SelectItem>
+                        <SelectItem value="nameDesc">{t("workspacePage.sortNameDesc")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 {hasMods ? (
                   workspace.mods.map((mod) => (
                     <ModListCard
                       key={mod.id}
                       mod={mod}
+                      modListViewMode={modListViewMode}
                       workspace={workspace}
                       onOpenDetails={() => setIsDetailSheetOpen(true)}
                     />
@@ -400,7 +472,7 @@ function MissingPrerequisiteInstallDrawer({
                   </div>
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                     {t("workspacePage.prerequisiteRequiredBy", {
-                      items: item.requiredBy.join("、"),
+                      mods: item.requiredBy.join("、"),
                     })}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -419,7 +491,7 @@ function MissingPrerequisiteInstallDrawer({
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {hasInstallableItems
                 ? t("workspacePage.missingPrerequisitesAlertDescription", {
-                    prerequisites: items
+                    items: items
                       .filter((item) => item.canInstall && selectedKeys.includes(item.key))
                       .map((item) => item.label)
                       .join("、"),
@@ -531,19 +603,22 @@ function WorkbenchStatCard({
 
 function ModListCard({
   mod,
+  modListViewMode,
   workspace,
   onOpenDetails,
 }: {
   mod: WorkspaceState["mods"][number]
+  modListViewMode: "detailed" | "compact"
   workspace: WorkspaceState
   onOpenDetails: () => void
 }) {
   const { t } = useTranslation()
+  const isCompact = modListViewMode === "compact"
 
   return (
     <Card className="w-full rounded-[24px] bg-background/90 text-left shadow-[0_16px_40px_rgba(15,23,42,0.05)] ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:ring-black/10 hover:shadow-[0_24px_50px_rgba(15,23,42,0.08)] dark:bg-white/5 dark:shadow-[0_18px_40px_rgba(0,0,0,0.22)] dark:ring-white/10 dark:hover:ring-white/20 dark:hover:shadow-[0_22px_44px_rgba(0,0,0,0.28)]">
-      <CardContent className="p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <CardContent className={cn("p-4", isCompact && "px-4 py-3")}>
+        <div className={cn("flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between", isCompact && "gap-3 xl:items-center")}>
           <div className="flex min-w-0 flex-1 items-start gap-4">
             <button
               type="button"
@@ -563,7 +638,7 @@ function ModListCard({
             </button>
 
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className={cn("flex min-w-0 items-start justify-between gap-3", isCompact && "items-center")}>
                 <div className="min-w-0">
                   <h4 className="truncate text-base font-semibold">{mod.name}</h4>
                 </div>
@@ -574,42 +649,50 @@ function ModListCard({
                 )}
               </div>
 
-              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {mod.description}
-              </p>
+              {!isCompact ? (
+                <>
+                  <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    {mod.description}
+                  </p>
 
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <span>{t("workspacePage.fileCount")} {mod.fileCount}</span>
-                <span>{t("workspacePage.size")} {mod.size}</span>
-                <span>{t("workspacePage.importedAt")} {mod.installedAt}</span>
-              </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <span>{t("workspacePage.fileCount")} {mod.fileCount}</span>
+                    <span>{t("workspacePage.size")} {mod.size}</span>
+                    <span>{t("workspacePage.importedAt")} {mod.installedAt}</span>
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
 
-          <div className="flex w-full flex-col gap-3 xl:w-[420px] xl:shrink-0 xl:items-end">
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                {mod.type}
-              </Badge>
-              <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                {t("workspaceDialogs.version")} {mod.version}
-              </Badge>
-              <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                {t("workspacePage.author")} {mod.author}
-              </Badge>
-            </div>
+          <div className={cn("flex w-full flex-col gap-3 xl:w-[420px] xl:shrink-0 xl:items-end", isCompact && "xl:w-auto")}>
+            {!isCompact ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                  <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                    {mod.type}
+                  </Badge>
+                  <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                    {t("workspaceDialogs.version")} {mod.version}
+                  </Badge>
+                  <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                    {t("workspacePage.author")} {mod.author}
+                  </Badge>
+                </div>
 
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              {mod.targetFolders.map((folder) => (
-                <Badge
-                  key={`${mod.id}-${folder}`}
-                  variant="outline"
-                  className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300"
-                >
-                  {folder}
-                </Badge>
-              ))}
-            </div>
+                <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                  {mod.targetFolders.map((folder) => (
+                    <Badge
+                      key={`${mod.id}-${folder}`}
+                      variant="outline"
+                      className="rounded-full bg-muted px-3 py-1 text-slate-600 dark:bg-white/10 dark:text-slate-300"
+                    >
+                      {folder}
+                    </Badge>
+                  ))}
+                </div>
+              </>
+            ) : null}
 
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
               <ModEnabledStateButtons

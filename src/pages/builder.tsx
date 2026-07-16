@@ -2,6 +2,7 @@ import { open, save } from "@tauri-apps/plugin-dialog"
 import type { ReactNode } from "react"
 import {
   CheckCircle2,
+  ImagePlus,
   FileCode2,
   Files,
   FolderOpen,
@@ -11,7 +12,6 @@ import {
   Plus,
   Puzzle,
   RefreshCcw,
-  ShieldCheck,
   Trash2,
 } from "lucide-react"
 import { useMemo, useState } from "react"
@@ -42,6 +42,7 @@ import {
 } from "@/components/g2m/workspaceDialogs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { i18n } from "@/i18n"
 
 import { formatApiErrorMessage, invokeApi } from "@/lib/api"
 import {
@@ -50,7 +51,6 @@ import {
   inferTargetFolderFromPath,
   type ExistingBuilderManifestLink,
   formatFileSize,
-  type ManifestSourceDigest,
   normalizeModPath,
   type ExistingBuilderManifest,
   type ModImportFileEntry,
@@ -62,6 +62,8 @@ import {
 
 type BuilderForm = {
   author: string
+  description: string
+  iconBase64: string
   links: BuilderLinkInput[]
   name: string
   prerequisites: string[]
@@ -102,6 +104,8 @@ function ModBuilderPage() {
 
   const [form, setForm] = useState<BuilderForm>({
     author: "",
+    description: "",
+    iconBase64: "",
     links: createDefaultBuilderLinks(),
     name: "",
     prerequisites: [],
@@ -113,7 +117,6 @@ function ModBuilderPage() {
   const [preview, setPreview] = useState<ModImportPreview | null>(null)
   const [mappings, setMappings] = useState<ModImportFileEntry[]>([])
   const [gameTargetsByPath, setGameTargetsByPath] = useState<Record<string, GameTypeTarget[]>>({})
-  const [sourceDigest, setSourceDigest] = useState<ManifestSourceDigest | null>(null)
   const [isInspecting, setIsInspecting] = useState(false)
   const [isCustomPrereqSheetOpen, setIsCustomPrereqSheetOpen] = useState(false)
   const [customPrereqForm, setCustomPrereqForm] = useState({ name: "", url: "" })
@@ -127,31 +130,21 @@ function ModBuilderPage() {
     () => buildManifestEntries(mappingSummaries, mappings, gameTargetsByPath),
     [gameTargetsByPath, mappingSummaries, mappings],
   )
-  const manifestSourceDigest = useMemo<ManifestSourceDigest | null>(() => {
-    if (sourceDigest?.md5) {
-      return sourceDigest
-    }
-
-    if (preview?.existingManifest?.update?.md5) {
-      return preview.existingManifest.update
-    }
-
-    return null
-  }, [preview?.existingManifest?.update, sourceDigest])
   const manifestPayload = useMemo(
     () =>
       buildManifestPayload({
         author: form.author,
+        description: form.description,
+        iconBase64: form.iconBase64,
         links: form.links,
         modName: form.name,
         modType: preview?.existingManifest?.modType || preview?.modType || "Mixed",
         prerequisites: form.prerequisites,
         customPrerequisites: form.customPrerequisites,
-        sourceDigest: manifestSourceDigest,
         version: form.version,
         files: manifestEntries,
       }),
-    [form, manifestEntries, manifestSourceDigest, preview],
+    [form, manifestEntries, preview],
   )
 
   const manifestPreview = useMemo(
@@ -194,6 +187,8 @@ function ModBuilderPage() {
       setForm((current) => ({
         ...current,
         author: initialBuilderState.author,
+        description: initialBuilderState.description,
+        iconBase64: initialBuilderState.iconBase64,
         links: initialBuilderState.links,
         name: initialBuilderState.name || current.name || sourceName,
         prerequisites: initialBuilderState.prerequisites,
@@ -205,17 +200,6 @@ function ModBuilderPage() {
       setPreview(initialBuilderState.preview)
       setMappings(initialBuilderState.mappings)
       setGameTargetsByPath(initialBuilderState.gameTargetsByPath)
-      setSourceDigest(initialBuilderState.sourceDigest)
-
-      try {
-        const digest = await invokeApi<ManifestSourceDigest>("inspect_mod_source_digest", {
-          sourcePath: path,
-          sourceType: type,
-        })
-        setSourceDigest(digest)
-      } catch {
-        // Keep manifest-provided digest
-      }
       toast.success(t("builderPage.inspectSuccess"))
     } catch (error) {
       toast.error(t("builderPage.inspectFailed"), {
@@ -258,6 +242,32 @@ function ModBuilderPage() {
       ...current,
       links: current.links.filter((link) => link.id !== id),
     }))
+  }
+
+  async function pickModIcon() {
+    const selected = await open({
+      multiple: false,
+      title: t("builderPage.pickModIcon"),
+      filters: [{ name: t("builderPage.imageFiles"), extensions: ["png", "jpg", "jpeg", "webp"] }],
+    })
+
+    if (!selected || Array.isArray(selected)) {
+      return
+    }
+
+    try {
+      const base64Image = await invokeApi<string>("read_image_base64", {
+        path: selected,
+      })
+
+      await warnIfIconNotSquare(base64Image)
+      setForm((current) => ({ ...current, iconBase64: base64Image }))
+      toast.success(t("builderPage.modIconSelected"))
+    } catch (error) {
+      toast.error(t("builderPage.modIconReadFailed"), {
+        description: formatApiErrorMessage(error),
+      })
+    }
   }
 
   function addCustomPrerequisite() {
@@ -507,6 +517,77 @@ function ModBuilderPage() {
                   </BuilderField>
                 </div>
 
+                <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <BuilderField label={t("builderPage.modDescription")}>
+                    <Textarea
+                      value={form.description}
+                      onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))}
+                      placeholder={t("builderPage.modDescriptionPlaceholder")}
+                      className="h-[176px] rounded-[18px] border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
+                    />
+                  </BuilderField>
+
+                  <BuilderField label={t("builderPage.modIcon")}>
+                    <div className="flex h-[176px] flex-col overflow-hidden rounded-[20px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.82))] p-3 shadow-[0_14px_30px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(23,26,35,0.96),rgba(15,23,42,0.82))] dark:shadow-[0_16px_36px_rgba(0,0,0,0.22)]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="inline-flex rounded-full border border-violet-200/80 bg-violet-50 px-2.5 py-1 text-[11px] font-medium tracking-[0.12em] text-violet-700 dark:border-violet-400/20 dark:bg-violet-500/10 dark:text-violet-200">
+                            {t("builderPage.modIconHint")}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-lg border-border/70 bg-background/80 px-3 dark:border-white/10 dark:bg-white/[0.04]"
+                            onClick={() => void pickModIcon()}
+                          >
+                            <ImagePlus className="size-4 mr-1.5" />
+                            {t("builderPage.pickModIcon")}
+                          </Button>
+                          {form.iconBase64 ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 rounded-lg px-3 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                              onClick={() => setForm((current) => ({ ...current, iconBase64: "" }))}
+                            >
+                              {t("builderPage.clearModIcon")}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-1 items-center gap-3">
+                        <div className="flex size-[88px] shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-dashed border-slate-300/80 bg-white/80 shadow-inner dark:border-white/10 dark:bg-white/[0.04]">
+                          {form.iconBase64 ? (
+                            <img
+                              src={form.iconBase64}
+                              alt={form.name || t("builderPage.modIcon")}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <ImagePlus className="size-7 text-slate-400 dark:text-slate-500" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                            {form.iconBase64 ? (form.name || t("builderPage.modIcon")) : t("builderPage.modIcon")}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                            {t("builderPage.modIconSquareRecommendation")}
+                          </p>
+                          <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-slate-400 dark:text-slate-500">
+                            {t("builderPage.modIconBase64Storage")}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </BuilderField>
+                </div>
+
                 <div className="mt-6 border-t border-border/50 pt-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <BuilderSectionHeading
@@ -706,41 +787,6 @@ function ModBuilderPage() {
                     </div>
                   )}
                 </div>
-
-                <div className="mt-6 border-t border-border/50 pt-6">
-                  <BuilderSectionHeading
-                    icon={ShieldCheck}
-                    title={t("builderPage.updateFingerprintTitle")}
-                    description={t("builderPage.updateFingerprintDescription")}
-                  />
-                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                    <BuilderField label={t("builderPage.md5Mode")}>
-                      <Input
-                        value={(() => {
-                          switch ((sourceDigest?.md5Mode || "").trim().toLowerCase()) {
-                            case "archive":
-                              return t("builderPage.md5ModeArchive")
-                            case "directory":
-                              return t("builderPage.md5ModeDirectory")
-                            default:
-                              return ""
-                          }
-                        })()}
-                        readOnly
-                        placeholder={t("builderPage.md5ModePlaceholder")}
-                        className="h-10 rounded-lg border-border/70 bg-background shadow-none dark:border-white/10 dark:bg-white/[0.03]"
-                      />
-                    </BuilderField>
-                    <BuilderField label={t("builderPage.md5Value")}>
-                      <Input
-                        value={sourceDigest?.md5 ?? ""}
-                        readOnly
-                        placeholder={t("builderPage.md5ValuePlaceholder")}
-                        className="h-10 rounded-lg border-border/70 bg-background font-mono text-xs shadow-none dark:border-white/10 dark:bg-white/[0.03]"
-                      />
-                    </BuilderField>
-                  </div>
-                </div>
               </div>
             </G2MPanel>
 
@@ -901,13 +947,14 @@ function buildManifestEntries(
 
 function buildManifestPayload(options: {
   author: string
+  description: string
   files: BuilderManifestFileEntry[]
+  iconBase64: string
   links: BuilderLinkInput[]
   modName: string
   modType: string
   prerequisites: string[]
   customPrerequisites: BuilderCustomPrerequisite[]
-  sourceDigest: ManifestSourceDigest | null
   version: string
 }) {
   const links = options.links
@@ -922,18 +969,12 @@ function buildManifestPayload(options: {
     name: options.modName,
     version: options.version,
     author: options.author,
+    description: options.description,
+    ...(options.iconBase64.trim() ? { iconBase64: options.iconBase64.trim() } : {}),
     type: options.modType,
     ...(links.length > 0 ? { links } : {}),
     ...(options.prerequisites.length > 0 ? { prerequisites: options.prerequisites } : {}),
     ...(options.customPrerequisites.length > 0 ? { customPrerequisites: options.customPrerequisites } : {}),
-    ...(options.sourceDigest?.md5
-      ? {
-          update: {
-            md5: options.sourceDigest.md5,
-            md5Mode: options.sourceDigest.md5Mode,
-          },
-        }
-      : {}),
     files: options.files,
   }
 }
@@ -943,11 +984,12 @@ function buildInitialBuilderState(preview: ModImportPreview, fallbackName: strin
   if (!existingManifest) {
     return {
       author: "",
+      description: "",
+      iconBase64: "",
       links: createDefaultBuilderLinks(),
       name: preview.name || fallbackName,
       prerequisites: [] as string[],
       customPrerequisites: [] as BuilderCustomPrerequisite[],
-      sourceDigest: null as ManifestSourceDigest | null,
       version: "",
       mappings: preview.files,
       preview,
@@ -959,16 +1001,37 @@ function buildInitialBuilderState(preview: ModImportPreview, fallbackName: strin
 
   return {
     author: existingManifest.author,
+    description: existingManifest.description || "",
+    iconBase64: existingManifest.iconBase64 || "",
     links: buildBuilderLinks(existingManifest.links),
     name: existingManifest.name || preview.name || fallbackName,
     prerequisites: existingManifest.prerequisites || [],
     customPrerequisites: existingManifest.customPrerequisites || [],
-    sourceDigest: existingManifest.update,
     version: existingManifest.version,
     mappings,
     preview,
     gameTargetsByPath: buildGameTargetsFromManifest(existingManifest),
   }
+}
+
+async function warnIfIconNotSquare(base64Image: string) {
+  const image = await loadImageDimensions(base64Image)
+  if (!image) {
+    return
+  }
+
+  if (image.width !== image.height) {
+    toast.warning(i18n.t("builderPage.modIconSquareRecommendation"))
+  }
+}
+
+function loadImageDimensions(source: string): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const image = new window.Image()
+    image.onload = () => resolve({ width: image.width, height: image.height })
+    image.onerror = () => resolve(null)
+    image.src = source
+  })
 }
 
 function applyExistingManifestMappings(

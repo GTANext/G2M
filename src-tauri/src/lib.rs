@@ -25,9 +25,10 @@ mod workspace_package;
 use commands::{
     bootstrap_app, delete_game_entry, delete_mod_entry, detect_game_directory,  
     generate_manifest_file, build_mod_archive, get_app_info, import_mod_directory, inspect_mod_source,
-    inspect_mod_source_digest, install_game_prerequisite_module, preview_mod_directory,
-    read_game_folders, fix_misplaced_cleo_redux, save_game_path, update_game_entry, update_mod_enabled,
-    install_all_game_prerequisites, update_games_sort_order, read_image_base64,
+    inspect_mod_source_digest, install_game_prerequisite_module, launch_game_executable, preview_mod_directory,
+    read_game_folders, resolve_prerequisite_conflict, save_game_path, update_game_entry, update_mod_enabled,
+    update_mod_name,
+    install_all_game_prerequisites, repair_game_symlinks, uninstall_game_prerequisite_module, update_games_sort_order, read_image_base64,
 };
 
 pub(crate) use game_support::{canonical_exe_name, canonical_game_name};
@@ -35,7 +36,7 @@ pub(crate) use models::{
     AppInfoPayload, BootstrapPayload, DetectedGamePayload, ExistingBuilderManifestFilePayload,
     ExistingBuilderManifestLinkPayload, ExistingBuilderManifestPayload,
     ExistingBuilderManifestUpdatePayload, ExistingBuilderManifestCustomPrerequisitePayload,
-    GameDirectory, GamePrerequisitePayload, LegacySettingsFile,
+    GameDirectory, GameLinkHealthPayload, GamePrerequisitePayload, LegacySettingsFile,
     ManifestSourceDigestPayload, ModImportFileEntryInput, ModImportFileEntryPayload,
     ModImportPreviewPayload, ModInstallFileRecord, ModInstallPlan, StoredConflictFile,
     StoredGameEntry, StoredMod,
@@ -231,13 +232,17 @@ pub fn run() {
             update_games_sort_order,
             delete_mod_entry,
             update_mod_enabled,
+            update_mod_name,
             inspect_mod_source,
             preview_mod_directory,
             import_mod_directory,
             install_game_prerequisite_module,
             install_all_game_prerequisites,
-            fix_misplaced_cleo_redux,
+            repair_game_symlinks,
+            uninstall_game_prerequisite_module,
+            resolve_prerequisite_conflict,
             read_game_folders,
+            launch_game_executable,
             read_image_base64
         ])
         .run(tauri::generate_context!())

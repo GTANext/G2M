@@ -193,7 +193,7 @@ function Navbar({ subtitle, title }: NavbarProps) {
                     {title}
                   </p>
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {subtitle ?? t("routes.workspaceSubtitle")}
+                    {subtitle ?? t("routes.workspaceSubtitleFallback")}
                   </p>
                 </div>
               </div>
@@ -213,7 +213,7 @@ function Navbar({ subtitle, title }: NavbarProps) {
                   {title}
                 </p>
                 <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                  {subtitle ?? t("routes.workspaceSubtitle")}
+                  {subtitle ?? t("routes.workspaceSubtitleFallback")}
                 </p>
               </div>
             </div>

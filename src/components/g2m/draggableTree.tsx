@@ -12,9 +12,15 @@ import {
   FolderOpen,
   GripVertical,
 } from "lucide-react"
-import { useCallback, useMemo, useState } from "react"
+import { type ReactNode, useCallback, useMemo, useState } from "react"
 import { useDraggable, useDroppable, useDndContext } from "@dnd-kit/core"
 
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import {
   buildModFileTree,
   inferTargetFolderFromPath,
@@ -33,6 +39,14 @@ export type DragPayload = {
 }
 
 export type TargetFolderPreset = "modloader" | "plugins" | "scripts" | "cleo"
+export type TreeContextAction = {
+  key: string
+  label: string
+  onSelect: () => void
+  disabled?: boolean
+  icon?: ReactNode
+  variant?: "default" | "destructive"
+}
 
 export const TARGET_FOLDER_PRESETS: TargetFolderPreset[] = [
   "modloader",
@@ -61,6 +75,10 @@ export type DraggableTreeProps = {
   className?: string
   showFullPath?: boolean
   defaultExpandedDepth?: number
+  getNodeContextActions?: (args: {
+    node: ModFileTreeNode
+    payload: DragPayload
+  }) => TreeContextAction[]
 }
 
 export function getFileIcon(filename: string) {
@@ -117,6 +135,7 @@ export function DraggableTree({
   showFullPath = true,
   defaultExpandedDepth = 1,
   includePresets = false,
+  getNodeContextActions,
 }: DraggableTreeProps & { includePresets?: boolean }) {
   const tree = useMemo(() => buildModFileTree(files, mode, includePresets), [files, mode, includePresets])
 
@@ -143,6 +162,7 @@ export function DraggableTree({
           mode={mode}
           showFullPath={showFullPath}
           defaultExpandedDepth={defaultExpandedDepth}
+          getNodeContextActions={getNodeContextActions}
         />
       ))}
     </div>
@@ -155,6 +175,7 @@ type DraggableTreeNodeProps = {
   mode: TreeMode
   showFullPath?: boolean
   defaultExpandedDepth: number
+  getNodeContextActions?: DraggableTreeProps["getNodeContextActions"]
 }
 
 function DraggableTreeNode({
@@ -163,6 +184,7 @@ function DraggableTreeNode({
   mode,
   showFullPath = true,
   defaultExpandedDepth,
+  getNodeContextActions,
 }: DraggableTreeNodeProps) {
   const isFolder = node.kind === "folder"
   const [isExpanded, setIsExpanded] = useState(depth < defaultExpandedDepth || node.isPresetFolder)
@@ -209,7 +231,9 @@ function DraggableTreeNode({
     [mode, setDropNodeRef],
   )
 
-  return (
+  const contextActions = getNodeContextActions?.({ node, payload }) ?? []
+
+  const content = (
     <div>
       <div
         ref={attachRefs}
@@ -287,11 +311,38 @@ function DraggableTreeNode({
               mode={mode}
               showFullPath={showFullPath}
               defaultExpandedDepth={defaultExpandedDepth}
+              getNodeContextActions={getNodeContextActions}
             />
           ))}
         </div>
       ) : null}
     </div>
+  )
+
+  if (contextActions.length === 0) {
+    return content
+  }
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        {content}
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {contextActions.map((action) => (
+          <ContextMenuItem
+            key={action.key}
+            onClick={action.onSelect}
+            disabled={action.disabled}
+            variant={action.variant}
+            className="cursor-pointer"
+          >
+            {action.icon}
+            {action.label}
+          </ContextMenuItem>
+        ))}
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 

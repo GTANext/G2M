@@ -17,6 +17,7 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
                 id TEXT PRIMARY KEY,
                 game_id TEXT NOT NULL DEFAULT '',
                 name TEXT NOT NULL,
+                icon_base64 TEXT NOT NULL DEFAULT '',
                 version TEXT NOT NULL DEFAULT '',
                 mod_type TEXT NOT NULL DEFAULT 'Mixed',
                 author TEXT NOT NULL DEFAULT '',
@@ -59,6 +60,7 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
     ensure_table_column(&connection, "games", "updated_at", "INTEGER NOT NULL DEFAULT 0")?;
     ensure_table_column(&connection, "games", "sort_order", "INTEGER NOT NULL DEFAULT 0")?;
     ensure_table_column(&connection, "mods", "game_id", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_table_column(&connection, "mods", "icon_base64", "TEXT NOT NULL DEFAULT ''")?;
     ensure_table_column(&connection, "mods", "version", "TEXT NOT NULL DEFAULT ''")?;
     ensure_table_column(
         &connection,
@@ -147,6 +149,7 @@ pub(crate) fn load_game_directories(database_path: &Path) -> Result<Vec<GameDire
             updated_at: game.updated_at,
             sort_order: game.sort_order,
             prerequisites: Vec::new(),
+            link_health: crate::GameLinkHealthPayload::default(),
         })
         .collect())
 }

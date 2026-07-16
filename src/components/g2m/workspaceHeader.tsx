@@ -1,4 +1,4 @@
-import { ChevronRight, FolderOpen, HardDriveDownload, Home, Pencil, Sparkles } from "lucide-react"
+import { ChevronRight, FolderOpen, HardDriveDownload, Home, Pencil, Play, Sparkles } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ type G2MWorkspaceHeroProps = {
   stats: WorkspaceStats
   onEditGame: () => void
   onImportMods?: () => void
+  onLaunchGame: () => void
   onOpenDirectory: () => void
 }
 
@@ -54,6 +55,7 @@ function G2MWorkspaceHero({
   stats,
   onEditGame,
   onImportMods,
+  onLaunchGame,
   onOpenDirectory,
 }: G2MWorkspaceHeroProps) {
   const { t } = useTranslation()
@@ -98,6 +100,14 @@ function G2MWorkspaceHero({
                 >
                   <HardDriveDownload className="size-4" />
                   {t("workspace.importMod")}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="cursor-pointer rounded-2xl border-white/20 bg-white/10 px-5 text-white hover:bg-white/20"
+                  onClick={onLaunchGame}
+                >
+                  <Play className="size-4" />
+                  {t("workspace.launchGame")}
                 </Button>
                 <Button
                   variant="outline"

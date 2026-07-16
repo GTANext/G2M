@@ -107,10 +107,14 @@ export type WorkspaceState = {
   setSavingGameId: (val: string | null) => void
   deletingModId: string | null
   setDeletingModId: (val: string | null) => void
+  renamingModId: string | null
+  setRenamingModId: (val: string | null) => void
   togglingModId: string | null
   setTogglingModId: (val: string | null) => void
   installingPrerequisiteKey: string | null
   setInstallingPrerequisiteKey: (val: string | null) => void
+  repairingGameLinksId: string | null
+  setRepairingGameLinksId: (val: string | null) => void
 }
 
 export type UseG2mWorkspaceResult = {
@@ -132,6 +136,7 @@ export type UseG2mWorkspaceResult = {
   deleteTargetModId: string | null
   editGameForm: EditGameForm
   allModsCount: number
+  allMods: ManagedMod[]
   games: Game[]
   getConflictDecision: (modId: string, conflictId: string) => ConflictDecision | null
   getImportConflictDecision: (targetPath: string) => ConflictDecision | null
@@ -148,9 +153,12 @@ export type UseG2mWorkspaceResult = {
   importModMappings: ModImportFileEntry[]
   importModPreview: ModImportPreview | null
   installGamePrerequisite: (prerequisiteKey: string) => Promise<void>
+  uninstallGamePrerequisite: (prerequisiteKey: string) => Promise<void>
   installAllGamePrerequisites: () => Promise<void>
-  fixMisplacedPrerequisite: (path: string) => Promise<void>
+  repairGameSymlinks: () => Promise<void>
+  resolvePrerequisiteConflict: (prerequisiteKey: string) => Promise<void>
   installingPrerequisiteKey: string | null
+  repairingGameLinksId: string | null
   mods: ManagedMod[]
   closeImportModDialog: () => void
   openConflictDialog: () => void
@@ -159,6 +167,7 @@ export type UseG2mWorkspaceResult = {
   openEditGameDialog: (gameId: string) => void
   openImportModDialog: () => void
   openGameDirectory: (gameId?: string) => Promise<void>
+  launchGame: (gameId?: string) => Promise<void>
   confirmImportMod: () => Promise<void>
   pickImportModSource: (sourceType?: ImportModForm["sourceType"]) => Promise<void>
   pickAddGameExecutable: () => Promise<void>
@@ -173,6 +182,7 @@ export type UseG2mWorkspaceResult = {
   modSearchQuery: string
   savingGameId: string | null
   deletingModId: string | null
+  renamingModId: string | null
   selectedMod: ManagedMod | null
   selectedModId: string
   setModSearchQuery: (value: string) => void
@@ -185,6 +195,7 @@ export type UseG2mWorkspaceResult = {
   setImportModMappings: (files: ModImportFileEntry[]) => void
   setImportModSourceType: (value: ImportModForm["sourceType"]) => void
   updateImportModMappingTarget: (relativePath: string, targetPath: string) => void
+  updateModName: (modId: string, name: string) => Promise<void>
   setActiveGameId: (gameId: string) => void
   setSelectedModId: (modId: string) => void
   stats: WorkspaceStats

@@ -14,7 +14,7 @@ pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> 
     let mut statement = connection
         .prepare(
             "
-            SELECT mods.id, mods.game_id, games.path, mods.name, mods.version, mods.mod_type,
+            SELECT mods.id, mods.game_id, games.path, mods.name, mods.icon_base64, mods.version, mods.mod_type,
                    mods.author, mods.enabled, mods.description, mods.source_dir, mods.installed_at, mods.size_bytes,
                    mods.links_json, mods.modx_slug
             FROM mods
@@ -27,22 +27,23 @@ pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> 
     let rows = statement
         .query_map([], |row| {
             let game_path = row.get::<_, String>(2)?;
-            let stored_source_dir = row.get::<_, String>(9)?;
-            let links = parse_manifest_links(&row.get::<_, String>(12)?);
-            let stored_modx_slug = row.get::<_, String>(13)?;
+            let stored_source_dir = row.get::<_, String>(10)?;
+            let links = parse_manifest_links(&row.get::<_, String>(13)?);
+            let stored_modx_slug = row.get::<_, String>(14)?;
             Ok(StoredMod {
                 id: row.get(0)?,
                 game_id: row.get(1)?,
                 name: row.get(3)?,
-                version: row.get(4)?,
-                mod_type: row.get(5)?,
-                author: row.get(6)?,
-                enabled: row.get::<_, i64>(7)? != 0,
+                icon_base64: row.get(4)?,
+                version: row.get(5)?,
+                mod_type: row.get(6)?,
+                author: row.get(7)?,
+                enabled: row.get::<_, i64>(8)? != 0,
                 file_count: 0,
                 conflicts: 0,
-                size_bytes: row.get(11)?,
-                installed_at: row.get(10)?,
-                description: row.get(8)?,
+                size_bytes: row.get(12)?,
+                installed_at: row.get(11)?,
+                description: row.get(9)?,
                 source_dir: resolve_game_scoped_path(Path::new(&game_path), &stored_source_dir)
                     .to_string_lossy()
                     .to_string(),
@@ -189,6 +190,26 @@ pub(crate) fn update_mod_enabled_in_database(
             params![if enabled { 1_i64 } else { 0_i64 }, mod_id],
         )
         .map_err(|error| format!("failed to update mod enabled state: {error}"))
+}
+
+pub(crate) fn update_mod_name_in_database(
+    database_path: &Path,
+    mod_id: &str,
+    name: &str,
+) -> Result<usize, String> {
+    let connection = Connection::open(database_path)
+        .map_err(|error| format!("failed to open database: {error}"))?;
+
+    connection
+        .execute(
+            "
+            UPDATE mods
+            SET name = ?1
+            WHERE id = ?2
+            ",
+            params![name, mod_id],
+        )
+        .map_err(|error| format!("failed to update mod name: {error}"))
 }
 
 pub(crate) fn delete_mods_for_game(database_path: &Path, game_id: &str) -> Result<(), String> {

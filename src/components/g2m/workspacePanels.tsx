@@ -4,10 +4,12 @@ import {
   ChevronRight,
   FolderOpen,
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   Trash2,
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
@@ -15,6 +17,7 @@ import { G2MPanel, G2MPill, G2MSubtlePanel } from "@/components/g2m/surface"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import type { UseG2mWorkspaceResult } from "@/hooks/useG2MWorkspace"
 import { useModUpdateCheck } from "@/hooks/workspace/useModUpdateCheck"
 import { formatGameTimestamp, resolveGameImageSrc } from "@/lib/g2m"
@@ -93,6 +96,15 @@ function GameProfilePanel({
               variant="ghost"
               size="icon"
               className="size-8 rounded-full hover:bg-muted dark:hover:bg-white/10"
+              onClick={() => void workspace.launchGame()}
+              title={t("workspacePage.launchGame")}
+            >
+              <Play className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-full hover:bg-muted dark:hover:bg-white/10"
               onClick={() => void workspace.openGameDirectory()}
               title={t("workspacePage.openGameDirectory")}
             >
@@ -118,6 +130,14 @@ function GameProfilePanel({
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            className={`flex-1 justify-center ${softOutlineButtonClass}`}
+            onClick={() => void workspace.launchGame()}
+          >
+            <Play className="size-4" />
+            {t("workspacePage.launchGame")}
+          </Button>
           <Button
             variant="outline"
             className={`flex-1 justify-center ${softOutlineButtonClass}`}
@@ -149,7 +169,7 @@ function GamePrerequisitesPanel({
 }) {
   const { t } = useTranslation()
   const hasMissingInstallablePrerequisites = activeGame.prerequisites.some(
-    (item) => !item.detected && item.key !== "cleo_redux_misplaced",
+    (item) => !item.detected && item.canInstall,
   )
 
   return (
@@ -170,7 +190,7 @@ function GamePrerequisitesPanel({
               disabled={workspace.installingPrerequisiteKey === "all"}
               onClick={() => void workspace.installAllGamePrerequisites()}
             >
-              一键补齐
+              {t("workspacePage.installAllPrerequisites")}
             </Button>
           ) : null}
         </div>
@@ -201,6 +221,14 @@ function GamePrerequisiteRow({
           <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
             {item.label}
           </p>
+          {item.required ? (
+            <Badge
+              variant="outline"
+              className="shrink-0 rounded-full border-amber-200 bg-amber-50 px-2 py-0 text-[10px] text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+            >
+              {t("workspacePage.prerequisiteRequired")}
+            </Badge>
+          ) : null}
           {item.detected ? (
             <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500 dark:text-emerald-400" />
           ) : null}
@@ -221,6 +249,16 @@ function GamePrerequisiteRow({
           onClick={() => void workspace.installGamePrerequisite(item.key)}
         >
           {t("workspacePage.installPrerequisite")}
+        </Button>
+      ) : item.detected && item.canUninstall ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 shrink-0 rounded-lg px-2 text-xs font-medium"
+          disabled={workspace.installingPrerequisiteKey === item.key}
+          onClick={() => void workspace.uninstallGamePrerequisite(item.key)}
+        >
+          {t("workspacePage.uninstallPrerequisite")}
         </Button>
       ) : !item.detected ? (
         <Badge variant="outline" className="shrink-0 border-slate-200 bg-slate-50 text-[10px] text-slate-500 dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400">
@@ -323,12 +361,25 @@ export function SelectedModSheet({
   const { t } = useTranslation()
   const { canCheckModUpdate, handleCheckModUpdate, modxLink, updateCheckState } =
     useModUpdateCheck(selectedMod)
+  const [modNameDraft, setModNameDraft] = useState("")
+
+  useEffect(() => {
+    if (!open || !selectedMod) {
+      return
+    }
+
+    setModNameDraft(selectedMod.name)
+  }, [open, selectedMod])
 
   if (!selectedMod || !open) {
     return null
   }
 
   const activeMod = selectedMod
+  const normalizedModNameDraft = modNameDraft.trim()
+  const hasModNameChanged = normalizedModNameDraft !== activeMod.name.trim()
+  const isSavingModName = workspace.renamingModId === activeMod.id
+  const canSaveModName = Boolean(normalizedModNameDraft && hasModNameChanged && !isSavingModName)
 
   return (
     <div className={drawerOverlayClass}>
@@ -365,9 +416,50 @@ export function SelectedModSheet({
             <div className={drawerBodyClass}>
               <div className="rounded-[28px] border border-border/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,250,252,0.9))] p-5 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(30,41,59,0.75),rgba(15,23,42,0.92))]">
                 <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
+                  <div className="flex min-w-0 flex-1 items-start gap-4">
+                    {activeMod.iconBase64 ? (
+                      <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-[24px] border border-border/70 bg-background/80 dark:border-white/10 dark:bg-white/[0.04]">
+                        <img
+                          src={activeMod.iconBase64}
+                          alt={activeMod.name}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    ) : null}
+                    <div>
                     <SelectedModSummaryBadges mod={activeMod} />
                     <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">{activeMod.description}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-[24px] border border-border/70 bg-background/75 p-4 backdrop-blur dark:border-white/10 dark:bg-white/[0.03]">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                    {t("workspaceDialogs.modName")}
+                  </p>
+                  <div className="mt-3 flex flex-col gap-3 lg:flex-row">
+                    <Input
+                      value={modNameDraft}
+                      onChange={(event) => setModNameDraft(event.currentTarget.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" || !canSaveModName) {
+                          return
+                        }
+
+                        event.preventDefault()
+                        void workspace.updateModName(activeMod.id, modNameDraft)
+                      }}
+                      className="h-11 rounded-2xl border-border/70 bg-background/80 shadow-none dark:border-white/10 dark:bg-white/[0.04]"
+                      placeholder={t("workspaceDialogs.modName")}
+                      disabled={isSavingModName}
+                    />
+                    <Button
+                      className="cursor-pointer rounded-xl px-4"
+                      disabled={!canSaveModName}
+                      onClick={() => void workspace.updateModName(activeMod.id, modNameDraft)}
+                    >
+                      {isSavingModName ? t("workspaceDialogs.saving") : t("workspaceDialogs.saveChanges")}
+                    </Button>
                   </div>
                 </div>
 

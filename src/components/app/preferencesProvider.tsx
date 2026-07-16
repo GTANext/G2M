@@ -7,15 +7,22 @@ import {
   type ReactNode,
 } from "react"
 
+import type { ModSortRule } from "@/lib/g2m"
+
 type TitleBarStyle = "windows" | "mac"
 type HomeViewMode = "card" | "list"
 type BuilderMappingMode = "list" | "tree" | "explorer"
+type ModListViewMode = "detailed" | "compact"
 
 type AppPreferencesContextValue = {
   homeViewMode: HomeViewMode
   setHomeViewMode: (value: HomeViewMode) => void
   builderMappingMode: BuilderMappingMode
   setBuilderMappingMode: (value: BuilderMappingMode) => void
+  modListViewMode: ModListViewMode
+  setModListViewMode: (value: ModListViewMode) => void
+  modSortRule: ModSortRule
+  setModSortRule: (value: ModSortRule) => void
   defaultBuilderOutputPath: string
   setDefaultBuilderOutputPath: (value: string) => void
   setShowHomeGameDetails: (value: boolean) => void
@@ -29,13 +36,17 @@ const HOME_VIEW_MODE_STORAGE_KEY = "g2m:home-view-mode"
 const HOME_DETAILS_STORAGE_KEY = "g2m:home-show-game-details"
 const BUILDER_MAPPING_MODE_STORAGE_KEY = "g2m:builder-mapping-mode"
 const BUILDER_OUTPUT_PATH_STORAGE_KEY = "g2m:builder-output-path"
+const MOD_LIST_VIEW_MODE_STORAGE_KEY = "g2m:mod-list-view-mode"
+const MOD_SORT_RULE_STORAGE_KEY = "g2m:mod-sort-rule"
 
 const AppPreferencesContext = createContext<AppPreferencesContextValue | null>(null)
 
 function AppPreferencesProvider({ children }: { children: ReactNode }) {
   const [titleBarStyle, setTitleBarStyleState] = useState<TitleBarStyle>("windows")
-  const [homeViewMode, setHomeViewModeState] = useState<HomeViewMode>("card")
+  const [homeViewMode, setHomeViewModeState] = useState<HomeViewMode>("list")
   const [builderMappingMode, setBuilderMappingModeState] = useState<BuilderMappingMode>("tree")
+  const [modListViewMode, setModListViewModeState] = useState<ModListViewMode>("detailed")
+  const [modSortRule, setModSortRuleState] = useState<ModSortRule>("installedAtDesc")
   const [defaultBuilderOutputPath, setDefaultBuilderOutputPathState] = useState("")
   const [showHomeGameDetails, setShowHomeGameDetailsState] = useState(false)
 
@@ -48,6 +59,8 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
     const storedHomeViewMode = window.localStorage.getItem(HOME_VIEW_MODE_STORAGE_KEY)
     if (storedHomeViewMode === "card" || storedHomeViewMode === "list") {
       setHomeViewModeState(storedHomeViewMode)
+    } else if (storedHomeViewMode === "games" || storedHomeViewMode === "mods") {
+      setHomeViewModeState("list")
     }
 
     const storedBuilderMappingMode = window.localStorage.getItem(BUILDER_MAPPING_MODE_STORAGE_KEY)
@@ -60,6 +73,21 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
     const storedBuilderOutputPath = window.localStorage.getItem(BUILDER_OUTPUT_PATH_STORAGE_KEY)
     if (storedBuilderOutputPath) {
       setDefaultBuilderOutputPathState(storedBuilderOutputPath)
+    }
+
+    const storedModListViewMode = window.localStorage.getItem(MOD_LIST_VIEW_MODE_STORAGE_KEY)
+    if (storedModListViewMode === "detailed" || storedModListViewMode === "compact") {
+      setModListViewModeState(storedModListViewMode)
+    }
+
+    const storedModSortRule = window.localStorage.getItem(MOD_SORT_RULE_STORAGE_KEY)
+    if (
+      storedModSortRule === "installedAtDesc" ||
+      storedModSortRule === "installedAtAsc" ||
+      storedModSortRule === "nameAsc" ||
+      storedModSortRule === "nameDesc"
+    ) {
+      setModSortRuleState(storedModSortRule)
     }
 
     const storedShowHomeGameDetails = window.localStorage.getItem(HOME_DETAILS_STORAGE_KEY)
@@ -83,6 +111,16 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(BUILDER_MAPPING_MODE_STORAGE_KEY, value)
   }
 
+  function setModListViewMode(value: ModListViewMode) {
+    setModListViewModeState(value)
+    window.localStorage.setItem(MOD_LIST_VIEW_MODE_STORAGE_KEY, value)
+  }
+
+  function setModSortRule(value: ModSortRule) {
+    setModSortRuleState(value)
+    window.localStorage.setItem(MOD_SORT_RULE_STORAGE_KEY, value)
+  }
+
   function setDefaultBuilderOutputPath(value: string) {
     setDefaultBuilderOutputPathState(value)
     window.localStorage.setItem(BUILDER_OUTPUT_PATH_STORAGE_KEY, value)
@@ -99,6 +137,10 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
       setHomeViewMode,
       builderMappingMode,
       setBuilderMappingMode,
+      modListViewMode,
+      setModListViewMode,
+      modSortRule,
+      setModSortRule,
       defaultBuilderOutputPath,
       setDefaultBuilderOutputPath,
       setShowHomeGameDetails,
@@ -106,7 +148,15 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
       showHomeGameDetails,
       titleBarStyle,
     }),
-    [homeViewMode, builderMappingMode, defaultBuilderOutputPath, showHomeGameDetails, titleBarStyle],
+    [
+      homeViewMode,
+      builderMappingMode,
+      modListViewMode,
+      modSortRule,
+      defaultBuilderOutputPath,
+      showHomeGameDetails,
+      titleBarStyle,
+    ],
   )
 
   return (
@@ -129,6 +179,7 @@ export {
   AppPreferencesProvider,
   type BuilderMappingMode,
   type HomeViewMode,
+  type ModListViewMode,
   type TitleBarStyle,
   useAppPreferences,
 }

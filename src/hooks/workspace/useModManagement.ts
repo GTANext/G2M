@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { open } from "@tauri-apps/plugin-dialog"
+import { confirm, open } from "@tauri-apps/plugin-dialog"
 
 import { formatApiErrorMessage, invokeApi } from "@/lib/api"
 import {
@@ -18,6 +18,31 @@ import { normalizeConflictTargetPath } from "./utils"
 type ImportSourceType = "directory" | "zip"
 type PreparedImportMapping = ModImportFileEntry & {
   overwriteExisting: boolean
+}
+
+function shouldOfferOverwriteRetry(errorMessage: string): boolean {
+  const normalizedMessage = errorMessage.toLowerCase()
+
+  return (
+    errorMessage.includes("目标目录已存在") ||
+    errorMessage.includes("目标路径已存在") ||
+    errorMessage.includes("安装目标的父路径已存在且不是文件夹") ||
+    (normalizedMessage.includes("failed to create target directory") &&
+      (normalizedMessage.includes("os error 183") ||
+        normalizedMessage.includes("already exists") ||
+        normalizedMessage.includes("cannot create a file when that file already exists")))
+  )
+}
+
+function hasInstallableMappings(mappings: PreparedImportMapping[]): boolean {
+  return mappings.some((file) => !file.skipInstall && file.targetPath.trim())
+}
+
+function forceOverwriteInstallableMappings(mappings: PreparedImportMapping[]): PreparedImportMapping[] {
+  return mappings.map((file) => ({
+    ...file,
+    overwriteExisting: Boolean(!file.skipInstall && file.targetPath.trim()),
+  }))
 }
 
 function toImportDisplayName(selectedPath: string): string {
@@ -153,6 +178,48 @@ export function useModManagement(
       })
     } finally {
       state.setDeletingModId(null)
+    }
+  }, [applyBootstrap, state, t])
+
+  const updateModName = useCallback(async (modId: string, name: string) => {
+    const targetMod = state.allMods.find((mod) => mod.id === modId)
+    if (!targetMod) {
+      return
+    }
+
+    const normalizedName = name.trim()
+    if (!normalizedName) {
+      toast.warning(t("workspaceActions.modNameRequired"))
+      return
+    }
+
+    if (normalizedName === targetMod.name.trim()) {
+      return
+    }
+
+    let toastId: string | number | undefined
+
+    try {
+      state.setRenamingModId(modId)
+      toastId = toast.loading(t("workspaceActions.updatingModName"))
+
+      const payload = await invokeApi<BootstrapPayload>("update_mod_name", {
+        modId,
+        modName: normalizedName,
+      })
+
+      applyBootstrap(payload)
+      toast.success(t("workspaceActions.modNameUpdated"), {
+        id: toastId,
+        description: normalizedName,
+      })
+    } catch (error) {
+      toast.error(t("workspaceActions.updateModNameFailed"), {
+        id: toastId,
+        description: formatApiErrorMessage(error),
+      })
+    } finally {
+      state.setRenamingModId(null)
     }
   }, [applyBootstrap, state, t])
 
@@ -333,17 +400,53 @@ export function useModManagement(
         toast.info(t("workspaceActions.emptyTargetPathsHandled", { count: skippedMappingsCount }))
       }
 
-      const payload = await invokeApi<BootstrapPayload>("import_mod_directory", {
-        gameId: activeGame.id,
-        modPath: state.importModForm.dir.trim(),
-        modName: state.importModForm.name.trim() || undefined,
-        files: preparedMappings.map((file) => ({
-          relativePath: file.relativePath,
-          targetPath: file.targetPath,
-          skipInstall: Boolean(file.skipInstall || !file.targetPath.trim()),
-          overwriteExisting: Boolean(file.overwriteExisting),
-        })),
-      })
+      const submitImport = (mappings: PreparedImportMapping[]) =>
+        invokeApi<BootstrapPayload>("import_mod_directory", {
+          gameId: activeGame.id,
+          modPath: state.importModForm.dir.trim(),
+          modName: state.importModForm.name.trim() || undefined,
+          files: mappings.map((file) => ({
+            relativePath: file.relativePath,
+            targetPath: file.targetPath,
+            skipInstall: Boolean(file.skipInstall || !file.targetPath.trim()),
+            overwriteExisting: Boolean(file.overwriteExisting),
+          })),
+        })
+
+      let payload: BootstrapPayload
+
+      try {
+        payload = await submitImport(preparedMappings)
+      } catch (error) {
+        const errorMessage = formatApiErrorMessage(error)
+        if (!hasInstallableMappings(preparedMappings) || !shouldOfferOverwriteRetry(errorMessage)) {
+          throw error
+        }
+
+        const shouldOverwrite = await confirm(
+          t("workspaceActions.overwriteInstallTargetsConfirmDescription"),
+          {
+            title: t("workspaceActions.overwriteInstallTargetsConfirmTitle"),
+            kind: "warning",
+            okLabel: t("workspaceDialogs.overwrite"),
+            cancelLabel: t("workspaceDialogs.cancel"),
+          },
+        )
+        if (!shouldOverwrite) {
+          toast.error(t("workspaceActions.importModFailed"), {
+            id: toastId,
+            description: errorMessage,
+          })
+          return
+        }
+
+        const overwriteMappings = forceOverwriteInstallableMappings(preparedMappings)
+        state.setImportModMappingsState(overwriteMappings)
+        toast.loading(t("workspaceActions.retryingOverwriteInstall"), {
+          id: toastId,
+        })
+        payload = await submitImport(overwriteMappings)
+      }
 
       applyBootstrap(payload)
       toast.success(t("workspaceActions.modImported"), {
@@ -359,7 +462,7 @@ export function useModManagement(
     } finally {
       state.setIsImportingMod(false)
     }
-  }, [activeGame, applyBootstrap, closeImportModDialog, getImportConflictDecision, state, t])
+  }, [activeGame, applyBootstrap, closeImportModDialog, state, getImportConflictDecision, t])
 
   const setImportModSourceType = useCallback((value: ImportSourceType) => {
     resetImportModState(value)
@@ -385,6 +488,7 @@ export function useModManagement(
     closeImportModDialog,
     toggleMod,
     confirmDeleteMod,
+    updateModName,
     pickImportModSource,
     confirmImportMod,
     setImportModSourceType,

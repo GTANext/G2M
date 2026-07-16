@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use serde::de::Deserializer;
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -17,7 +18,11 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GameWorkspacePackage {
-    pub(crate) version: u32,
+    #[serde(
+        default = "default_game_workspace_package_version",
+        deserialize_with = "deserialize_game_workspace_package_version"
+    )]
+    pub(crate) version: String,
     pub(crate) game_type: String,
     pub(crate) name: String,
     pub(crate) last_modified_at: i64,
@@ -30,6 +35,8 @@ pub(crate) struct GameWorkspacePackage {
 pub(crate) struct GameWorkspacePackageMod {
     pub(crate) id: String,
     pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) icon_base64: String,
     pub(crate) version: String,
     pub(crate) mod_type: String,
     pub(crate) author: String,
@@ -67,6 +74,38 @@ struct ResolvedPackageModFileRecord {
     target_folder: String,
 }
 
+fn default_game_workspace_package_version() -> String {
+    GAME_WORKSPACE_PACKAGE_VERSION.to_string()
+}
+
+fn deserialize_game_workspace_package_version<'de, D>(
+    deserializer: D,
+) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum WorkspacePackageVersion {
+        String(String),
+        Number(u64),
+    }
+
+    let value = Option::<WorkspacePackageVersion>::deserialize(deserializer)?;
+    Ok(match value {
+        Some(WorkspacePackageVersion::String(version)) => {
+            let trimmed = version.trim();
+            if trimmed.is_empty() {
+                GAME_WORKSPACE_PACKAGE_VERSION.to_string()
+            } else {
+                trimmed.to_string()
+            }
+        }
+        Some(WorkspacePackageVersion::Number(version)) => version.to_string(),
+        None => GAME_WORKSPACE_PACKAGE_VERSION.to_string(),
+    })
+}
+
 pub(crate) fn ensure_game_workspace_package_path(workspace_dir: &Path) -> Result<(), String> {
     let package_path = workspace_dir.join(GAME_WORKSPACE_PACKAGE_FILE_NAME);
     if package_path.exists() {
@@ -74,7 +113,7 @@ pub(crate) fn ensure_game_workspace_package_path(workspace_dir: &Path) -> Result
     }
 
     let package = GameWorkspacePackage {
-        version: GAME_WORKSPACE_PACKAGE_VERSION,
+        version: GAME_WORKSPACE_PACKAGE_VERSION.to_string(),
         ..GameWorkspacePackage::default()
     };
     write_game_workspace_package(&package_path, &package)
@@ -114,12 +153,12 @@ pub(crate) fn write_game_workspace_package(
 }
 
 pub(crate) fn update_game_workspace_package_info(
-    workspace_dir: &Path,
+    game_path: &Path,
     name: &str,
     game_type: &str,
     image_base64: &str,
 ) -> Result<(), String> {
-    let package_path = workspace_dir.join(GAME_WORKSPACE_PACKAGE_FILE_NAME);
+    let package_path = game_workspace_package_path(game_path);
     let mut package = if package_path.is_file() {
         let content = fs::read_to_string(&package_path)
             .map_err(|error| format!("failed to read {}: {error}", package_path.display()))?;
@@ -133,7 +172,7 @@ pub(crate) fn update_game_workspace_package_info(
         GameWorkspacePackage::default()
     };
 
-    package.version = GAME_WORKSPACE_PACKAGE_VERSION;
+    package.version = GAME_WORKSPACE_PACKAGE_VERSION.to_string();
     package.name = name.to_string();
     package.game_type = game_type.to_string();
     package.cover_base64 = Some(image_base64.to_string());
@@ -204,14 +243,15 @@ fn import_game_package_into_database_if_needed(
             .execute(
                 "
                 INSERT INTO mods (
-                    id, game_id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
+                    id, game_id, name, icon_base64, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
                 ",
                 params![
                     mod_id,
                     game.id,
                     package_mod.name.trim(),
+                    package_mod.icon_base64.trim(),
                     package_mod.version.trim(),
                     package_mod.mod_type.trim(),
                     package_mod.author.trim(),
@@ -286,7 +326,7 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
     let mut statement = connection
         .prepare(
             "
-            SELECT id, name, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
+            SELECT id, name, icon_base64, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
             FROM mods
             WHERE game_id = ?1
             ORDER BY installed_at ASC, name COLLATE NOCASE ASC
@@ -304,11 +344,12 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
-                row.get::<_, i64>(7)?,
+                row.get::<_, String>(7)?,
                 row.get::<_, i64>(8)?,
-                row.get::<_, i64>(9)? != 0,
-                deserialize_manifest_links(&row.get::<_, String>(10)?),
-                row.get::<_, String>(11)?,
+                row.get::<_, i64>(9)?,
+                row.get::<_, i64>(10)? != 0,
+                deserialize_manifest_links(&row.get::<_, String>(11)?),
+                row.get::<_, String>(12)?,
             ))
         })
         .map_err(|error| format!("failed to query mods for package sync: {error}"))?;
@@ -318,6 +359,7 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
         let (
             mod_id,
             name,
+            icon_base64,
             version,
             mod_type,
             author,
@@ -338,6 +380,7 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
         package_mods.push(GameWorkspacePackageMod {
             id: mod_id,
             name,
+            icon_base64,
             version,
             mod_type,
             author,
@@ -354,7 +397,7 @@ fn sync_game_package(database_path: &Path, game: &GameDirectory) -> Result<(), S
     }
 
     let package = GameWorkspacePackage {
-        version: GAME_WORKSPACE_PACKAGE_VERSION,
+        version: GAME_WORKSPACE_PACKAGE_VERSION.to_string(),
         game_type: game.game_type.clone(),
         name: game.name.clone(),
         last_modified_at: current_timestamp(),

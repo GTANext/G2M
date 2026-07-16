@@ -1,9 +1,11 @@
 import type { ReactNode } from "react"
 import {
+  AlignJustify,
   AppWindowMac,
   Eye,
   Languages,
   LayoutGrid,
+  Layers3,
   List,
   Monitor,
   MonitorCog,
@@ -36,6 +38,8 @@ function SettingsPage() {
     setHomeViewMode,
     builderMappingMode,
     setBuilderMappingMode,
+    modListViewMode,
+    setModListViewMode,
     setShowHomeGameDetails,
     setTitleBarStyle,
     showHomeGameDetails,
@@ -61,13 +65,18 @@ function SettingsPage() {
   const currentTitleBarLabel =
     titleBarStyle === "windows" ? t("settings.windowsStyle") : t("settings.macStyle")
   const currentHomeViewLabel =
-    homeViewMode === "card" ? t("settings.cardMode") : t("home.listView")
+    homeViewMode === "card" ? t("settings.homeDisplayGames") : t("settings.homeDisplayMods")
   const currentBuilderModeLabel =
     builderMappingMode === "list"
       ? t("settings.builderModeList")
       : builderMappingMode === "tree"
         ? t("settings.builderModeTree")
         : t("settings.builderModeExplorer")
+  const currentWorkspaceViewModeLabel =
+    modListViewMode === "detailed"
+      ? t("settings.workspaceViewModeDetailed")
+      : t("settings.workspaceViewModeCompact")
+  const currentListDisplayLabel = `${currentHomeViewLabel} · ${currentWorkspaceViewModeLabel}`
 
   return (
     <div className="mx-auto max-w-[1700px] space-y-6">
@@ -90,190 +99,237 @@ function SettingsPage() {
 
       <Tabs defaultValue="appearance">
         <G2MPanel className="overflow-hidden p-2">
-          
-            <div className="border-b border-black/5 px-4 py-4 dark:border-white/10 sm:px-5">
-              <TabsList className="!grid !h-auto !w-full grid-cols-2 gap-1 rounded-full bg-black/[0.04] p-1 dark:bg-white/[0.05] sm:grid-cols-3 xl:grid-cols-5">
-                <SettingsTabTrigger value="appearance" title={t("settings.appearanceTitle")} />
-                <SettingsTabTrigger value="title-bar" title={t("settings.titleBar")} />
-                <SettingsTabTrigger value="home" title={t("settings.homeDisplayTitle")} />
-                <SettingsTabTrigger value="builder" title={t("navbar.builder")} />
-                <SettingsTabTrigger value="language" title={t("settings.languageSectionTitle")} />
-              </TabsList>
-            </div>
+          <div className="border-b border-black/5 px-4 py-4 dark:border-white/10 sm:px-5">
+            <TabsList className="!grid !h-auto !w-full grid-cols-2 gap-1 rounded-full bg-black/[0.04] p-1 dark:bg-white/[0.05] sm:grid-cols-3 xl:grid-cols-5">
+              <SettingsTabTrigger value="appearance" title={t("settings.appearanceTitle")} />
+              <SettingsTabTrigger value="title-bar" title={t("settings.titleBar")} />
+              <SettingsTabTrigger value="list-display" title={t("settings.listDisplayTitle")} />
+              <SettingsTabTrigger value="builder" title={t("navbar.builder")} />
+              <SettingsTabTrigger value="language" title={t("settings.languageSectionTitle")} />
+            </TabsList>
+          </div>
 
-            <div className="p-4 sm:p-5 lg:p-6">
-              <TabsContent value="appearance" className="mt-0">
-                <SettingsSectionShell
-                  title={t("settings.appearanceTitle")}
-                  description={t("settings.appearanceDescription")}
-                  badge={currentThemeLabel}
-                  icon={<Palette className="size-5" />}
-                >
+          <div className="p-4 sm:p-5 lg:p-6">
+            <TabsContent value="appearance" className="mt-0">
+              <SettingsSectionShell
+                title={t("settings.appearanceTitle")}
+                description={t("settings.appearanceDescription")}
+                badge={currentThemeLabel}
+                icon={<Palette className="size-5" />}
+              >
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <SettingsChoiceCard
+                    active={theme === "system"}
+                    title={t("settings.followSystem")}
+                    description={t("settings.followSystemDescription", { mode: resolvedThemeMode })}
+                    icon={<Monitor className="size-5" />}
+                    onClick={() => setTheme("system")}
+                  />
+                  <SettingsChoiceCard
+                    active={theme === "light"}
+                    title={t("settings.light")}
+                    description={t("settings.lightDescription")}
+                    icon={<SunMedium className="size-5" />}
+                    onClick={() => setTheme("light")}
+                  />
+                  <SettingsChoiceCard
+                    active={theme === "dark"}
+                    title={t("navbar.darkLabel")}
+                    description={t("navbar.darkTitle")}
+                    icon={<MoonStar className="size-5" />}
+                    onClick={() => setTheme("dark")}
+                  />
+                </div>
+              </SettingsSectionShell>
+            </TabsContent>
+
+            <TabsContent value="title-bar" className="mt-0">
+              <SettingsSectionShell
+                title={t("settings.titleBar")}
+                description={t("settings.titleBarDescription")}
+                badge={currentTitleBarLabel}
+                icon={<MonitorCog className="size-5" />}
+              >
+                <div className="space-y-4">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <SettingsChoiceCard
+                      active={titleBarStyle === "windows"}
+                      title={t("settings.windowsStyle")}
+                      description={t("settings.windowsDescription")}
+                      icon={<Monitor className="size-5" />}
+                      preview={<WindowPreview styleType="windows" />}
+                      onClick={() => setTitleBarStyle("windows")}
+                    />
+                    <SettingsChoiceCard
+                      active={titleBarStyle === "mac"}
+                      title={t("settings.macStyle")}
+                      description={t("settings.macDescription")}
+                      icon={<AppWindowMac className="size-5" />}
+                      preview={<WindowPreview styleType="mac" />}
+                      onClick={() => setTitleBarStyle("mac")}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <SettingsMiniStat
+                      label={t("settings.buttonPosition")}
+                      value={titleBarStyle === "windows" ? t("settings.right") : t("settings.left")}
+                    />
+                    <SettingsMiniStat
+                      label={t("settings.titleAlignment")}
+                      value={titleBarStyle === "windows" ? t("settings.right") : t("settings.moreCentered")}
+                    />
+                    <SettingsMiniStat
+                      label={t("settings.defaultMode")}
+                      value={t("settings.windowsStyle")}
+                    />
+                  </div>
+                </div>
+              </SettingsSectionShell>
+            </TabsContent>
+
+            <TabsContent value="list-display" className="mt-0">
+              <SettingsSectionShell
+                title={t("settings.listDisplayTitle")}
+                description={t("settings.listDisplayDescription")}
+                badge={currentListDisplayLabel}
+                icon={<List className="size-5" />}
+              >
+                <div className="space-y-6">
+                  <G2MSubtlePanel className="rounded-[28px] border border-white/75 bg-white/65 p-5 ring-1 ring-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
+                    <SettingsCategoryHeader
+                      title={t("settings.homeDisplayTitle")}
+                      description={t("settings.homeDisplayDescription")}
+                      icon={<LayoutGrid className="size-5" />}
+                    />
+
+                    <div className="mt-5 space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <SettingsChoiceCard
+                          active={homeViewMode === "card"}
+                          title={t("settings.homeDisplayGames")}
+                          description={t("settings.homeDisplayGamesDescription")}
+                          icon={<LayoutGrid className="size-5" />}
+                          onClick={() => setHomeViewMode("card")}
+                        />
+                        <SettingsChoiceCard
+                          active={homeViewMode === "list"}
+                          title={t("settings.homeDisplayMods")}
+                          description={t("settings.homeDisplayModsDescription")}
+                          icon={<List className="size-5" />}
+                          onClick={() => setHomeViewMode("list")}
+                        />
+                      </div>
+
+                      <SettingsToggleCard
+                        title={t("settings.moreInfoLabel")}
+                        description={t("settings.moreInfoDescription")}
+                        icon={<Eye className="size-5" />}
+                        checked={showHomeGameDetails}
+                        checkedLabel={showHomeGameDetails ? t("settings.on") : t("settings.off")}
+                        onCheckedChange={setShowHomeGameDetails}
+                      />
+                    </div>
+                  </G2MSubtlePanel>
+
+                  <G2MSubtlePanel className="rounded-[28px] border border-white/75 bg-white/65 p-5 ring-1 ring-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
+                    <SettingsCategoryHeader
+                      title={t("settings.workspaceDisplayTitle")}
+                      description={t("settings.workspaceDisplayDescription")}
+                      icon={<Layers3 className="size-5" />}
+                    />
+
+                    <div className="mt-5 space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <SettingsChoiceCard
+                          active={modListViewMode === "detailed"}
+                          title={t("settings.workspaceViewModeDetailed")}
+                          description={t("settings.workspaceViewModeDetailedDescription")}
+                          icon={<AlignJustify className="size-5" />}
+                          onClick={() => setModListViewMode("detailed")}
+                        />
+                        <SettingsChoiceCard
+                          active={modListViewMode === "compact"}
+                          title={t("settings.workspaceViewModeCompact")}
+                          description={t("settings.workspaceViewModeCompactDescription")}
+                          icon={<List className="size-5" />}
+                          onClick={() => setModListViewMode("compact")}
+                        />
+                      </div>
+
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <SettingsMiniStat
+                          label={t("settings.workspaceDisplayModeLabel")}
+                          value={currentWorkspaceViewModeLabel}
+                        />
+                        <SettingsMiniStat
+                          label={t("settings.homeDisplayTitle")}
+                          value={currentHomeViewLabel}
+                        />
+                      </div>
+                    </div>
+                  </G2MSubtlePanel>
+                </div>
+              </SettingsSectionShell>
+            </TabsContent>
+
+            <TabsContent value="builder" className="mt-0">
+              <SettingsSectionShell
+                title={t("settings.builderModeTitle")}
+                description={t("settings.builderModeDescription")}
+                badge={currentBuilderModeLabel}
+                icon={<Hammer className="size-5" />}
+              >
+                <div className="space-y-4">
                   <div className="grid gap-4 lg:grid-cols-3">
                     <SettingsChoiceCard
-                      active={theme === "system"}
-                      title={t("settings.followSystem")}
-                      description={t("settings.followSystemDescription", { mode: resolvedThemeMode })}
-                      icon={<Monitor className="size-5" />}
-                      onClick={() => setTheme("system")}
+                      active={builderMappingMode === "list"}
+                      title={t("settings.builderModeList")}
+                      description={t("settings.builderModeListDescription")}
+                      icon={<List className="size-5" />}
+                      onClick={() => setBuilderMappingMode("list")}
                     />
                     <SettingsChoiceCard
-                      active={theme === "light"}
-                      title={t("settings.light")}
-                      description={t("settings.lightDescription")}
-                      icon={<SunMedium className="size-5" />}
-                      onClick={() => setTheme("light")}
+                      active={builderMappingMode === "tree"}
+                      title={t("settings.builderModeTree")}
+                      description={t("settings.builderModeTreeDescription")}
+                      icon={<List className="size-5" />}
+                      onClick={() => setBuilderMappingMode("tree")}
                     />
                     <SettingsChoiceCard
-                      active={theme === "dark"}
-                      title={t("navbar.darkLabel")}
-                      description={t("navbar.darkTitle")}
-                      icon={<MoonStar className="size-5" />}
-                      onClick={() => setTheme("dark")}
+                      active={builderMappingMode === "explorer"}
+                      title={t("settings.builderModeExplorer")}
+                      description={t("settings.builderModeExplorerDescription")}
+                      icon={<MousePointer2 className="size-5" />}
+                      onClick={() => setBuilderMappingMode("explorer")}
                     />
                   </div>
-                </SettingsSectionShell>
-              </TabsContent>
+                </div>
+              </SettingsSectionShell>
+            </TabsContent>
 
-              <TabsContent value="title-bar" className="mt-0">
-                <SettingsSectionShell
-                  title={t("settings.titleBar")}
-                  description={t("settings.titleBarDescription")}
-                  badge={currentTitleBarLabel}
-                  icon={<MonitorCog className="size-5" />}
-                >
-                  <div className="space-y-4">
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <SettingsChoiceCard
-                        active={titleBarStyle === "windows"}
-                        title={t("settings.windowsStyle")}
-                        description={t("settings.windowsDescription")}
-                        icon={<Monitor className="size-5" />}
-                        preview={<WindowPreview styleType="windows" />}
-                        onClick={() => setTitleBarStyle("windows")}
-                      />
-                      <SettingsChoiceCard
-                        active={titleBarStyle === "mac"}
-                        title={t("settings.macStyle")}
-                        description={t("settings.macDescription")}
-                        icon={<AppWindowMac className="size-5" />}
-                        preview={<WindowPreview styleType="mac" />}
-                        onClick={() => setTitleBarStyle("mac")}
-                      />
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-3">
-                      <SettingsMiniStat
-                        label={t("settings.buttonPosition")}
-                        value={titleBarStyle === "windows" ? t("settings.right") : t("settings.left")}
-                      />
-                      <SettingsMiniStat
-                        label={t("settings.titleAlignment")}
-                        value={titleBarStyle === "windows" ? t("settings.right") : t("settings.moreCentered")}
-                      />
-                      <SettingsMiniStat
-                        label={t("settings.defaultMode")}
-                        value={t("settings.windowsStyle")}
-                      />
-                    </div>
-                  </div>
-                </SettingsSectionShell>
-              </TabsContent>
-
-              <TabsContent value="home" className="mt-0">
-                <SettingsSectionShell
-                  title={t("settings.homeDisplayTitle")}
-                  description={t("settings.homeDisplayDescription")}
-                  badge={currentHomeViewLabel}
-                  icon={<LayoutGrid className="size-5" />}
-                >
-                  <div className="space-y-4">
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <SettingsChoiceCard
-                        active={homeViewMode === "card"}
-                        title={t("settings.cardMode")}
-                        description={t("settings.cardModeDescription")}
-                        icon={<LayoutGrid className="size-5" />}
-                        onClick={() => setHomeViewMode("card")}
-                      />
-                      <SettingsChoiceCard
-                        active={homeViewMode === "list"}
-                        title={t("home.listView")}
-                        description={t("home.listModeHint")}
-                        icon={<List className="size-5" />}
-                        onClick={() => setHomeViewMode("list")}
-                      />
-                    </div>
-
-                    <SettingsToggleCard
-                      title={t("settings.moreInfoLabel")}
-                      description={t("settings.moreInfoDescription")}
-                      icon={<Eye className="size-5" />}
-                      checked={showHomeGameDetails}
-                      checkedLabel={showHomeGameDetails ? t("settings.on") : t("settings.off")}
-                      onCheckedChange={setShowHomeGameDetails}
+            <TabsContent value="language" className="mt-0">
+              <SettingsSectionShell
+                title={t("settings.languageSectionTitle")}
+                description={t("settings.languageSectionDescription")}
+                badge={locale}
+                icon={<Languages className="size-5" />}
+              >
+                <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+                  {localeOptions.map((item) => (
+                    <SettingsLanguageCard
+                      key={item.value}
+                      active={locale === item.value}
+                      code={item.code}
+                      title={item.label}
+                      description={t("settings.languageDescription")}
+                      onClick={() => setLocale(item.value)}
                     />
-                  </div>
-                </SettingsSectionShell>
-              </TabsContent>
-
-              <TabsContent value="builder" className="mt-0">
-                <SettingsSectionShell
-                  title={t("settings.builderModeTitle")}
-                  description={t("settings.builderModeDescription")}
-                  badge={currentBuilderModeLabel}
-                  icon={<Hammer className="size-5" />}
-                >
-                  <div className="space-y-4">
-                    <div className="grid gap-4 lg:grid-cols-3">
-                      <SettingsChoiceCard
-                        active={builderMappingMode === "list"}
-                        title={t("settings.builderModeList")}
-                        description={t("settings.builderModeListDescription")}
-                        icon={<List className="size-5" />}
-                        onClick={() => setBuilderMappingMode("list")}
-                      />
-                      <SettingsChoiceCard
-                        active={builderMappingMode === "tree"}
-                        title={t("settings.builderModeTree")}
-                        description={t("settings.builderModeTreeDescription")}
-                        icon={<List className="size-5" />}
-                        onClick={() => setBuilderMappingMode("tree")}
-                      />
-                      <SettingsChoiceCard
-                        active={builderMappingMode === "explorer"}
-                        title={t("settings.builderModeExplorer")}
-                        description={t("settings.builderModeExplorerDescription")}
-                        icon={<MousePointer2 className="size-5" />}
-                        onClick={() => setBuilderMappingMode("explorer")}
-                      />
-                    </div>
-                  </div>
-                </SettingsSectionShell>
-              </TabsContent>
-
-              <TabsContent value="language" className="mt-0">
-                <SettingsSectionShell
-                  title={t("settings.languageSectionTitle")}
-                  description={t("settings.languageSectionDescription")}
-                  badge={locale}
-                  icon={<Languages className="size-5" />}
-                >
-                  <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-                    {localeOptions.map((item) => (
-                      <SettingsLanguageCard
-                        key={item.value}
-                        active={locale === item.value}
-                        code={item.code}
-                        title={item.label}
-                        description={t("settings.languageDescription")}
-                        onClick={() => setLocale(item.value)}
-                      />
-                    ))}
-                  </div>
-                </SettingsSectionShell>
-              </TabsContent>
-            </div>
+                  ))}
+                </div>
+              </SettingsSectionShell>
+            </TabsContent>
+          </div>
         </G2MPanel>
       </Tabs>
     </div>
@@ -339,6 +395,32 @@ function SettingsSectionShell({
 
       <div>{children}</div>
     </section>
+  )
+}
+
+function SettingsCategoryHeader({
+  title,
+  description,
+  icon,
+}: {
+  title: string
+  description: string
+  icon: ReactNode
+}) {
+  return (
+    <div className="flex items-start gap-4">
+      <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-black/[0.05] text-slate-700 dark:bg-white/[0.08] dark:text-slate-100">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">
+          {title}
+        </h3>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+          {description}
+        </p>
+      </div>
+    </div>
   )
 }
 

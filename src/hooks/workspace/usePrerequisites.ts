@@ -88,9 +88,9 @@ export function usePrerequisites(
         },
         applyBootstrap,
         messages: {
-          loading: "正在一键补齐前置组件...",
-          success: "所有前置组件已补齐",
-          error: "补齐前置组件失败",
+          loading: t("workspaceActions.installingAllPrerequisites"),
+          success: t("workspaceActions.allPrerequisitesInstalled"),
+          error: t("workspaceActions.installAllPrerequisitesFailed"),
         },
       })
     } finally {
@@ -98,24 +98,83 @@ export function usePrerequisites(
     }
   }, [activeGame, applyBootstrap, state, t])
 
-  const fixMisplacedPrerequisite = useCallback(async (path: string) => {
+  const uninstallGamePrerequisite = useCallback(async (prerequisiteKey: string) => {
+    if (!activeGame?.id) {
+      toast.warning(t("workspaceActions.currentGame"))
+      return
+    }
+
+    try {
+      state.setInstallingPrerequisiteKey(prerequisiteKey)
+      await executePrerequisiteAction({
+        command: "uninstall_game_prerequisite_module",
+        args: {
+          gameId: activeGame.id,
+          prerequisiteKey,
+        },
+        applyBootstrap,
+        messages: {
+          loading: t("workspaceActions.uninstallingPrerequisite"),
+          success: t("workspaceActions.prerequisiteUninstalled"),
+          error: t("workspaceActions.uninstallPrerequisiteFailed"),
+        },
+      })
+    } finally {
+      state.setInstallingPrerequisiteKey(null)
+    }
+  }, [activeGame, applyBootstrap, state, t])
+
+  const repairGameSymlinks = useCallback(async () => {
+    if (!activeGame?.id) {
+      toast.warning(t("workspaceActions.currentGame"))
+      return
+    }
+
+    try {
+      state.setRepairingGameLinksId(activeGame.id)
+      await executePrerequisiteAction({
+        command: "repair_game_symlinks",
+        args: {
+          gameId: activeGame.id,
+        },
+        applyBootstrap,
+        messages: {
+          loading: t("workspaceActions.repairingGameLinks"),
+          success: t("workspaceActions.gameLinksRepaired"),
+          error: t("workspaceActions.repairGameLinksFailed"),
+        },
+      })
+    } finally {
+      state.setRepairingGameLinksId(null)
+    }
+  }, [activeGame, applyBootstrap, state, t])
+
+  const resolvePrerequisiteConflict = useCallback(async (prerequisiteKey: string) => {
+    if (!activeGame?.id) {
+      toast.warning(t("workspaceActions.currentGame"))
+      return
+    }
+
     await executePrerequisiteAction({
-      command: "fix_misplaced_cleo_redux",
+      command: "resolve_prerequisite_conflict",
       args: {
-        path,
+        gameId: activeGame.id,
+        prerequisiteKey,
       },
       applyBootstrap,
       messages: {
-        loading: "正在处理...",
-        success: "处理完成",
-        error: "处理失败",
+        loading: t("workspaceActions.fixingPrerequisite"),
+        success: t("workspaceActions.prerequisiteFixed"),
+        error: t("workspaceActions.fixPrerequisiteFailed"),
       },
     })
-  }, [applyBootstrap])
+  }, [activeGame, applyBootstrap, t])
 
   return {
     installGamePrerequisite,
+    uninstallGamePrerequisite,
     installAllGamePrerequisites,
-    fixMisplacedPrerequisite,
+    repairGameSymlinks,
+    resolvePrerequisiteConflict,
   }
 }

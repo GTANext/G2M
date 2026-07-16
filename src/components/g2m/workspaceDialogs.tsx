@@ -104,7 +104,7 @@ function ConflictDialog({ workspace }: { workspace: WorkspaceState }) {
                 <div>
                   <Badge variant="secondary" className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">{t("workspaceDialogs.conflictBadge")}</Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {t("workspaceDialogs.conflictTitle", { name: selectedMod.name })}
+                    {t("workspaceDialogs.conflictTitle", { modName: selectedMod.name })}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                     {t("workspaceDialogs.conflictDescription")}
@@ -1386,7 +1386,7 @@ function DeleteGameDialog({ workspace }: { workspace: WorkspaceState }) {
                     {t("workspaceDialogs.deleteBadge")}
                   </Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {t("workspaceDialogs.deleteTitle", { name: targetGame.name })}
+                    {t("workspaceDialogs.deleteTitle", { gameName: targetGame.name })}
                   </h2>
                 </div>
 
@@ -1462,7 +1462,7 @@ function DeleteModDialog({ workspace }: { workspace: WorkspaceState }) {
                     {t("workspaceDialogs.deleteModBadge")}
                   </Badge>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                    {t("workspaceDialogs.deleteModTitle", { name: targetMod.name })}
+                    {t("workspaceDialogs.deleteModTitle", { modName: targetMod.name })}
                   </h2>
                 </div>
 

@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react"
-import { ChevronRight, Folder, PanelLeftClose, PanelLeft, ArrowUp, HardDrive, Gamepad2, Trash2 } from "lucide-react"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { ChevronRight, Folder, PanelLeftClose, PanelLeft, ArrowUp, HardDrive, Gamepad2, Plus, Trash2 } from "lucide-react"
 import { useDroppable, DndContext, DragOverlay, useSensor, useSensors, PointerSensor, closestCenter } from "@dnd-kit/core"
 import { open } from "@tauri-apps/plugin-dialog"
 
@@ -15,6 +15,7 @@ import {
   type DragPayload,
   DraggableTree,
   TreeDragOverlay,
+  buildMovedTargetPath,
   ROOT_INSTALL_TARGET,
   SKIP_INSTALL_TARGET,
   normalizePath,
@@ -120,6 +121,59 @@ export function ModMappingExplorer({ t, files, onDropToFolder }: ModMappingExplo
   const [activePayload, setActivePayload] = useState<DragPayload | null>(null)
   const currentDropPath = currentRelativePath || ROOT_INSTALL_TARGET
 
+  const getAffectedFiles = useCallback((payload: DragPayload) => {
+    const normalizedPayloadPath = normalizePath(payload.path)
+
+    if (payload.kind === "file") {
+      return files.filter((file) => normalizePath(file.relativePath) === normalizedPayloadPath)
+    }
+
+    return files.filter((file) => {
+      const normalizedRelativePath = normalizePath(file.relativePath)
+      return (
+        normalizedRelativePath === normalizedPayloadPath ||
+        normalizedRelativePath.startsWith(`${normalizedPayloadPath}/`)
+      )
+    })
+  }, [files])
+
+  const getSourceNodeContextActions = useCallback(({ payload }: { payload: DragPayload }) => {
+    if (payload.mode !== "source") {
+      return []
+    }
+
+    const affectedFiles = getAffectedFiles(payload)
+    if (affectedFiles.length === 0) {
+      return []
+    }
+
+    const alreadyMappedToCurrentFolder = affectedFiles.every((file) => {
+      const expectedTargetPath = buildMovedTargetPath(file, payload, currentDropPath)
+      if (expectedTargetPath === null) {
+        return false
+      }
+
+      return normalizePath(file.targetPath) === normalizePath(expectedTargetPath)
+    })
+
+    return [
+      {
+        key: "add-to-current-folder",
+        label: getLabel("workspaceDialogs.addToCurrentFolder", "添加到当前文件夹", { t }),
+        onSelect: () => onDropToFolder(currentDropPath, payload),
+        disabled: alreadyMappedToCurrentFolder,
+        icon: <Plus className="mr-2 size-4" />,
+      },
+      {
+        key: "remove-mapping",
+        label: getLabel("workspaceDialogs.removeMapping", "移除", { t }),
+        onSelect: () => onDropToFolder(SKIP_INSTALL_TARGET, payload),
+        icon: <Trash2 className="mr-2 size-4" />,
+        variant: "destructive" as const,
+      },
+    ]
+  }, [currentDropPath, getAffectedFiles, onDropToFolder, t])
+
   function handleDragStart(event: any) {
     setActivePayload(event.active.data.current as DragPayload)
   }
@@ -204,7 +258,7 @@ export function ModMappingExplorer({ t, files, onDropToFolder }: ModMappingExplo
                   {getLabel("builderPage.explorerTitle", "Select Game", { t })}
                 </Button>
               </DrawerTrigger>
-              <DrawerContent className="max-h-[85vh]">
+              <DrawerContent className="z-[100] max-h-[85vh]">
                 <div className="mx-auto w-full max-w-5xl overflow-hidden flex flex-col">
                   <DrawerHeader className="text-left px-6 pt-6">
                     <Badge variant="secondary" className="w-fit rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-500/15 dark:text-violet-200 mb-2">
@@ -298,6 +352,7 @@ export function ModMappingExplorer({ t, files, onDropToFolder }: ModMappingExplo
                   emptyLabel={getLabel("builderPage.sourceTreeEmpty", "No files", { t })}
                   showFullPath={false}
                   defaultExpandedDepth={2}
+                  getNodeContextActions={getSourceNodeContextActions}
                 />
               </div>
             </div>
@@ -416,7 +471,7 @@ function ExplorerFolderItem({
       <ContextMenuContent>
         <ContextMenuItem onClick={onRemoveMapping} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:text-red-400 dark:focus:text-red-400 dark:focus:bg-red-500/10 cursor-pointer">
           <Trash2 className="mr-2 size-4" />
-          {getLabel("workspaceDialogs.doNotInstall", "Do not install", { t: t! })}
+          {getLabel("workspaceDialogs.removeMapping", "Remove", { t: t! })}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -467,7 +522,7 @@ function ExplorerFileItem({
       <ContextMenuContent>
         <ContextMenuItem onClick={onRemoveMapping} className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:text-red-400 dark:focus:text-red-400 dark:focus:bg-red-500/10 cursor-pointer">
           <Trash2 className="mr-2 size-4" />
-          {getLabel("workspaceDialogs.doNotInstall", "Do not install", { t: t! })}
+          {getLabel("workspaceDialogs.removeMapping", "Remove", { t: t! })}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

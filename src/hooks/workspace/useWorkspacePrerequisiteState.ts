@@ -6,6 +6,14 @@ export type MissingLoadedModPrerequisite = GamePrerequisite & {
   requiredBy: string[]
 }
 
+function getDuplicateAsiPrerequisites(
+  prerequisites: GamePrerequisite[] | undefined,
+): GamePrerequisite[] {
+  return (prerequisites ?? []).filter(
+    (item) => item.key.endsWith("_duplicate_asi") && item.detected,
+  )
+}
+
 function getEnabledMods(mods: ManagedMod[]): ManagedMod[] {
   return mods.filter((mod) => mod.enabled)
 }
@@ -18,12 +26,6 @@ function getInstallableMissingPrerequisites(
 
 function getMissingPrerequisiteSummary(items: MissingLoadedModPrerequisite[]): string {
   return items.map((item) => item.label).join("、")
-}
-
-function getMisplacedCleoRedux(
-  prerequisites: GamePrerequisite[] | undefined,
-): GamePrerequisite | undefined {
-  return prerequisites?.find((item) => item.key === "cleo_redux_misplaced" && item.detected)
 }
 
 function getSelectedInstallablePrerequisiteKeys(
@@ -122,8 +124,8 @@ export function useWorkspacePrerequisiteState({
     () => getMissingPrerequisiteSummary(missingLoadedModPrerequisites),
     [missingLoadedModPrerequisites],
   )
-  const misplacedCleoRedux = useMemo(
-    () => getMisplacedCleoRedux(activeGame?.prerequisites),
+  const duplicateAsiPrerequisites = useMemo(
+    () => getDuplicateAsiPrerequisites(activeGame?.prerequisites),
     [activeGame?.prerequisites],
   )
   const isInstallingMissingPrerequisites = installingPrerequisiteKey !== null
@@ -163,7 +165,7 @@ export function useWorkspacePrerequisiteState({
     missingLoadedModPrerequisites,
     installableMissingPrerequisites,
     missingPrerequisiteSummary,
-    misplacedCleoRedux,
+    duplicateAsiPrerequisites,
     localSelectedPrerequisiteKeys,
     onTogglePrerequisiteKey,
     handleInstallSelectedPrerequisites,

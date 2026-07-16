@@ -5,5 +5,5 @@ pub(crate) use crate::game_repository::{
 };
 pub(crate) use crate::mod_repository::{
     delete_mod_by_id, delete_mods_for_game, load_mod_install_plan, load_mods,
-    load_preview_conflict_files, update_mod_enabled_in_database,
+    load_preview_conflict_files, update_mod_enabled_in_database, update_mod_name_in_database,
 };

@@ -11,6 +11,7 @@ import { G2MPageHeroCard } from "@/components/g2m/pageHeroCard"
 import { G2MPanel, G2MPill, G2MSubtlePanel } from "@/components/g2m/surface"
 import { Button } from "@/components/ui/button"
 import type { UseG2mWorkspaceResult } from "@/hooks/useG2MWorkspace"
+import { cn } from "@/lib/utils"
 import { formatGameTimestamp, resolveGameImageSrc } from "@/lib/g2m"
 
 type WorkspaceState = UseG2mWorkspaceResult
@@ -18,6 +19,7 @@ type WorkspaceState = UseG2mWorkspaceResult
 function HomePage({ workspace }: { workspace: WorkspaceState }) {
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const { homeViewMode } = useAppPreferences()
 
   useEffect(() => {
     workspace.goHome()
@@ -56,8 +58,10 @@ function HomePage({ workspace }: { workspace: WorkspaceState }) {
 
       {!workspace.hasConfiguredGames ? (
         <EmptyHero workspace={workspace} />
-      ) : (
+      ) : homeViewMode === "card" ? (
         <ConfiguredGamesGrid workspace={workspace} onOpenGame={openGameRoute} />
+      ) : (
+        <ConfiguredGamesList workspace={workspace} onOpenGame={openGameRoute} />
       )}
     </div>
   )
@@ -113,7 +117,7 @@ function EmptyHero({ workspace }: { workspace: WorkspaceState }) {
   )
 }
 
-function ConfiguredGamesGrid({
+function ConfiguredGamesList({
   workspace,
   onOpenGame,
 }: {
@@ -121,7 +125,7 @@ function ConfiguredGamesGrid({
   onOpenGame: (gameId: string) => void
 }) {
   const { t } = useTranslation()
-  const { homeViewMode, showHomeGameDetails } = useAppPreferences()
+  const { showHomeGameDetails } = useAppPreferences()
   const [localGames, setLocalGames] = useState(workspace.configuredGames)
 
   useEffect(() => {
@@ -160,7 +164,7 @@ function ConfiguredGamesGrid({
       <div className="p-5 lg:p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{t("home.configuredTitle")}</p>
+            <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{t("workspace.breadcrumbHome")}</p>
             <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">{t("home.configuredTitle")}</h3>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               {t("home.configuredDescription")}
@@ -175,12 +179,12 @@ function ConfiguredGamesGrid({
 
         <div className="mt-5">
           <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="games-grid" direction={homeViewMode === "card" ? "horizontal" : "vertical"}>
+            <Droppable droppableId="games-grid" direction="vertical">
               {(provided) => (
                 <div
                   ref={provided.innerRef}
                   {...provided.droppableProps}
-                  className={homeViewMode === "card" ? "grid gap-4 md:grid-cols-2 xl:grid-cols-3" : "space-y-3"}
+                  className="space-y-3"
                 >
                   {localGames.map((game, index) => (
                     <Draggable key={game.id} draggableId={game.id} index={index}>
@@ -194,19 +198,11 @@ function ConfiguredGamesGrid({
                             opacity: snapshot.isDragging ? 0.8 : 1,
                           }}
                         >
-                          {homeViewMode === "card" ? (
-                            <G2MGameCoverCard
-                              game={game}
-                              onClick={() => onOpenGame(game.id)}
-                              showMoreInfo={showHomeGameDetails}
-                            />
-                          ) : (
-                            <GameListRow
-                              game={game}
-                              onClick={() => onOpenGame(game.id)}
-                              showMoreInfo={showHomeGameDetails}
-                            />
-                          )}
+                          <GameListRow
+                            game={game}
+                            onClick={() => onOpenGame(game.id)}
+                            showMoreInfo={showHomeGameDetails}
+                          />
                         </div>
                       )}
                     </Draggable>
@@ -216,6 +212,49 @@ function ConfiguredGamesGrid({
               )}
             </Droppable>
           </DragDropContext>
+        </div>
+      </div>
+    </G2MPanel>
+  )
+}
+
+function ConfiguredGamesGrid({
+  workspace,
+  onOpenGame,
+}: {
+  workspace: WorkspaceState
+  onOpenGame: (gameId: string) => void
+}) {
+  const { t } = useTranslation()
+  const { showHomeGameDetails } = useAppPreferences()
+
+  return (
+    <G2MPanel>
+      <div className="p-5 lg:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{t("workspace.breadcrumbHome")}</p>
+            <h3 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-50">{t("home.configuredTitle")}</h3>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              {t("home.configuredDescription")}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <G2MPill className="bg-background/80 px-3 py-1 text-slate-500 ring-1 ring-black/5 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+              {t("home.configuredCount", { count: workspace.configuredGames.length })}
+            </G2MPill>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {workspace.configuredGames.map((game) => (
+            <G2MGameCoverCard
+              key={game.id}
+              game={game}
+              onClick={() => onOpenGame(game.id)}
+              showMoreInfo={showHomeGameDetails}
+            />
+          ))}
         </div>
       </div>
     </G2MPanel>
@@ -321,7 +360,7 @@ function ListInfoChip({
         {icon}
         {label}
       </div>
-      <p className={clamp ? "mt-2 truncate text-sm font-medium text-slate-900 dark:text-slate-100" : "mt-2 break-all text-sm font-medium text-slate-900 dark:text-slate-100"}>
+      <p className={cn(clamp ? "mt-2 truncate text-sm font-medium text-slate-900 dark:text-slate-100" : "mt-2 break-all text-sm font-medium text-slate-900 dark:text-slate-100")}>
         {value}
       </p>
     </div>

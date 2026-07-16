@@ -1,16 +1,64 @@
 use std::{
     fs,
+    io,
     path::{Path, PathBuf},
 };
 
-use crate::{GameDirectory, GamePrerequisitePayload};
+use crate::{
+    paths_equal,
+    resolve_game_target_path,
+    storage::ensure_game_workspace,
+    symlink_install::{
+        backup_existing_target, remove_path_if_exists, resolve_backup_target_path,
+        restore_target_from_backup,
+    },
+    GameDirectory, GamePrerequisitePayload, ModInstallFileRecord, GAME_WORKSPACE_DIR_NAME,
+};
 
 const ROOT_SCOPE: &str = "root";
 const SCRIPTS_PLUGINS_SCOPE: &str = "scriptsPlugins";
+const PREREQUISITES_DIR_NAME: &str = "prerequisites";
+const LEGACY_RUNTIME_ROOT_OWNER: &str = "__runtime_roots__";
 
-pub(crate) fn detect_game_prerequisites(mut game: GameDirectory) -> GameDirectory {
-    game.prerequisites = detect_for_path(Path::new(&game.path), &game.game_type);
+struct PrerequisiteDefinition {
+    key: &'static str,
+    label: String,
+    scan_scope: &'static str,
+    required: bool,
+    can_uninstall: bool,
+    plan: PrerequisiteInstallPlan,
+}
+
+struct SilentPatchDefinition {
+    label: String,
+    core_plan: PrerequisiteInstallPlan,
+    modloader_data_plan: PrerequisiteInstallPlan,
+    direct_data_plan: PrerequisiteInstallPlan,
+}
+
+struct PrerequisiteInstallPlan {
+    owner_id: String,
+    storage_dir_name: String,
+    source_module_dir: PathBuf,
+    files: Vec<PrerequisiteFileMapping>,
+}
+
+struct PrerequisiteFileMapping {
+    relative_source_path: String,
+    target_path: String,
+}
+
+pub(crate) fn detect_game_prerequisites(app_dir: &Path, mut game: GameDirectory) -> GameDirectory {
+    game.prerequisites = detect_game_prerequisite_payloads(app_dir, Path::new(&game.path), &game.game_type);
     game
+}
+
+pub(crate) fn detect_game_prerequisite_payloads(
+    app_dir: &Path,
+    game_path: &Path,
+    game_type: &str,
+) -> Vec<GamePrerequisitePayload> {
+    detect_for_path(app_dir, game_path, game_type)
 }
 
 pub(crate) fn install_game_prerequisite(
@@ -20,22 +68,1021 @@ pub(crate) fn install_game_prerequisite(
     prerequisite_key: &str,
 ) -> Result<(), String> {
     let modules_dir = resolve_modules_dir(app_dir)?;
+    install_named_prerequisite(&modules_dir, game_path, game_type, prerequisite_key)
+}
 
+pub(crate) fn uninstall_game_prerequisite(
+    app_dir: &Path,
+    game_path: &Path,
+    game_type: &str,
+    prerequisite_key: &str,
+) -> Result<(), String> {
+    let modules_dir = resolve_modules_dir(app_dir)?;
+    uninstall_named_prerequisite(&modules_dir, game_path, game_type, prerequisite_key)
+}
+
+pub(crate) fn repair_game_prerequisites(
+    app_dir: &Path,
+    game_path: &Path,
+    game_type: &str,
+) -> Result<(), String> {
+    let modules_dir = resolve_modules_dir(app_dir)?;
+    for prerequisite_key in ["asiloader", "modloader"] {
+        install_named_prerequisite(&modules_dir, game_path, game_type, prerequisite_key)?;
+    }
+
+    if should_repair_plan(game_path, &build_cleo_definition(&modules_dir, game_type)?.plan) {
+        install_named_prerequisite(&modules_dir, game_path, game_type, "cleo")?;
+    }
+
+    if should_repair_plan(game_path, &build_cleo_redux_definition(&modules_dir)?.plan) {
+        install_named_prerequisite(&modules_dir, game_path, game_type, "cleo_redux")?;
+    }
+
+    let silent_patch = build_silent_patch_definition(&modules_dir, game_type)?;
+    if should_repair_plan(game_path, &silent_patch.core_plan)
+        || should_repair_plan(game_path, &silent_patch.modloader_data_plan)
+        || should_repair_plan(game_path, &silent_patch.direct_data_plan)
+    {
+        install_named_prerequisite(&modules_dir, game_path, game_type, "silentpatch")?;
+    }
+
+    if should_repair_plan(game_path, &build_d3d8to9_definition(&modules_dir)?.plan) {
+        install_named_prerequisite(&modules_dir, game_path, game_type, "d3d8to9")?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn resolve_prerequisite_asi_conflict(
+    app_dir: &Path,
+    game_path: &Path,
+    game_type: &str,
+    prerequisite_key: &str,
+) -> Result<(), String> {
+    let normalized_key = prerequisite_key
+        .trim()
+        .trim_end_matches("_duplicate_asi")
+        .to_ascii_lowercase();
+    let Some((canonical_target, file_names)) =
+        primary_asi_rule_for_key(&normalized_key, game_type)
+    else {
+        return Err(format!("不支持处理该前置组件的 ASI 冲突: {prerequisite_key}"));
+    };
+
+    let duplicate_paths = find_existing_primary_asi_paths(game_path, &canonical_target, &file_names);
+    if duplicate_paths.len() <= 1 {
+        return Ok(());
+    }
+
+    let canonical_path = resolve_game_target_path(game_path, &canonical_target);
+    for path in duplicate_paths {
+        if path == canonical_path {
+            continue;
+        }
+
+        remove_path_if_exists(&path)?;
+    }
+
+    install_game_prerequisite(app_dir, game_path, game_type, &normalized_key)
+}
+
+fn detect_for_path(app_dir: &Path, game_path: &Path, game_type: &str) -> Vec<GamePrerequisitePayload> {
+    resolve_modules_dir(app_dir)
+        .ok()
+        .and_then(|modules_dir| detect_definitions_from_modules(&modules_dir, game_path, game_type).ok())
+        .unwrap_or_else(|| detect_for_path_legacy(game_path, game_type))
+}
+
+fn detect_definitions_from_modules(
+    modules_dir: &Path,
+    game_path: &Path,
+    game_type: &str,
+) -> Result<Vec<GamePrerequisitePayload>, String> {
+    let asiloader = build_asiloader_definition(modules_dir)?;
+    let modloader = build_modloader_definition(modules_dir)?;
+    let cleo = build_cleo_definition(modules_dir, game_type)?;
+    let cleo_redux = build_cleo_redux_definition(modules_dir)?;
+    let silent_patch = build_silent_patch_definition(modules_dir, game_type)?;
+    let d3d8to9 = build_d3d8to9_definition(modules_dir)?;
+
+    let mut payloads = vec![
+        build_payload_from_definition(&asiloader, game_path),
+        build_payload_from_primary_targets(&modloader, game_path, "scripts/modloader.asi", &["modloader.asi"]),
+        build_payload_from_cleo_definition(&cleo, game_path, game_type),
+        build_payload_from_primary_targets(
+            &cleo_redux,
+            game_path,
+            "plugins/cleo_redux.asi",
+            &["cleo_redux.asi"],
+        ),
+    ];
+    payloads.push(build_payload_from_silent_patch(&silent_patch, game_path));
+    payloads.push(build_payload_from_definition(&d3d8to9, game_path));
+    payloads.extend(
+        [
+            build_duplicate_primary_asi_payload(
+                "modloader",
+                "ModLoader",
+                SCRIPTS_PLUGINS_SCOPE,
+                game_path,
+                "scripts/modloader.asi",
+                &["modloader.asi"],
+            ),
+            build_duplicate_primary_asi_payload(
+                "cleo",
+                "CLEO",
+                SCRIPTS_PLUGINS_SCOPE,
+                game_path,
+                &cleo_canonical_asi_target(game_type),
+                &cleo_asi_file_names(game_type),
+            ),
+            build_duplicate_primary_asi_payload(
+                "cleo_redux",
+                "CLEO Redux",
+                SCRIPTS_PLUGINS_SCOPE,
+                game_path,
+                "plugins/cleo_redux.asi",
+                &["cleo_redux.asi"],
+            ),
+            build_duplicate_primary_asi_payload(
+                "silentpatch",
+                silent_patch_label(game_type),
+                SCRIPTS_PLUGINS_SCOPE,
+                game_path,
+                &format!("scripts/{}", silent_patch_file_name(game_type)),
+                &[silent_patch_file_name(game_type)],
+            ),
+        ]
+        .into_iter()
+        .flatten(),
+    );
+
+    Ok(payloads)
+}
+
+fn install_named_prerequisite(
+    modules_dir: &Path,
+    game_path: &Path,
+    game_type: &str,
+    prerequisite_key: &str,
+) -> Result<(), String> {
     match prerequisite_key.trim().to_ascii_lowercase().as_str() {
-        "asiloader" => copy_file_to(
-            &modules_dir.join("ASILoader").join("dinput8.dll"),
-            &game_path.join("dinput8.dll"),
-        ),
-        "d3d8to9" => copy_file_to(
-            &modules_dir.join("D3D8to9").join("d3d8.dll"),
-            &game_path.join("d3d8.dll"),
-        ),
-        "silentpatch" => install_silent_patch(&modules_dir, game_path, game_type),
-        "modloader" => install_modloader(&modules_dir, game_path),
-        "cleo" => install_cleo(&modules_dir, game_path, game_type),
-        "cleo_redux" => install_cleo_redux(&modules_dir, game_path),
+        "asiloader" => apply_install_plan(game_path, &build_asiloader_definition(modules_dir)?.plan),
+        "modloader" => {
+            apply_install_plan(game_path, &build_asiloader_definition(modules_dir)?.plan)?;
+            apply_install_plan(game_path, &build_modloader_definition(modules_dir)?.plan)
+        }
+        "cleo" => {
+            apply_install_plan(game_path, &build_asiloader_definition(modules_dir)?.plan)?;
+            apply_install_plan(game_path, &build_cleo_definition(modules_dir, game_type)?.plan)
+        }
+        "cleo_redux" => {
+            apply_install_plan(game_path, &build_asiloader_definition(modules_dir)?.plan)?;
+            apply_install_plan(game_path, &build_cleo_redux_definition(modules_dir)?.plan)
+        }
+        "silentpatch" => {
+            apply_install_plan(game_path, &build_asiloader_definition(modules_dir)?.plan)?;
+            apply_install_plan(game_path, &build_modloader_definition(modules_dir)?.plan)?;
+
+            let definition = build_silent_patch_definition(modules_dir, game_type)?;
+            apply_install_plan(game_path, &definition.core_plan)?;
+            apply_install_plan(game_path, &definition.modloader_data_plan)
+        }
+        "d3d8to9" => apply_install_plan(game_path, &build_d3d8to9_definition(modules_dir)?.plan),
         other => Err(format!("不支持安装该前置组件: {other}")),
     }
+}
+
+fn uninstall_named_prerequisite(
+    modules_dir: &Path,
+    game_path: &Path,
+    game_type: &str,
+    prerequisite_key: &str,
+) -> Result<(), String> {
+    match prerequisite_key.trim().to_ascii_lowercase().as_str() {
+        "asiloader" => remove_install_plan(game_path, &build_asiloader_definition(modules_dir)?.plan),
+        "modloader" => remove_install_plan(game_path, &build_modloader_definition(modules_dir)?.plan),
+        "cleo" => remove_install_plan(game_path, &build_cleo_definition(modules_dir, game_type)?.plan),
+        "cleo_redux" => remove_install_plan(game_path, &build_cleo_redux_definition(modules_dir)?.plan),
+        "silentpatch" => {
+            let definition = build_silent_patch_definition(modules_dir, game_type)?;
+            remove_install_plan(game_path, &definition.modloader_data_plan)?;
+            remove_install_plan(game_path, &definition.direct_data_plan)?;
+            remove_install_plan(game_path, &definition.core_plan)
+        }
+        "d3d8to9" => remove_install_plan(game_path, &build_d3d8to9_definition(modules_dir)?.plan),
+        other => Err(format!("不支持卸载该前置组件: {other}")),
+    }
+}
+
+fn apply_install_plan(game_path: &Path, plan: &PrerequisiteInstallPlan) -> Result<(), String> {
+    ensure_game_workspace(game_path)?;
+    let workspace_source_dir = stage_workspace_source(game_path, plan)?;
+    let install_files = build_install_records(&workspace_source_dir, &plan.files);
+    cleanup_legacy_runtime_root_symlinks(game_path, &install_files)?;
+    install_copy_targets(game_path, &plan.owner_id, &install_files)
+}
+
+fn remove_install_plan(game_path: &Path, plan: &PrerequisiteInstallPlan) -> Result<(), String> {
+    let workspace_source_dir = resolve_workspace_source_dir(game_path, &plan.storage_dir_name);
+    let install_files = build_install_records(&workspace_source_dir, &plan.files);
+    cleanup_legacy_runtime_root_symlinks(game_path, &install_files)?;
+    uninstall_copy_targets(game_path, &plan.owner_id, &install_files)
+}
+
+fn stage_workspace_source(game_path: &Path, plan: &PrerequisiteInstallPlan) -> Result<PathBuf, String> {
+    let workspace_source_dir = resolve_workspace_source_dir(game_path, &plan.storage_dir_name);
+    refresh_workspace_source(&plan.source_module_dir, &workspace_source_dir)?;
+    Ok(workspace_source_dir)
+}
+
+fn resolve_workspace_source_dir(game_path: &Path, storage_dir_name: &str) -> PathBuf {
+    game_path
+        .join(GAME_WORKSPACE_DIR_NAME)
+        .join(PREREQUISITES_DIR_NAME)
+        .join(storage_dir_name)
+}
+
+fn build_install_records(
+    workspace_source_dir: &Path,
+    files: &[PrerequisiteFileMapping],
+) -> Vec<ModInstallFileRecord> {
+    files.iter()
+        .map(|file| ModInstallFileRecord {
+            source_path: workspace_source_dir
+                .join(&file.relative_source_path)
+                .to_string_lossy()
+                .to_string(),
+            target_path: file.target_path.clone(),
+        })
+        .collect()
+}
+
+fn install_copy_targets(
+    game_path: &Path,
+    owner_id: &str,
+    files: &[ModInstallFileRecord],
+) -> Result<(), String> {
+    for file in files {
+        let source_path = Path::new(&file.source_path);
+        if !source_path.is_file() {
+            return Err(format!("未找到前置组件安装文件: {}", source_path.display()));
+        }
+
+        let target_path = resolve_game_target_path(game_path, &file.target_path);
+        let backup_path = resolve_backup_target_path(game_path, owner_id, &file.target_path);
+
+        match fs::symlink_metadata(&target_path) {
+            Ok(_) => {
+                if backup_path.exists() {
+                    remove_path_if_exists(&target_path)?;
+                } else {
+                    backup_existing_target(&target_path, &backup_path)?;
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "failed to inspect prerequisite copy target {}: {error}",
+                    target_path.display()
+                ));
+            }
+        }
+
+        if let Some(parent_dir) = target_path.parent() {
+            fs::create_dir_all(parent_dir)
+                .map_err(|error| format!("failed to create prerequisite target directory: {error}"))?;
+        }
+
+        fs::copy(source_path, &target_path).map_err(|error| {
+            format!(
+                "failed to copy prerequisite file {} -> {}: {error}",
+                source_path.display(),
+                target_path.display()
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn uninstall_copy_targets(
+    game_path: &Path,
+    owner_id: &str,
+    files: &[ModInstallFileRecord],
+) -> Result<(), String> {
+    for file in files {
+        let target_path = resolve_game_target_path(game_path, &file.target_path);
+        let backup_path = resolve_backup_target_path(game_path, owner_id, &file.target_path);
+
+        remove_path_if_exists(&target_path)?;
+        restore_target_from_backup(&target_path, &backup_path)?;
+    }
+
+    Ok(())
+}
+
+fn cleanup_legacy_runtime_root_symlinks(
+    game_path: &Path,
+    files: &[ModInstallFileRecord],
+) -> Result<(), String> {
+    let runtime_roots = files
+        .iter()
+        .filter_map(|file| {
+            let normalized = file.target_path.replace('\\', "/").to_ascii_lowercase();
+            if normalized == "scripts" || normalized.starts_with("scripts/") {
+                return Some("scripts");
+            }
+            if normalized == "plugins" || normalized.starts_with("plugins/") {
+                return Some("plugins");
+            }
+
+            None
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+
+    for root_name in runtime_roots {
+        cleanup_legacy_runtime_root_symlink(game_path, root_name)?;
+    }
+
+    Ok(())
+}
+
+fn cleanup_legacy_runtime_root_symlink(game_path: &Path, root_name: &str) -> Result<(), String> {
+    let target_path = resolve_game_target_path(game_path, root_name);
+    let metadata = match fs::symlink_metadata(&target_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect prerequisite runtime root before migration: {error}"
+            ));
+        }
+    };
+
+    if !metadata.file_type().is_symlink() {
+        return Ok(());
+    }
+
+    let current_target = resolve_existing_link_target(&target_path)?;
+    let expected_target = game_path
+        .join(GAME_WORKSPACE_DIR_NAME)
+        .join("runtime")
+        .join(root_name)
+        .canonicalize()
+        .unwrap_or_else(|_| {
+            game_path
+                .join(GAME_WORKSPACE_DIR_NAME)
+                .join("runtime")
+                .join(root_name)
+        });
+    if !paths_equal(&current_target, &expected_target) {
+        return Ok(());
+    }
+
+    let backup_path = resolve_backup_target_path(game_path, LEGACY_RUNTIME_ROOT_OWNER, root_name);
+    remove_path_if_exists(&target_path)?;
+    restore_target_from_backup(&target_path, &backup_path)
+}
+
+fn resolve_existing_link_target(link_path: &Path) -> Result<PathBuf, String> {
+    let target = fs::read_link(link_path)
+        .map_err(|error| format!("failed to read prerequisite runtime root symlink target: {error}"))?;
+    let resolved = if target.is_absolute() {
+        target
+    } else {
+        link_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default()
+            .join(target)
+    };
+
+    Ok(resolved.canonicalize().unwrap_or(resolved))
+}
+
+fn build_payload_from_definition(
+    definition: &PrerequisiteDefinition,
+    game_path: &Path,
+) -> GamePrerequisitePayload {
+    let (detected, detected_path) = detect_install_plan(game_path, &definition.plan);
+
+    GamePrerequisitePayload {
+        key: definition.key.to_string(),
+        label: definition.label.clone(),
+        detected,
+        can_install: true,
+        can_uninstall: definition.can_uninstall,
+        required: definition.required,
+        scan_scope: definition.scan_scope.to_string(),
+        detected_path,
+    }
+}
+
+fn build_payload_from_primary_targets(
+    definition: &PrerequisiteDefinition,
+    game_path: &Path,
+    canonical_target: &str,
+    file_names: &[&str],
+) -> GamePrerequisitePayload {
+    let (detected, detected_path) =
+        detect_primary_targets(game_path, &definition.plan, canonical_target, file_names)
+            .unwrap_or((false, None));
+
+    GamePrerequisitePayload {
+        key: definition.key.to_string(),
+        label: definition.label.clone(),
+        detected,
+        can_install: true,
+        can_uninstall: definition.can_uninstall,
+        required: definition.required,
+        scan_scope: definition.scan_scope.to_string(),
+        detected_path,
+    }
+}
+
+fn build_duplicate_primary_asi_payload(
+    key: &str,
+    label: &str,
+    scan_scope: &str,
+    game_path: &Path,
+    canonical_target: &str,
+    file_names: &[&str],
+) -> Option<GamePrerequisitePayload> {
+    let duplicates = find_existing_primary_asi_paths(game_path, canonical_target, file_names);
+    (duplicates.len() > 1).then(|| GamePrerequisitePayload {
+        key: format!("{key}_duplicate_asi"),
+        label: label.to_string(),
+        detected: true,
+        can_install: false,
+        can_uninstall: false,
+        required: false,
+        scan_scope: scan_scope.to_string(),
+        detected_path: Some(
+            resolve_game_target_path(game_path, canonical_target)
+                .to_string_lossy()
+                .to_string(),
+        ),
+    })
+}
+
+fn build_payload_from_cleo_definition(
+    definition: &PrerequisiteDefinition,
+    game_path: &Path,
+    game_type: &str,
+) -> GamePrerequisitePayload {
+    let (detected, detected_path) =
+        detect_cleo_install_plan(game_path, &definition.plan, game_type).unwrap_or((false, None));
+
+    GamePrerequisitePayload {
+        key: definition.key.to_string(),
+        label: definition.label.clone(),
+        detected,
+        can_install: true,
+        can_uninstall: definition.can_uninstall,
+        required: definition.required,
+        scan_scope: definition.scan_scope.to_string(),
+        detected_path,
+    }
+}
+
+fn build_payload_from_silent_patch(
+    definition: &SilentPatchDefinition,
+    game_path: &Path,
+) -> GamePrerequisitePayload {
+    let (detected, detected_path) = detect_silent_patch_install_plan(game_path, &definition.core_plan)
+        .unwrap_or((false, None));
+
+    GamePrerequisitePayload {
+        key: "silentpatch".to_string(),
+        label: definition.label.clone(),
+        detected,
+        can_install: true,
+        can_uninstall: true,
+        required: false,
+        scan_scope: SCRIPTS_PLUGINS_SCOPE.to_string(),
+        detected_path,
+    }
+}
+
+fn detect_install_plan(game_path: &Path, plan: &PrerequisiteInstallPlan) -> (bool, Option<String>) {
+    let detected_path = plan
+        .files
+        .iter()
+        .find(|file| is_primary_detection_file(&file.target_path))
+        .or_else(|| plan.files.first())
+        .map(|file| resolve_game_target_path(game_path, &file.target_path))
+        .filter(|path| fs::symlink_metadata(path).is_ok())
+        .map(|path| path.to_string_lossy().to_string());
+
+    (detected_path.is_some(), detected_path)
+}
+
+fn detect_cleo_install_plan(
+    game_path: &Path,
+    plan: &PrerequisiteInstallPlan,
+    game_type: &str,
+) -> Result<(bool, Option<String>), String> {
+    let has_cleo_asi_target = plan
+        .files
+        .iter()
+        .any(|file| file.target_path.to_ascii_lowercase().ends_with(".asi"));
+    if !has_cleo_asi_target {
+        return Ok((false, None));
+    }
+
+    Ok(find_present_primary_asi_path(
+        game_path,
+        &cleo_canonical_asi_target(game_type),
+        &cleo_asi_file_names(game_type),
+    ))
+}
+
+fn detect_silent_patch_install_plan(
+    game_path: &Path,
+    core_plan: &PrerequisiteInstallPlan,
+) -> Result<(bool, Option<String>), String> {
+    let silent_patch_file_name = core_plan
+        .files
+        .iter()
+        .find(|file| file.target_path.to_ascii_lowercase().ends_with(".asi"))
+        .and_then(|file| Path::new(&file.target_path).file_name().map(|name| name.to_string_lossy().to_string()))
+        .ok_or_else(|| "SilentPatch 主 ASI 目标不存在".to_string())?;
+
+    detect_primary_targets(
+        game_path,
+        core_plan,
+        &format!("scripts/{silent_patch_file_name}"),
+        &[silent_patch_file_name.as_str()],
+    )
+}
+
+fn detect_primary_targets(
+    game_path: &Path,
+    _plan: &PrerequisiteInstallPlan,
+    canonical_target: &str,
+    file_names: &[&str],
+) -> Result<(bool, Option<String>), String> {
+    Ok(find_present_primary_asi_path(
+        game_path,
+        canonical_target,
+        file_names,
+    ))
+}
+
+fn should_repair_plan(game_path: &Path, plan: &PrerequisiteInstallPlan) -> bool {
+    detect_install_plan(game_path, plan).0 || resolve_workspace_source_dir(game_path, &plan.storage_dir_name).exists()
+}
+
+fn is_primary_detection_file(target_path: &str) -> bool {
+    let lower = target_path.to_ascii_lowercase();
+    lower.ends_with(".asi") || lower.ends_with(".dll")
+}
+
+fn find_present_primary_asi_path(
+    game_path: &Path,
+    canonical_target: &str,
+    file_names: &[&str],
+) -> (bool, Option<String>) {
+    let detected_path = build_primary_asi_candidate_paths(game_path, canonical_target, file_names)
+        .into_iter()
+        .find(|path| fs::symlink_metadata(path).is_ok())
+        .map(|path| path.to_string_lossy().to_string());
+
+    (detected_path.is_some(), detected_path)
+}
+
+fn find_existing_primary_asi_paths(
+    game_path: &Path,
+    canonical_target: &str,
+    file_names: &[&str],
+) -> Vec<PathBuf> {
+    build_primary_asi_candidate_paths(game_path, canonical_target, file_names)
+        .into_iter()
+        .filter(|path| fs::symlink_metadata(path).is_ok())
+        .collect()
+}
+
+fn build_primary_asi_candidate_paths(
+    game_path: &Path,
+    canonical_target: &str,
+    file_names: &[&str],
+) -> Vec<PathBuf> {
+    let mut seen = std::collections::HashSet::new();
+    let mut candidates = Vec::new();
+
+    let canonical_path = resolve_game_target_path(game_path, canonical_target);
+    let canonical_key = canonical_path.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+    if seen.insert(canonical_key) {
+        candidates.push(canonical_path);
+    }
+
+    for folder in ["", "plugins", "scripts"] {
+        for file_name in file_names {
+            let relative_target_path = if folder.is_empty() {
+                (*file_name).to_string()
+            } else {
+                format!("{folder}/{file_name}")
+            };
+            let candidate_path = resolve_game_target_path(game_path, &relative_target_path);
+            let candidate_key = candidate_path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .to_ascii_lowercase();
+            if seen.insert(candidate_key) {
+                candidates.push(candidate_path);
+            }
+        }
+    }
+
+    candidates
+}
+
+fn refresh_workspace_source(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
+    if !source_dir.is_dir() {
+        return Err(format!(
+            "未找到前置组件资源目录: {}",
+            source_dir.to_string_lossy()
+        ));
+    }
+
+    remove_path_if_exists(target_dir)?;
+    fs::create_dir_all(target_dir)
+        .map_err(|error| format!("failed to create prerequisite workspace directory: {error}"))?;
+    copy_directory_contents(source_dir, target_dir)
+}
+
+fn copy_directory_contents(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
+    for entry in fs::read_dir(source_dir)
+        .map_err(|error| format!("failed to read prerequisite source directory: {error}"))?
+    {
+        let entry = entry.map_err(|error| format!("failed to read prerequisite source entry: {error}"))?;
+        let source_path = entry.path();
+        let target_path = target_dir.join(entry.file_name());
+
+        if source_path.is_dir() {
+            fs::create_dir_all(&target_path)
+                .map_err(|error| format!("failed to create prerequisite target directory: {error}"))?;
+            copy_directory_contents(&source_path, &target_path)?;
+            continue;
+        }
+
+        if let Some(parent_dir) = target_path.parent() {
+            fs::create_dir_all(parent_dir)
+                .map_err(|error| format!("failed to create prerequisite parent directory: {error}"))?;
+        }
+
+        fs::copy(&source_path, &target_path).map_err(|error| {
+            format!(
+                "failed to copy prerequisite file {} -> {}: {error}",
+                source_path.to_string_lossy(),
+                target_path.to_string_lossy()
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn build_asiloader_definition(modules_dir: &Path) -> Result<PrerequisiteDefinition, String> {
+    build_single_file_definition(
+        modules_dir,
+        "asiloader",
+        "ASILoader",
+        ROOT_SCOPE,
+        "ASILoader",
+        "dinput8.dll",
+        "dinput8.dll",
+        "asiloader",
+        true,
+        true,
+    )
+}
+
+fn build_d3d8to9_definition(modules_dir: &Path) -> Result<PrerequisiteDefinition, String> {
+    build_single_file_definition(
+        modules_dir,
+        "d3d8to9",
+        "D3D8to9",
+        ROOT_SCOPE,
+        "D3D8to9",
+        "d3d8.dll",
+        "d3d8.dll",
+        "d3d8to9",
+        false,
+        true,
+    )
+}
+
+fn build_single_file_definition(
+    modules_dir: &Path,
+    key: &'static str,
+    label: &str,
+    scan_scope: &'static str,
+    module_dir_name: &str,
+    relative_source_path: &str,
+    target_path: &str,
+    storage_dir_name: &str,
+    required: bool,
+    can_uninstall: bool,
+) -> Result<PrerequisiteDefinition, String> {
+    let source_module_dir = modules_dir.join(module_dir_name);
+    let source_file_path = source_module_dir.join(relative_source_path);
+    if !source_file_path.is_file() {
+        return Err(format!(
+            "未找到前置组件资源文件: {}",
+            source_file_path.to_string_lossy()
+        ));
+    }
+
+    Ok(PrerequisiteDefinition {
+        key,
+        label: label.to_string(),
+        scan_scope,
+        required,
+        can_uninstall,
+        plan: PrerequisiteInstallPlan {
+            owner_id: format!("prerequisite-{storage_dir_name}"),
+            storage_dir_name: storage_dir_name.to_string(),
+            source_module_dir,
+            files: vec![PrerequisiteFileMapping {
+                relative_source_path: relative_source_path.to_string(),
+                target_path: target_path.to_string(),
+            }],
+        },
+    })
+}
+
+fn build_modloader_definition(modules_dir: &Path) -> Result<PrerequisiteDefinition, String> {
+    let source_module_dir = modules_dir.join("ModLoader");
+    let files = collect_file_mappings(&source_module_dir, |relative_path| {
+        if relative_path.eq_ignore_ascii_case("modloader.asi") {
+            return Some("scripts/modloader.asi".to_string());
+        }
+
+        relative_path
+            .strip_prefix("modloader/")
+            .map(|_| relative_path.to_string())
+    })?;
+
+    Ok(PrerequisiteDefinition {
+        key: "modloader",
+        label: "ModLoader".to_string(),
+        scan_scope: SCRIPTS_PLUGINS_SCOPE,
+        required: true,
+        can_uninstall: true,
+        plan: PrerequisiteInstallPlan {
+            owner_id: "prerequisite-modloader".to_string(),
+            storage_dir_name: "modloader".to_string(),
+            source_module_dir,
+            files,
+        },
+    })
+}
+
+fn build_cleo_definition(modules_dir: &Path, game_type: &str) -> Result<PrerequisiteDefinition, String> {
+    let (module_dir_name, storage_dir_name) = match game_type.trim().to_ascii_lowercase().as_str() {
+        "iii" => ("CLEO.III", "cleo-iii"),
+        "vc" => ("CLEO.VC", "cleo-vc"),
+        _ => ("CLEO.SA", "cleo-sa"),
+    };
+    let source_module_dir = modules_dir.join(module_dir_name);
+    let cleo_folder_name = source_module_dir
+        .read_dir()
+        .ok()
+        .and_then(|entries| {
+            entries
+                .flatten()
+                .map(|entry| entry.file_name().to_string_lossy().to_string())
+                .find(|name| name.eq_ignore_ascii_case("cleo"))
+        })
+        .unwrap_or_else(|| "CLEO".to_string());
+    let files = collect_file_mappings_many(&source_module_dir, |relative_path| {
+        if relative_path.to_ascii_lowercase().ends_with(".asi") {
+            let file_name = Path::new(relative_path).file_name()?.to_string_lossy().to_string();
+            return Some(vec![format!("plugins/{file_name}")]);
+        }
+
+        if let Some(remainder) = relative_path.strip_prefix(&format!("{cleo_folder_name}/")) {
+            return Some(vec![
+                format!("CLEO/{remainder}"),
+                format!("plugins/CLEO/{remainder}"),
+            ]);
+        }
+
+        Some(vec![relative_path.to_string()])
+    })?;
+
+    Ok(PrerequisiteDefinition {
+        key: "cleo",
+        label: "CLEO".to_string(),
+        scan_scope: ROOT_SCOPE,
+        required: false,
+        can_uninstall: true,
+        plan: PrerequisiteInstallPlan {
+            owner_id: format!("prerequisite-{storage_dir_name}"),
+            storage_dir_name: storage_dir_name.to_string(),
+            source_module_dir,
+            files,
+        },
+    })
+}
+
+fn build_cleo_redux_definition(modules_dir: &Path) -> Result<PrerequisiteDefinition, String> {
+    let source_module_dir = modules_dir.join("CLEO.Redux");
+    let files = collect_file_mappings_many(&source_module_dir, |relative_path| {
+        if relative_path.eq_ignore_ascii_case("cleo_redux.asi") {
+            return Some(vec!["plugins/cleo_redux.asi".to_string()]);
+        }
+
+        relative_path.strip_prefix("CLEO/").map(|remainder| {
+            vec![
+                format!("CLEO/{remainder}"),
+                format!("plugins/CLEO/{remainder}"),
+            ]
+        })
+    })?;
+
+    Ok(PrerequisiteDefinition {
+        key: "cleo_redux",
+        label: "CLEO Redux".to_string(),
+        scan_scope: SCRIPTS_PLUGINS_SCOPE,
+        required: false,
+        can_uninstall: true,
+        plan: PrerequisiteInstallPlan {
+            owner_id: "prerequisite-cleo-redux".to_string(),
+            storage_dir_name: "cleo-redux".to_string(),
+            source_module_dir,
+            files,
+        },
+    })
+}
+
+fn build_silent_patch_definition(
+    modules_dir: &Path,
+    game_type: &str,
+) -> Result<SilentPatchDefinition, String> {
+    let module_dir_name = silent_patch_module_dir(game_type);
+    let storage_dir_name = format!("silentpatch-{}", game_type.trim().to_ascii_lowercase());
+    let owner_id = format!("prerequisite-{storage_dir_name}");
+    let source_module_dir = modules_dir.join(module_dir_name);
+
+    let core_files = collect_file_mappings(&source_module_dir, |relative_path| {
+        let lower_path = relative_path.to_ascii_lowercase();
+        if lower_path.ends_with(".asi") || lower_path.ends_with(".ini") {
+            let file_name = Path::new(relative_path).file_name()?.to_string_lossy().to_string();
+            return Some(format!("scripts/{file_name}"));
+        }
+
+        None
+    })?;
+
+    let wrapper_dir = silent_patch_modloader_wrapper_dir(game_type);
+    let modloader_data_files = collect_file_mappings(&source_module_dir, |relative_path| {
+        relative_path
+            .strip_prefix("data/")
+            .map(|_| format!("scripts/modloader/{wrapper_dir}/{relative_path}"))
+    })?;
+
+    let direct_data_files = collect_file_mappings(&source_module_dir, |relative_path| {
+        relative_path
+            .strip_prefix("data/")
+            .map(|_| relative_path.to_string())
+    })?;
+
+    Ok(SilentPatchDefinition {
+        label: silent_patch_label(game_type).to_string(),
+        core_plan: PrerequisiteInstallPlan {
+            owner_id: owner_id.clone(),
+            storage_dir_name: storage_dir_name.clone(),
+            source_module_dir: source_module_dir.clone(),
+            files: core_files,
+        },
+        modloader_data_plan: PrerequisiteInstallPlan {
+            owner_id: owner_id.clone(),
+            storage_dir_name: storage_dir_name.clone(),
+            source_module_dir: source_module_dir.clone(),
+            files: modloader_data_files,
+        },
+        direct_data_plan: PrerequisiteInstallPlan {
+            owner_id,
+            storage_dir_name,
+            source_module_dir,
+            files: direct_data_files,
+        },
+    })
+}
+
+fn collect_file_mappings<F>(
+    source_module_dir: &Path,
+    mut map_target_path: F,
+) -> Result<Vec<PrerequisiteFileMapping>, String>
+where
+    F: FnMut(&str) -> Option<String>,
+{
+    if !source_module_dir.is_dir() {
+        return Err(format!(
+            "未找到前置组件资源目录: {}",
+            source_module_dir.to_string_lossy()
+        ));
+    }
+
+    let relative_paths = collect_relative_file_paths(source_module_dir)?;
+    let files = relative_paths
+        .into_iter()
+        .filter_map(|relative_path| {
+            map_target_path(&relative_path).map(|target_path| PrerequisiteFileMapping {
+                relative_source_path: relative_path,
+                target_path,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if files.is_empty() {
+        return Err(format!(
+            "前置组件资源目录中没有可安装文件: {}",
+            source_module_dir.to_string_lossy()
+        ));
+    }
+
+    Ok(files)
+}
+
+fn collect_file_mappings_many<F>(
+    source_module_dir: &Path,
+    mut map_target_paths: F,
+) -> Result<Vec<PrerequisiteFileMapping>, String>
+where
+    F: FnMut(&str) -> Option<Vec<String>>,
+{
+    if !source_module_dir.is_dir() {
+        return Err(format!(
+            "未找到前置组件资源目录: {}",
+            source_module_dir.to_string_lossy()
+        ));
+    }
+
+    let relative_paths = collect_relative_file_paths(source_module_dir)?;
+    let files = relative_paths
+        .into_iter()
+        .flat_map(|relative_path| {
+            map_target_paths(&relative_path)
+                .unwrap_or_default()
+                .into_iter()
+                .map(move |target_path| PrerequisiteFileMapping {
+                    relative_source_path: relative_path.clone(),
+                    target_path,
+                })
+        })
+        .collect::<Vec<_>>();
+
+    if files.is_empty() {
+        return Err(format!(
+            "前置组件资源目录中没有可安装文件: {}",
+            source_module_dir.to_string_lossy()
+        ));
+    }
+
+    Ok(files)
+}
+
+fn collect_relative_file_paths(base_dir: &Path) -> Result<Vec<String>, String> {
+    let mut files = Vec::new();
+    collect_relative_file_paths_recursive(base_dir, base_dir, &mut files)?;
+    files.sort();
+    Ok(files)
+}
+
+fn collect_relative_file_paths_recursive(
+    base_dir: &Path,
+    current_dir: &Path,
+    files: &mut Vec<String>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(current_dir)
+        .map_err(|error| format!("failed to read prerequisite directory: {error}"))?
+    {
+        let entry = entry.map_err(|error| format!("failed to read prerequisite directory entry: {error}"))?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            collect_relative_file_paths_recursive(base_dir, &path, files)?;
+            continue;
+        }
+
+        if !path.is_file() {
+            continue;
+        }
+
+        let relative_path = path
+            .strip_prefix(base_dir)
+            .map_err(|error| format!("failed to build prerequisite relative path: {error}"))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        files.push(relative_path);
+    }
+
+    Ok(())
 }
 
 fn resolve_modules_dir(app_dir: &Path) -> Result<PathBuf, String> {
@@ -54,41 +1101,51 @@ fn resolve_modules_dir(app_dir: &Path) -> Result<PathBuf, String> {
     Err("未找到内置前置组件资源目录".to_string())
 }
 
-fn detect_for_path(game_path: &Path, game_type: &str) -> Vec<GamePrerequisitePayload> {
-    let asiloader = detect_root_file("asiloader", "ASILoader", game_path.join("dinput8.dll"), true);
+fn detect_for_path_legacy(game_path: &Path, game_type: &str) -> Vec<GamePrerequisitePayload> {
+    let asiloader = detect_root_file("asiloader", "ASILoader", game_path.join("dinput8.dll"), true, true);
     let asiloader_detected = asiloader.detected;
 
-    let mut prereqs = vec![
+    vec![
         asiloader,
-        detect_asi_file("modloader", "ModLoader", "modloader.asi", game_path, asiloader_detected),
-        detect_directory("cleo", "CLEO", game_path.join("CLEO"), asiloader_detected),
-        detect_root_file("cleo_redux", "CLEO Redux", game_path.join("cleo_redux.asi"), asiloader_detected),
+        GamePrerequisitePayload {
+            key: "modloader".to_string(),
+            label: "ModLoader".to_string(),
+            detected: detect_asi_file_path("modloader.asi", game_path).is_some(),
+            can_install: true,
+            can_uninstall: true,
+            required: true,
+            scan_scope: SCRIPTS_PLUGINS_SCOPE.to_string(),
+            detected_path: detect_asi_file_path("modloader.asi", game_path)
+                .map(|path| path.to_string_lossy().to_string()),
+        },
+        detect_directory("cleo", "CLEO", game_path.join("CLEO"), asiloader_detected, true),
+        detect_asi_file(
+            "cleo_redux",
+            "CLEO Redux",
+            "cleo_redux.asi",
+            game_path,
+            asiloader_detected,
+            true,
+        ),
         detect_asi_file(
             "silentpatch",
             silent_patch_label(game_type),
             silent_patch_file_name(game_type),
             game_path,
             asiloader_detected,
+            true,
         ),
-        detect_root_file("d3d8to9", "D3D8to9", game_path.join("d3d8.dll"), true),
-    ];
-
-    let cleo_redux_in_plugins = game_path.join("plugins").join("cleo_redux.asi");
-    if cleo_redux_in_plugins.is_file() {
-        prereqs.push(GamePrerequisitePayload {
-            key: "cleo_redux_misplaced".to_string(),
-            label: "CLEO Redux (位置错误)".to_string(),
-            detected: true,
-            can_install: false,
-            scan_scope: SCRIPTS_PLUGINS_SCOPE.to_string(),
-            detected_path: Some(cleo_redux_in_plugins.to_string_lossy().to_string()),
-        });
-    }
-
-    prereqs
+        detect_root_file("d3d8to9", "D3D8to9", game_path.join("d3d8.dll"), true, true),
+    ]
 }
 
-fn detect_directory(key: &str, label: &str, directory_path: PathBuf, can_install: bool) -> GamePrerequisitePayload {
+fn detect_directory(
+    key: &str,
+    label: &str,
+    directory_path: PathBuf,
+    can_install: bool,
+    can_uninstall: bool,
+) -> GamePrerequisitePayload {
     let detected = directory_path.is_dir();
 
     GamePrerequisitePayload {
@@ -96,12 +1153,20 @@ fn detect_directory(key: &str, label: &str, directory_path: PathBuf, can_install
         label: label.to_string(),
         detected,
         can_install,
+        can_uninstall,
+        required: false,
         scan_scope: ROOT_SCOPE.to_string(),
         detected_path: detected.then(|| directory_path.to_string_lossy().to_string()),
     }
 }
 
-fn detect_root_file(key: &str, label: &str, file_path: PathBuf, can_install: bool) -> GamePrerequisitePayload {
+fn detect_root_file(
+    key: &str,
+    label: &str,
+    file_path: PathBuf,
+    can_install: bool,
+    can_uninstall: bool,
+) -> GamePrerequisitePayload {
     let detected = file_path.is_file();
 
     GamePrerequisitePayload {
@@ -109,6 +1174,8 @@ fn detect_root_file(key: &str, label: &str, file_path: PathBuf, can_install: boo
         label: label.to_string(),
         detected,
         can_install,
+        can_uninstall,
+        required: key == "asiloader" || key == "modloader",
         scan_scope: ROOT_SCOPE.to_string(),
         detected_path: detected.then(|| file_path.to_string_lossy().to_string()),
     }
@@ -120,174 +1187,27 @@ fn detect_asi_file(
     file_name: &str,
     game_path: &Path,
     can_install: bool,
+    can_uninstall: bool,
 ) -> GamePrerequisitePayload {
-    let detected_path = ["scripts", "plugins"]
-        .iter()
-        .map(|folder| game_path.join(folder))
-        .find_map(|directory| find_file_case_insensitive(&directory, file_name));
+    let detected_path = detect_asi_file_path(file_name, game_path);
 
     GamePrerequisitePayload {
         key: key.to_string(),
         label: label.to_string(),
         detected: detected_path.is_some(),
         can_install,
+        can_uninstall,
+        required: key == "modloader",
         scan_scope: SCRIPTS_PLUGINS_SCOPE.to_string(),
         detected_path: detected_path.map(|path| path.to_string_lossy().to_string()),
     }
 }
 
-fn install_silent_patch(modules_dir: &Path, game_path: &Path, game_type: &str) -> Result<(), String> {
-    let module_dir = modules_dir.join(silent_patch_module_dir(game_type));
-    if !module_dir.is_dir() {
-        return Err(format!(
-            "未找到 SilentPatch 安装资源: {}",
-            module_dir.to_string_lossy()
-        ));
-    }
-
-    let scripts_dir = game_path.join("scripts");
-    fs::create_dir_all(&scripts_dir)
-        .map_err(|error| format!("failed to create scripts directory: {error}"))?;
-
-    let entries = fs::read_dir(&module_dir)
-        .map_err(|error| format!("failed to read module directory: {error}"))?;
-
-    for entry in entries.flatten() {
-        let source_path = entry.path();
-        let file_name = match source_path.file_name() {
-            Some(value) => value.to_owned(),
-            None => continue,
-        };
-
-        if source_path.is_dir() {
-            if file_name.to_string_lossy().eq_ignore_ascii_case("data") {
-                copy_directory_recursive(&source_path, &game_path.join("data"))?;
-            }
-            continue;
-        }
-
-        let lower_name = file_name.to_string_lossy().to_ascii_lowercase();
-        if lower_name.ends_with(".asi") || lower_name.ends_with(".ini") {
-            copy_file_to(&source_path, &scripts_dir.join(file_name))?;
-        }
-    }
-
-    Ok(())
-}
-
-fn install_modloader(modules_dir: &Path, game_path: &Path) -> Result<(), String> {
-    let module_dir = modules_dir.join("ModLoader");
-    if !module_dir.is_dir() {
-        return Err(format!(
-            "未找到 ModLoader 安装资源: {}",
-            module_dir.to_string_lossy()
-        ));
-    }
-    
-    // As requested: modloader goes to scripts
-    let scripts_dir = game_path.join("scripts");
-    copy_directory_recursive(&module_dir, &scripts_dir)
-}
-
-fn install_cleo(modules_dir: &Path, game_path: &Path, game_type: &str) -> Result<(), String> {
-    let cleo_folder_name = match game_type.trim().to_ascii_lowercase().as_str() {
-        "iii" => "CLEO.III",
-        "vc" => "CLEO.VC",
-        _ => "CLEO.SA",
-    };
-    
-    let module_dir = modules_dir.join(cleo_folder_name);
-    if !module_dir.is_dir() {
-        return Err(format!(
-            "未找到 {} 安装资源: {}",
-            cleo_folder_name,
-            module_dir.to_string_lossy()
-        ));
-    }
-    
-    copy_directory_recursive(&module_dir, game_path)
-}
-
-fn install_cleo_redux(modules_dir: &Path, game_path: &Path) -> Result<(), String> {
-    let module_dir = modules_dir.join("CLEO.Redux");
-    if !module_dir.is_dir() {
-        return Err(format!(
-            "未找到 CLEO.Redux 安装资源: {}",
-            module_dir.to_string_lossy()
-        ));
-    }
-    
-    // As requested: asi installs to game root, others to plugins
-    let plugins_dir = game_path.join("plugins");
-    
-    let entries = fs::read_dir(&module_dir)
-        .map_err(|error| format!("failed to read CLEO.Redux directory: {error}"))?;
-
-    for entry in entries.flatten() {
-        let source_path = entry.path();
-        let file_name = match source_path.file_name() {
-            Some(value) => value.to_owned(),
-            None => continue,
-        };
-        
-        if source_path.is_file() {
-            let lower_name = file_name.to_string_lossy().to_ascii_lowercase();
-            if lower_name.ends_with(".asi") {
-                copy_file_to(&source_path, &game_path.join(&file_name))?;
-            } else {
-                copy_file_to(&source_path, &plugins_dir.join(&file_name))?;
-            }
-        } else if source_path.is_dir() {
-            copy_directory_recursive(&source_path, &plugins_dir.join(&file_name))?;
-        }
-    }
-    
-    Ok(())
-}
-
-fn copy_file_to(source_path: &Path, target_path: &Path) -> Result<(), String> {
-    if !source_path.is_file() {
-        return Err(format!(
-            "未找到安装文件: {}",
-            source_path.to_string_lossy()
-        ));
-    }
-
-    if let Some(parent) = target_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| format!("failed to create target directory: {error}"))?;
-    }
-
-    fs::copy(source_path, target_path).map_err(|error| {
-        format!(
-            "failed to copy file {} -> {}: {error}",
-            source_path.to_string_lossy(),
-            target_path.to_string_lossy()
-        )
-    })?;
-
-    Ok(())
-}
-
-fn copy_directory_recursive(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
-    fs::create_dir_all(target_dir)
-        .map_err(|error| format!("failed to create target directory: {error}"))?;
-
-    let entries = fs::read_dir(source_dir)
-        .map_err(|error| format!("failed to read source directory: {error}"))?;
-
-    for entry in entries.flatten() {
-        let source_path = entry.path();
-        let target_path = target_dir.join(entry.file_name());
-
-        if source_path.is_dir() {
-            copy_directory_recursive(&source_path, &target_path)?;
-        } else {
-            copy_file_to(&source_path, &target_path)?;
-        }
-    }
-
-    Ok(())
+fn detect_asi_file_path(file_name: &str, game_path: &Path) -> Option<PathBuf> {
+    ["scripts", "plugins"]
+        .iter()
+        .map(|folder| game_path.join(folder))
+        .find_map(|directory| find_file_case_insensitive(&directory, file_name))
 }
 
 fn find_file_case_insensitive(directory: &Path, file_name: &str) -> Option<PathBuf> {
@@ -338,5 +1258,42 @@ fn silent_patch_module_dir(game_type: &str) -> &'static str {
         "iii" => "SilentPatchIII",
         "vc" => "SilentPatchVC",
         _ => "SilentPatchSA",
+    }
+}
+
+fn silent_patch_modloader_wrapper_dir(game_type: &str) -> String {
+    format!("[G2M] {}", silent_patch_label(game_type))
+}
+
+fn cleo_canonical_asi_target(game_type: &str) -> String {
+    format!("plugins/{}", cleo_primary_asi_name(game_type))
+}
+
+fn cleo_primary_asi_name(game_type: &str) -> &'static str {
+    match game_type.trim().to_ascii_lowercase().as_str() {
+        "iii" => "III.CLEO.asi",
+        "vc" => "VC.CLEO.asi",
+        _ => "CLEO.asi",
+    }
+}
+
+fn cleo_asi_file_names(game_type: &str) -> Vec<&'static str> {
+    match game_type.trim().to_ascii_lowercase().as_str() {
+        "iii" => vec!["III.CLEO.asi", "CLEO.asi", "cleo.asi"],
+        "vc" => vec!["VC.CLEO.asi", "CLEO.asi", "cleo.asi"],
+        _ => vec!["CLEO.asi", "cleo.asi"],
+    }
+}
+
+fn primary_asi_rule_for_key(prerequisite_key: &str, game_type: &str) -> Option<(String, Vec<&'static str>)> {
+    match prerequisite_key {
+        "modloader" => Some(("scripts/modloader.asi".to_string(), vec!["modloader.asi"])),
+        "cleo" => Some((cleo_canonical_asi_target(game_type), cleo_asi_file_names(game_type))),
+        "cleo_redux" => Some(("plugins/cleo_redux.asi".to_string(), vec!["cleo_redux.asi"])),
+        "silentpatch" => Some((
+            format!("scripts/{}", silent_patch_file_name(game_type)),
+            vec![silent_patch_file_name(game_type)],
+        )),
+        _ => None,
     }
 }
