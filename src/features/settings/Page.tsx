@@ -18,7 +18,7 @@ import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
 import { G2MPageHeroCard } from "@/components/g2m/pageHeroCard"
-import { G2MPanel, G2MPill, G2MSubtlePanel } from "@/components/g2m/surface"
+import { G2MPanel, G2MSubtlePanel } from "@/components/g2m/surface"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
 import { ChoiceCard, LanguageCard, ToggleCard } from "@/features/settings/components/Cards"

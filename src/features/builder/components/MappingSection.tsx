@@ -8,7 +8,7 @@ import { ModMappingWorkbench } from "@/components/g2m/ModMappingWorkbench"
 import { Button } from "@/components/ui/button"
 import { G2MPanel } from "@/components/g2m/surface"
 import { SectionHeading } from "@/features/builder/components/SectionHeading"
-import type { DragPayload } from "@/features/builder/hooks/useBuilder"
+import type { DragPayload } from "@/features/builder/hooks/useMappingActions"
 import type { BuilderGameTargetNode, GameTypeTarget, ModImportFileEntry } from "@/lib/g2m"
 
 function MappingSection({
