@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub(crate) struct StoragePaths {
-    pub(crate) assets_dir: PathBuf,
+    pub(crate) resources_dir: PathBuf,
     pub(crate) resource_dir: PathBuf,
     pub(crate) database_path: PathBuf,
 }
@@ -23,8 +23,8 @@ pub(crate) fn ensure_storage(app: &AppHandle) -> Result<StoragePaths, String> {
         .parent()
         .map(Path::to_path_buf)
         .ok_or_else(|| "failed to resolve application directory".to_string())?;
-    let assets_dir = app_dir.join("assets");
-    let config_dir = assets_dir.join("config");
+    let resources_dir = app_dir.join("resources");
+    let config_dir = resources_dir.join("config");
     let legacy_config_dir = app_dir.join("config");
 
     fs::create_dir_all(&config_dir)
@@ -38,7 +38,7 @@ pub(crate) fn ensure_storage(app: &AppHandle) -> Result<StoragePaths, String> {
     migrate_legacy_settings_to_database(&database_path, &app_dir.join("settings.json"))?;
 
     Ok(StoragePaths {
-        assets_dir,
+        resources_dir,
         resource_dir: app
             .path()
             .resource_dir()

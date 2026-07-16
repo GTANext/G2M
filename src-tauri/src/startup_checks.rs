@@ -45,7 +45,7 @@ fn resolve_webview2_installer_path() -> Option<PathBuf> {
         .ok()?
         .parent()
         .map(Path::to_path_buf)
-        .map(|resource_dir| resource_dir.join("Webview2Setup.exe"))
+        .map(|resource_dir| resource_dir.join("resources").join("Webview2Setup.exe"))
         .filter(|path| path.is_file())
 }
 

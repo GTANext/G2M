@@ -51,9 +51,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": {
-      "assets/": ""
-    },
+    "resources": [
+      "resources/**"
+    ],
     "icon": [
       "icons/logo.png",
       "icons/favicon.ico"

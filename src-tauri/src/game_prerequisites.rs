@@ -39,7 +39,7 @@ struct SilentPatchDefinition {
 struct PrerequisiteInstallPlan {
     owner_id: String,
     storage_dir_name: String,
-    source_module_dir: PathBuf,
+    source_archive_path: PathBuf,
     files: Vec<PrerequisiteFileMapping>,
 }
 
@@ -293,7 +293,7 @@ fn remove_install_plan(game_path: &Path, plan: &PrerequisiteInstallPlan) -> Resu
 
 fn stage_workspace_source(game_path: &Path, plan: &PrerequisiteInstallPlan) -> Result<PathBuf, String> {
     let workspace_source_dir = resolve_workspace_source_dir(game_path, &plan.storage_dir_name);
-    refresh_workspace_source(&plan.source_module_dir, &workspace_source_dir)?;
+    refresh_workspace_source(&plan.source_archive_path, &workspace_source_dir)?;
     Ok(workspace_source_dir)
 }
 
@@ -699,32 +699,42 @@ fn build_primary_asi_candidate_paths(
     candidates
 }
 
-fn refresh_workspace_source(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
-    if !source_dir.is_dir() {
-        return Err(format!(
-            "未找到前置组件资源目录: {}",
-            source_dir.to_string_lossy()
-        ));
-    }
-
+fn refresh_workspace_source(source_archive_path: &Path, target_dir: &Path) -> Result<(), String> {
     remove_path_if_exists(target_dir)?;
     fs::create_dir_all(target_dir)
         .map_err(|error| format!("failed to create prerequisite workspace directory: {error}"))?;
-    copy_directory_contents(source_dir, target_dir)
+    extract_archive_contents(source_archive_path, target_dir)
 }
 
-fn copy_directory_contents(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
-    for entry in fs::read_dir(source_dir)
-        .map_err(|error| format!("failed to read prerequisite source directory: {error}"))?
-    {
-        let entry = entry.map_err(|error| format!("failed to read prerequisite source entry: {error}"))?;
-        let source_path = entry.path();
-        let target_path = target_dir.join(entry.file_name());
+fn extract_archive_contents(source_archive_path: &Path, target_dir: &Path) -> Result<(), String> {
+    let archive_file = fs::File::open(source_archive_path).map_err(|error| {
+        format!(
+            "failed to open prerequisite archive {}: {error}",
+            source_archive_path.display()
+        )
+    })?;
+    let mut archive = zip::ZipArchive::new(archive_file).map_err(|error| {
+        format!(
+            "failed to read prerequisite archive {}: {error}",
+            source_archive_path.display()
+        )
+    })?;
 
-        if source_path.is_dir() {
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(|error| {
+            format!(
+                "failed to read prerequisite archive entry from {}: {error}",
+                source_archive_path.display()
+            )
+        })?;
+        let Some(relative_path) = entry.enclosed_name().map(Path::to_path_buf) else {
+            continue;
+        };
+        let target_path = target_dir.join(relative_path);
+
+        if entry.is_dir() {
             fs::create_dir_all(&target_path)
                 .map_err(|error| format!("failed to create prerequisite target directory: {error}"))?;
-            copy_directory_contents(&source_path, &target_path)?;
             continue;
         }
 
@@ -733,11 +743,17 @@ fn copy_directory_contents(source_dir: &Path, target_dir: &Path) -> Result<(), S
                 .map_err(|error| format!("failed to create prerequisite parent directory: {error}"))?;
         }
 
-        fs::copy(&source_path, &target_path).map_err(|error| {
+        let mut output_file = fs::File::create(&target_path).map_err(|error| {
             format!(
-                "failed to copy prerequisite file {} -> {}: {error}",
-                source_path.to_string_lossy(),
-                target_path.to_string_lossy()
+                "failed to create prerequisite extracted file {}: {error}",
+                target_path.display()
+            )
+        })?;
+        io::copy(&mut entry, &mut output_file).map_err(|error| {
+            format!(
+                "failed to extract prerequisite file from {} to {}: {error}",
+                source_archive_path.display(),
+                target_path.display()
             )
         })?;
     }
@@ -787,12 +803,15 @@ fn build_single_file_definition(
     required: bool,
     can_uninstall: bool,
 ) -> Result<PrerequisiteDefinition, String> {
-    let source_module_dir = modules_dir.join(module_dir_name);
-    let source_file_path = source_module_dir.join(relative_source_path);
-    if !source_file_path.is_file() {
+    let source_archive_path = modules_dir.join(format!("{module_dir_name}.zip"));
+    let relative_paths = collect_relative_file_paths(&source_archive_path)?;
+    if !relative_paths
+        .iter()
+        .any(|path| path.eq_ignore_ascii_case(relative_source_path))
+    {
         return Err(format!(
             "未找到前置组件资源文件: {}",
-            source_file_path.to_string_lossy()
+            relative_source_path
         ));
     }
 
@@ -805,7 +824,7 @@ fn build_single_file_definition(
         plan: PrerequisiteInstallPlan {
             owner_id: format!("prerequisite-{storage_dir_name}"),
             storage_dir_name: storage_dir_name.to_string(),
-            source_module_dir,
+            source_archive_path,
             files: vec![PrerequisiteFileMapping {
                 relative_source_path: relative_source_path.to_string(),
                 target_path: target_path.to_string(),
@@ -815,8 +834,8 @@ fn build_single_file_definition(
 }
 
 fn build_modloader_definition(modules_dir: &Path) -> Result<PrerequisiteDefinition, String> {
-    let source_module_dir = modules_dir.join("ModLoader");
-    let files = collect_file_mappings(&source_module_dir, |relative_path| {
+    let source_archive_path = modules_dir.join("ModLoader.zip");
+    let files = collect_file_mappings(&source_archive_path, |relative_path| {
         if relative_path.eq_ignore_ascii_case("modloader.asi") {
             return Some("scripts/modloader.asi".to_string());
         }
@@ -835,30 +854,22 @@ fn build_modloader_definition(modules_dir: &Path) -> Result<PrerequisiteDefiniti
         plan: PrerequisiteInstallPlan {
             owner_id: "prerequisite-modloader".to_string(),
             storage_dir_name: "modloader".to_string(),
-            source_module_dir,
+            source_archive_path,
             files,
         },
     })
 }
 
 fn build_cleo_definition(modules_dir: &Path, game_type: &str) -> Result<PrerequisiteDefinition, String> {
-    let (module_dir_name, storage_dir_name) = match game_type.trim().to_ascii_lowercase().as_str() {
-        "iii" => ("CLEO.III", "cleo-iii"),
-        "vc" => ("CLEO.VC", "cleo-vc"),
-        _ => ("CLEO.SA", "cleo-sa"),
+    let (archive_name, storage_dir_name) = match game_type.trim().to_ascii_lowercase().as_str() {
+        "iii" => ("III.zip", "cleo-iii"),
+        "vc" => ("VC.zip", "cleo-vc"),
+        _ => ("SA.zip", "cleo-sa"),
     };
-    let source_module_dir = modules_dir.join(module_dir_name);
-    let cleo_folder_name = source_module_dir
-        .read_dir()
-        .ok()
-        .and_then(|entries| {
-            entries
-                .flatten()
-                .map(|entry| entry.file_name().to_string_lossy().to_string())
-                .find(|name| name.eq_ignore_ascii_case("cleo"))
-        })
-        .unwrap_or_else(|| "CLEO".to_string());
-    let files = collect_file_mappings_many(&source_module_dir, |relative_path| {
+    let source_archive_path = modules_dir.join("CLEO").join(archive_name);
+    let cleo_folder_name =
+        detect_archive_folder_name(&source_archive_path, "cleo")?.unwrap_or_else(|| "CLEO".to_string());
+    let files = collect_file_mappings_many(&source_archive_path, |relative_path| {
         if relative_path.to_ascii_lowercase().ends_with(".asi") {
             let file_name = Path::new(relative_path).file_name()?.to_string_lossy().to_string();
             return Some(vec![format!("plugins/{file_name}")]);
@@ -883,15 +894,15 @@ fn build_cleo_definition(modules_dir: &Path, game_type: &str) -> Result<Prerequi
         plan: PrerequisiteInstallPlan {
             owner_id: format!("prerequisite-{storage_dir_name}"),
             storage_dir_name: storage_dir_name.to_string(),
-            source_module_dir,
+            source_archive_path,
             files,
         },
     })
 }
 
 fn build_cleo_redux_definition(modules_dir: &Path) -> Result<PrerequisiteDefinition, String> {
-    let source_module_dir = modules_dir.join("CLEO.Redux");
-    let files = collect_file_mappings_many(&source_module_dir, |relative_path| {
+    let source_archive_path = modules_dir.join("CLEO").join("Redux.zip");
+    let files = collect_file_mappings_many(&source_archive_path, |relative_path| {
         if relative_path.eq_ignore_ascii_case("cleo_redux.asi") {
             return Some(vec!["plugins/cleo_redux.asi".to_string()]);
         }
@@ -913,7 +924,7 @@ fn build_cleo_redux_definition(modules_dir: &Path) -> Result<PrerequisiteDefinit
         plan: PrerequisiteInstallPlan {
             owner_id: "prerequisite-cleo-redux".to_string(),
             storage_dir_name: "cleo-redux".to_string(),
-            source_module_dir,
+            source_archive_path,
             files,
         },
     })
@@ -923,12 +934,16 @@ fn build_silent_patch_definition(
     modules_dir: &Path,
     game_type: &str,
 ) -> Result<SilentPatchDefinition, String> {
-    let module_dir_name = silent_patch_module_dir(game_type);
+    let archive_name = match game_type.trim().to_ascii_lowercase().as_str() {
+        "iii" => "III.zip",
+        "vc" => "VC.zip",
+        _ => "SA.zip",
+    };
     let storage_dir_name = format!("silentpatch-{}", game_type.trim().to_ascii_lowercase());
     let owner_id = format!("prerequisite-{storage_dir_name}");
-    let source_module_dir = modules_dir.join(module_dir_name);
+    let source_archive_path = modules_dir.join("SilentPatch").join(archive_name);
 
-    let core_files = collect_file_mappings(&source_module_dir, |relative_path| {
+    let core_files = collect_file_mappings(&source_archive_path, |relative_path| {
         let lower_path = relative_path.to_ascii_lowercase();
         if lower_path.ends_with(".asi") || lower_path.ends_with(".ini") {
             let file_name = Path::new(relative_path).file_name()?.to_string_lossy().to_string();
@@ -939,13 +954,13 @@ fn build_silent_patch_definition(
     })?;
 
     let wrapper_dir = silent_patch_modloader_wrapper_dir(game_type);
-    let modloader_data_files = collect_file_mappings(&source_module_dir, |relative_path| {
+    let modloader_data_files = collect_file_mappings(&source_archive_path, |relative_path| {
         relative_path
             .strip_prefix("data/")
             .map(|_| format!("scripts/modloader/{wrapper_dir}/{relative_path}"))
     })?;
 
-    let direct_data_files = collect_file_mappings(&source_module_dir, |relative_path| {
+    let direct_data_files = collect_file_mappings(&source_archive_path, |relative_path| {
         relative_path
             .strip_prefix("data/")
             .map(|_| relative_path.to_string())
@@ -956,39 +971,32 @@ fn build_silent_patch_definition(
         core_plan: PrerequisiteInstallPlan {
             owner_id: owner_id.clone(),
             storage_dir_name: storage_dir_name.clone(),
-            source_module_dir: source_module_dir.clone(),
+            source_archive_path: source_archive_path.clone(),
             files: core_files,
         },
         modloader_data_plan: PrerequisiteInstallPlan {
             owner_id: owner_id.clone(),
             storage_dir_name: storage_dir_name.clone(),
-            source_module_dir: source_module_dir.clone(),
+            source_archive_path: source_archive_path.clone(),
             files: modloader_data_files,
         },
         direct_data_plan: PrerequisiteInstallPlan {
             owner_id,
             storage_dir_name,
-            source_module_dir,
+            source_archive_path,
             files: direct_data_files,
         },
     })
 }
 
 fn collect_file_mappings<F>(
-    source_module_dir: &Path,
+    source_archive_path: &Path,
     mut map_target_path: F,
 ) -> Result<Vec<PrerequisiteFileMapping>, String>
 where
     F: FnMut(&str) -> Option<String>,
 {
-    if !source_module_dir.is_dir() {
-        return Err(format!(
-            "未找到前置组件资源目录: {}",
-            source_module_dir.to_string_lossy()
-        ));
-    }
-
-    let relative_paths = collect_relative_file_paths(source_module_dir)?;
+    let relative_paths = collect_relative_file_paths(source_archive_path)?;
     let files = relative_paths
         .into_iter()
         .filter_map(|relative_path| {
@@ -1001,8 +1009,8 @@ where
 
     if files.is_empty() {
         return Err(format!(
-            "前置组件资源目录中没有可安装文件: {}",
-            source_module_dir.to_string_lossy()
+            "前置组件资源包中没有可安装文件: {}",
+            source_archive_path.to_string_lossy()
         ));
     }
 
@@ -1010,20 +1018,13 @@ where
 }
 
 fn collect_file_mappings_many<F>(
-    source_module_dir: &Path,
+    source_archive_path: &Path,
     mut map_target_paths: F,
 ) -> Result<Vec<PrerequisiteFileMapping>, String>
 where
     F: FnMut(&str) -> Option<Vec<String>>,
 {
-    if !source_module_dir.is_dir() {
-        return Err(format!(
-            "未找到前置组件资源目录: {}",
-            source_module_dir.to_string_lossy()
-        ));
-    }
-
-    let relative_paths = collect_relative_file_paths(source_module_dir)?;
+    let relative_paths = collect_relative_file_paths(source_archive_path)?;
     let files = relative_paths
         .into_iter()
         .flat_map(|relative_path| {
@@ -1039,54 +1040,69 @@ where
 
     if files.is_empty() {
         return Err(format!(
-            "前置组件资源目录中没有可安装文件: {}",
-            source_module_dir.to_string_lossy()
+            "前置组件资源包中没有可安装文件: {}",
+            source_archive_path.to_string_lossy()
         ));
     }
 
     Ok(files)
 }
 
-fn collect_relative_file_paths(base_dir: &Path) -> Result<Vec<String>, String> {
+fn collect_relative_file_paths(source_archive_path: &Path) -> Result<Vec<String>, String> {
+    if !source_archive_path.is_file() {
+        return Err(format!(
+            "未找到前置组件资源包: {}",
+            source_archive_path.to_string_lossy()
+        ));
+    }
+
+    let archive_file = fs::File::open(source_archive_path).map_err(|error| {
+        format!(
+            "failed to open prerequisite archive {}: {error}",
+            source_archive_path.display()
+        )
+    })?;
+    let mut archive = zip::ZipArchive::new(archive_file).map_err(|error| {
+        format!(
+            "failed to read prerequisite archive {}: {error}",
+            source_archive_path.display()
+        )
+    })?;
     let mut files = Vec::new();
-    collect_relative_file_paths_recursive(base_dir, base_dir, &mut files)?;
+    for index in 0..archive.len() {
+        let entry = archive.by_index(index).map_err(|error| {
+            format!(
+                "failed to read prerequisite archive entry from {}: {error}",
+                source_archive_path.display()
+            )
+        })?;
+        if entry.is_dir() {
+            continue;
+        }
+        let Some(relative_path) = entry.enclosed_name() else {
+            continue;
+        };
+        files.push(relative_path.to_string_lossy().replace('\\', "/"));
+    }
     files.sort();
     Ok(files)
 }
 
-fn collect_relative_file_paths_recursive(
-    base_dir: &Path,
-    current_dir: &Path,
-    files: &mut Vec<String>,
-) -> Result<(), String> {
-    for entry in fs::read_dir(current_dir)
-        .map_err(|error| format!("failed to read prerequisite directory: {error}"))?
-    {
-        let entry = entry.map_err(|error| format!("failed to read prerequisite directory entry: {error}"))?;
-        let path = entry.path();
-
-        if path.is_dir() {
-            collect_relative_file_paths_recursive(base_dir, &path, files)?;
-            continue;
-        }
-
-        if !path.is_file() {
-            continue;
-        }
-
-        let relative_path = path
-            .strip_prefix(base_dir)
-            .map_err(|error| format!("failed to build prerequisite relative path: {error}"))?
-            .to_string_lossy()
-            .replace('\\', "/");
-        files.push(relative_path);
-    }
-
-    Ok(())
+fn detect_archive_folder_name(
+    source_archive_path: &Path,
+    expected_folder_name: &str,
+) -> Result<Option<String>, String> {
+    let relative_paths = collect_relative_file_paths(source_archive_path)?;
+    Ok(relative_paths.into_iter().find_map(|relative_path| {
+        let folder_name = relative_path.split('/').next()?;
+        folder_name
+            .eq_ignore_ascii_case(expected_folder_name)
+            .then(|| folder_name.to_string())
+    }))
 }
 
 fn resolve_modules_dir(paths: &StoragePaths) -> Result<PathBuf, String> {
-    let modules_dir = paths.resource_dir.join("modules");
+    let modules_dir = paths.resource_dir.join("resources").join("modules");
     if modules_dir.is_dir() {
         return Ok(modules_dir);
     }
@@ -1109,14 +1125,6 @@ fn silent_patch_label(game_type: &str) -> &'static str {
         "iii" => "SilentPatch III",
         "vc" => "SilentPatch VC",
         _ => "SilentPatch SA",
-    }
-}
-
-fn silent_patch_module_dir(game_type: &str) -> &'static str {
-    match game_type.trim().to_ascii_lowercase().as_str() {
-        "iii" => "SilentPatchIII",
-        "vc" => "SilentPatchVC",
-        _ => "SilentPatchSA",
     }
 }
 

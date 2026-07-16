@@ -105,7 +105,7 @@ fn bootstrap_app_payload(app: &AppHandle) -> Result<BootstrapPayload, String> {
     }
 
     Ok(BootstrapPayload {
-        data_dir: paths.assets_dir.to_string_lossy().to_string(),
+        data_dir: paths.resources_dir.to_string_lossy().to_string(),
         database_path: paths.database_path.to_string_lossy().to_string(),
         is_elevated: is_process_elevated(),
         games,
