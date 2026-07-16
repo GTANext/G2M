@@ -52,7 +52,7 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "resources/**"
+      "resources/"
     ],
     "icon": [
       "icons/logo.png",
