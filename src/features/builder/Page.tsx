@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 
 import { G2MPageHeroCard } from "@/components/g2m/pageHeroCard"
-import { ManifestSection, MappingSection } from "@/features/builder/components\MappingSection"
+import { ManifestSection, MappingSection } from "@/features/builder/components/MappingSection"
 import { MetadataSection } from "@/features/builder/components/MetadataSection"
 import { SourceSection } from "@/features/builder/components/SourceSection"
 import { useBuilder } from "@/features/builder/hooks/useBuilder"
