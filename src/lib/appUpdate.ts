@@ -223,16 +223,15 @@ export function resolvePreferredGitHubAsset(
     return null
   }
 
-  return (
-    assets.find((asset) => matchesAssetPattern(asset.name, /^g2m_setup\.exe$/i)) ??
-    assets.find((asset) => matchesAssetPattern(asset.name, /^g2m[-_ ]setup\.exe$/i)) ??
-    assets.find((asset) => matchesAssetPattern(asset.name, /setup.*\.exe$/i)) ??
-    assets.find((asset) => matchesAssetPattern(asset.name, /\.msi$/i)) ??
-    assets.find((asset) => matchesAssetPattern(asset.name, /\.exe$/i)) ??
-    assets.find((asset) => matchesAssetPattern(asset.name, /\.zip$/i)) ??
-    assets[0] ??
-    null
-  )
+  return assets.reduce<GitHubReleaseAssetPayload | null>((best, asset) => {
+    if (!best) {
+      return asset
+    }
+
+    return scoreGitHubAssetName(asset.name) > scoreGitHubAssetName(best.name)
+      ? asset
+      : best
+  }, null)
 }
 
 export function isRemoteVersionNewer(
@@ -361,4 +360,63 @@ function isDownloadableGitHubAsset(asset: GitHubReleaseAssetPayload | null | und
 function matchesAssetPattern(name: string | null | undefined, pattern: RegExp) {
   const normalized = normalizeVersionValue(name)
   return normalized ? pattern.test(normalized) : false
+}
+
+function scoreGitHubAssetName(name: string | null | undefined): number {
+  const normalized = normalizeVersionValue(name).toLowerCase()
+  if (!normalized) {
+    return 0
+  }
+
+  if (/(symbols?|pdb|debug|dev|sources?)/.test(normalized)) {
+    return -100
+  }
+
+  if (/(portable|green|standalone)/.test(normalized)) {
+    return -80
+  }
+
+  if (/(arm64|aarch64)/.test(normalized)) {
+    return -20
+  }
+
+  let score = 10
+
+  if (/^g2m_setup\.exe$/.test(normalized)) {
+    return 100
+  }
+
+  if (/^g2m[-_ ]setup\.exe$/.test(normalized)) {
+    return 95
+  }
+
+  if (/^g2m(?:[-_ .]v?\d[\w.-]*)?(?:[-_ .](?:alpha\d*|beta\d*|rc\d*|release))?(?:[-_ .](?:x64|x86_64|amd64|x86|arm64|aarch64))?[-_ ]setup\.exe$/.test(normalized)) {
+    score = 92
+  } else if (/^g2m.*setup\.exe$/.test(normalized)) {
+    score = 90
+  } else if (/setup\.exe$/.test(normalized) && normalized.includes("g2m")) {
+    score = 88
+  } else if (/(setup|installer).*(\.exe)$/.test(normalized)) {
+    score = 70
+  } else if (/\.msi$/.test(normalized)) {
+    score = 50
+  } else if (/\.exe$/.test(normalized)) {
+    score = 40
+  } else if (/\.zip$/.test(normalized)) {
+    score = 30
+  }
+
+  if (/(x64|x86_64|amd64)/.test(normalized)) {
+    score += 4
+  }
+
+  if (/(alpha|beta|rc|preview)/.test(normalized)) {
+    score += 2
+  }
+
+  if (/(nsis)/.test(normalized)) {
+    score += 1
+  }
+
+  return score
 }
