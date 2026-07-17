@@ -4,7 +4,8 @@
         "title": "G2M — Темный настольный контроль для стека GTA Mod"
     },
     "navbar": {
-        "goTop": "Наверх"
+        "goTop": "Наверх",
+        "issue": "Issue"
     },
     "hero": {
         "eyebrow": "Управление Mod",

@@ -4,7 +4,8 @@
         "title": "G2M — GTA Mod 構成を扱うダークデスクトップコントロール"
     },
     "navbar": {
-        "goTop": "トップへ戻る"
+        "goTop": "トップへ戻る",
+        "issue": "Issue"
     },
     "hero": {
         "eyebrow": "Mod 管理",

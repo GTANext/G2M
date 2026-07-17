@@ -4,7 +4,8 @@
         "title": "G2M — 面向 GTA Mod 堆栈的暗色桌面控制台"
     },
     "navbar": {
-        "goTop": "回到顶部"
+        "goTop": "回到顶部",
+        "issue": "问题反馈"
     },
     "hero": {
         "eyebrow": "Mod 管理",

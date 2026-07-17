@@ -4,7 +4,8 @@
         "title": "G2M — Dark desktop control for GTA mod stacks"
     },
     "navbar": {
-        "goTop": "Back to top"
+        "goTop": "Back to top",
+        "issue": "Issue"
     },
     "hero": {
         "eyebrow": "Mod management",
