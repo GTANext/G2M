@@ -4,7 +4,6 @@ import { GITHUB_URL, GTAMODX_URL } from '@/constants/links'
 
 import BlurText from './ui/BlurText.vue'
 import DotField from './ui/DotField.vue'
-import RotatingText from './ui/RotatingText.vue'
 
 const { t } = useI18n()
 
