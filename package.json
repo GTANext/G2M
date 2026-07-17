@@ -56,7 +56,6 @@
     "@types/react-beautiful-dnd": "^13.1.8",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
-    "yargs": "^17.8.1",
     "autoprefixer": "^10.5.3",
     "postcss": "^8.5.19",
     "tailwindcss": "^4.3.2",
