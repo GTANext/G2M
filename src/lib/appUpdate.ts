@@ -357,11 +357,6 @@ function isDownloadableGitHubAsset(asset: GitHubReleaseAssetPayload | null | und
   return true
 }
 
-function matchesAssetPattern(name: string | null | undefined, pattern: RegExp) {
-  const normalized = normalizeVersionValue(name)
-  return normalized ? pattern.test(normalized) : false
-}
-
 function scoreGitHubAssetName(name: string | null | undefined): number {
   const normalized = normalizeVersionValue(name).toLowerCase()
   if (!normalized) {
