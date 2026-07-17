@@ -1,39 +1,26 @@
 {
-  "name": "g2m-website",
-  "version": "0.0.0",
+  "name": "my-vue-app",
   "private": true,
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "run-p type-check \"build-only {@}\" --",
-    "preview": "vite preview",
-    "build-only": "vite build",
-    "docs:dev": "vitepress dev docs --port 4173",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs --port 4174",
-    "type-check": "vue-tsc --build",
-    "format": "prettier --write --experimental-cli src/"
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.2",
+    "gsap": "^3.13.0",
+    "motion-v": "^1.10.3",
     "tailwindcss": "^4.3.2",
-    "vue": "^3.5.38",
-    "vue-router": "^5.1.0"
+    "vue": "^3.5.39"
   },
   "devDependencies": {
-    "@tsconfig/node24": "^24.0.4",
-    "@types/node": "^24.13.2",
-    "@vitejs/plugin-vue": "^6.0.7",
+    "@types/node": "^24.13.3",
+    "@vitejs/plugin-vue": "^6.0.8",
     "@vue/tsconfig": "^0.9.1",
-    "npm-run-all2": "^9.0.2",
-    "prettier": "3.8.4",
-    "typescript": "~6.0.0",
-    "vite": "^8.0.16",
-    "vite-plugin-vue-devtools": "^8.1.2",
-    "vitepress": "^1.6.4",
-    "vue-tsc": "^3.3.5"
-  },
-  "engines": {
-    "node": "^22.18.0 || >=24.12.0"
+    "typescript": "~6.0.3",
+    "vite": "^8.1.4",
+    "vue-tsc": "^3.3.7"
   }
 }

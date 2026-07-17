@@ -1,0 +1,55 @@
+{
+    "common": {
+        "language": "语言",
+        "title": "G2M — 面向 GTA Mod 堆栈的暗色桌面控制台"
+    },
+    "navbar": {
+        "goTop": "回到顶部"
+    },
+    "hero": {
+        "eyebrow": "Mod 管理",
+        "title": "一站式 GTA Mod 管理",
+        "description": "从压缩包导入到前置检查，再到启动前确认当前状态，G2M 把整条流程收得更清楚，不用再手动翻文件夹和重复排查。",
+        "primaryCta": "下载"
+    },
+    "workflow": {
+        "eyebrow": "核心功能",
+        "title": "从工作区构建器到游戏启动，真正把 Mod 流程管起来",
+        "description": "这里讲 G2M 实际做的事：工作区构建器、目录映射、前置检测、冲突发现、一键启动。",
+        "tabs": {
+            "workspace": {
+                "label": "工作区构建器",
+                "eyebrow": "功能 1",
+                "title": "把 GTA 各版本目录、Mod 源、前置库拼成清晰的工作区",
+                "description": "G2M 会识别你的 III/VC/SA 游戏目录，你可以把 ZIP/文件夹拖进来，或者关联现有 Mod 目录，不用自己手动复制粘贴。",
+                "points": [
+                    "自动识别已安装的 GTA 版本（III/VC/SA）",
+                    "拖拽导入 ZIP 或选择本地 Mod 文件夹",
+                    "支持多工作区快速切换（比如“纯净档”“剧情档”“联机档”）"
+                ]
+            },
+            "mapping": {
+                "label": "目录映射与检测",
+                "eyebrow": "功能 2",
+                "title": "一眼看清每个 Mod 要放到哪里、前置缺不缺",
+                "description": "G2M 会解析常见 Mod 结构，自动匹配目标目录，同时扫描前置依赖（比如 ASI Loader、CLEO、SilentPatch）。",
+                "points": [
+                    "识别 Cleo、Scripts、Models、Data、Text 等典型目录",
+                    "前置缺失会标红并提示你补全",
+                    "显示哪些文件会覆盖、哪些会新增"
+                ]
+            },
+            "conflict": {
+                "label": "冲突检查",
+                "eyebrow": "功能 3",
+                "title": "启动前先发现 Mod 之间的文件冲突",
+                "description": "不用进游戏才发现 CTD，G2M 会提前列出多个 Mod 同时改同一个文件的地方，让你决定用哪个。",
+                "points": [
+                    "扫描所有已启用 Mod 的文件路径",
+                    "对冲突文件高亮显示并列出对应 Mod",
+                    "你可以优先选择“覆盖”或“保留现有”"
+                ]
+            }
+        }
+    }
+}

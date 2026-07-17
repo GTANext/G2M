@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+    color-scheme: dark;
+    --g2m-bg: #0b0f17;
+    --g2m-panel: #0c1019;
+    --g2m-line: rgba(255, 255, 255, 0.07);
+    --g2m-text: #f5f7fb;
+    --g2m-muted: rgba(245, 247, 251, 0.66);
+    --g2m-accent: #7a83ff;
+    --g2m-accent-soft: #5fd3c3;
+    --font-display: "Arial Narrow", "Bahnschrift", "Segoe UI", sans-serif;
+    --font-body: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+    background: var(--g2m-bg);
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 18%),
+        var(--g2m-bg);
+    color: var(--g2m-text);
+    font-family: var(--font-body);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+a {
+    -webkit-tap-highlight-color: transparent;
+}
+
+a {
+    text-decoration: none;
+}
+
+::selection {
+    background: rgba(122, 131, 255, 0.34);
+    color: #ffffff;
+}
+
+#app {
+    min-height: 100vh;
+}

@@ -1,0 +1,55 @@
+{
+    "common": {
+        "language": "Language",
+        "title": "G2M — Dark desktop control for GTA mod stacks"
+    },
+    "navbar": {
+        "goTop": "Back to top"
+    },
+    "hero": {
+        "eyebrow": "Mod management",
+        "title": "One-stop GTA Mod manager",
+        "description": "From archive import to prerequisite checks to launch-ready confirmation, G2M keeps the whole flow readable so people do not have to dig through folders and repeat the same checks by hand.",
+        "primaryCta": "Download"
+    },
+    "workflow": {
+        "eyebrow": "Core features",
+        "title": "From workspace builder to game launch, finally get your mod flow under control",
+        "description": "This covers what G2M actually does: workspace builder, directory mapping, prerequisite checks, conflict detection, one-click launch.",
+        "tabs": {
+            "workspace": {
+                "label": "Workspace Builder",
+                "eyebrow": "Feature 1",
+                "title": "Assemble a clear workspace with GTA game dirs, mod sources, and prerequisite libraries",
+                "description": "G2M detects your GTA III/VC/SA installations. You can drag in ZIPs or link existing mod folders, no manual copy-pasting required.",
+                "points": [
+                    "Auto-detect installed GTA versions (III/VC/SA)",
+                    "Drag-and-drop ZIP import or select local mod folders",
+                    "Quickly switch between multiple workspaces (e.g. “clean”, “story”, “multiplayer”) "
+                ]
+            },
+            "mapping": {
+                "label": "Directory Mapping & Checks",
+                "eyebrow": "Feature 2",
+                "title": "See at a glance where each mod goes and whether prerequisites are missing",
+                "description": "G2M parses common mod structures, auto-matches target directories, and scans for dependencies like ASI Loader, CLEO, SilentPatch.",
+                "points": [
+                    "Recognizes Cleo, Scripts, Models, Data, Text and other typical folders",
+                    "Highlights missing prerequisites in red with fix suggestions",
+                    "Shows exactly which files will be added or overwritten"
+                ]
+            },
+            "conflict": {
+                "label": "Conflict Scanner",
+                "eyebrow": "Feature 3",
+                "title": "Catch file conflicts between mods before launching the game",
+                "description": "No more CTDs after you get in-game. G2M lists where multiple mods touch the same file and lets you decide which one to use.",
+                "points": [
+                    "Scans file paths across all enabled mods",
+                    "Highlights conflicts and lists which mods are involved",
+                    "Let you choose “overwrite” or “keep existing” per conflict"
+                ]
+            }
+        }
+    }
+}
