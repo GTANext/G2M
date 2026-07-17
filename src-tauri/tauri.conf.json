@@ -40,14 +40,6 @@
       "csp": null
     }
   },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://api.gtamodx.com/g2m/update/{{target}}/{{current_version}}"
-      ],
-      "pubkey": ""
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",

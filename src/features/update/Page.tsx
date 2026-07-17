@@ -82,6 +82,17 @@ function Page({
             />
           </div>
 
+          {appUpdate.status === "error" && appUpdate.checkError ? (
+            <div className="mt-4 rounded-[20px] border border-amber-200/70 bg-amber-50/80 p-4 text-sm leading-6 text-amber-900 ring-1 ring-amber-100/80 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100 dark:ring-amber-400/10">
+              <p className="font-medium">{resolveCheckErrorDescription(appUpdate, t)}</p>
+              {appUpdate.checkError.message ? (
+                <p className="mt-2 break-all text-xs leading-5 text-amber-800/90 dark:text-amber-100/85">
+                  {t("update.checkErrorDetailsLabel")}: {appUpdate.checkError.message}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="mt-6 rounded-[24px] border border-black/5 bg-white/70 p-5 ring-1 ring-black/[0.03] dark:border-white/10 dark:bg-white/[0.03] dark:ring-white/[0.04]">
             <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
               {t("update.statusLabel")}
@@ -166,7 +177,7 @@ function resolveStatusDescription(
   }
 
   if (appUpdate.status === "error") {
-    return t("update.checkFailedDescription")
+    return resolveCheckErrorDescription(appUpdate, t)
   }
 
   return t("update.latestDescription", {
@@ -175,3 +186,17 @@ function resolveStatusDescription(
 }
 
 export { Page }
+
+function resolveCheckErrorDescription(
+  appUpdate: ReturnType<typeof useAppUpdate>,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  switch (appUpdate.checkError?.code) {
+    case "network":
+      return t("update.checkFailedDescriptionNetwork")
+    case "updater-manifest-invalid":
+      return t("update.checkFailedDescriptionManifest")
+    default:
+      return t("update.checkFailedDescriptionUnknown")
+  }
+}

@@ -9,11 +9,13 @@ import {
   G2M_GITHUB_RELEASES_API,
   normalizeVersionValue,
   isRemoteVersionNewer,
+  resolveAppUpdateError,
   resolvePreferredGitHubAsset,
   resolveGitHubReleaseVersion,
   resolveLatestGitHubRcRelease,
   type AppUpdateApiSource,
   type AppUpdateDownloadSource,
+  type AppUpdateErrorDetails,
   type GitHubReleasePayload,
 } from "@/lib/appUpdate"
 import type { ModxAppPayload } from "@/lib/modxAuth"
@@ -26,6 +28,7 @@ type AppUpdateState = {
   checkedAt: number | null
   releaseTag: string | null
   downloadAssetUrl: string | null
+  checkError: AppUpdateErrorDetails | null
 }
 
 type AppUpdateCache = {
@@ -49,6 +52,7 @@ const DEFAULT_APP_UPDATE_STATE: AppUpdateState = {
   checkedAt: null,
   releaseTag: null,
   downloadAssetUrl: null,
+  checkError: null,
 }
 
 function useAppUpdate(currentVersion: string | null | undefined) {
@@ -113,6 +117,7 @@ function useAppUpdate(currentVersion: string | null | undefined) {
           checkedAt: Date.now(),
           releaseTag: resolved.releaseTag,
           downloadAssetUrl: resolved.downloadAssetUrl,
+          checkError: null,
         }
 
         setState(nextState)
@@ -129,10 +134,12 @@ function useAppUpdate(currentVersion: string | null | undefined) {
           },
           resolveDownloadUrl,
         )
-      } catch {
+      } catch (error) {
+        const resolvedError = resolveAppUpdateError(error, "check")
         setState((current) => ({
           ...current,
           status: "error",
+          checkError: resolvedError,
         }))
       }
     },
@@ -170,34 +177,38 @@ async function fetchFromModx(
 ) {
   const payload = await requestModxApi<ModxAppPayload>("/mods/g2m")
   const remoteVersion = resolveModxVersion(payload)
+  if (!remoteVersion) {
+    throw new Error("Missing version in GTAMODX /mods/g2m response")
+  }
+
   const releaseTag = buildGitHubReleaseTag(remoteVersion)
-  const release = releaseTag ? await fetchGitHubReleaseByTag(releaseTag) : null
+  const release =
+    (releaseTag ? await fetchGitHubReleaseByTag(releaseTag) : null) ??
+    (await fetchLatestGitHubRcRelease())
   const preferredAsset = resolvePreferredGitHubAsset(release)
+  const resolvedReleaseTag =
+    buildGitHubReleaseTag(release?.tag_name ?? release?.name ?? "") || releaseTag
 
   return {
-    remoteVersion,
-    releaseTag,
+    remoteVersion: release ? resolveGitHubReleaseVersion(release) || remoteVersion : remoteVersion,
+    releaseTag: resolvedReleaseTag,
     downloadAssetUrl: preferredAsset?.browser_download_url?.trim() ?? null,
   }
 }
 
 async function fetchFromGitHub(downloadSource: AppUpdateDownloadSource) {
-  const response = await fetch(`${G2M_GITHUB_RELEASES_API}?per_page=10`)
-  if (!response.ok) {
-    throw new Error(response.statusText || "Failed to fetch GitHub releases")
-  }
+  const release = await fetchLatestGitHubRcRelease()
 
-  const releases = (await response.json()) as GitHubReleasePayload[]
-  const release = resolveLatestGitHubRcRelease(releases)
-  if (!release) {
-    throw new Error("Missing release")
+  const remoteVersion = resolveGitHubReleaseVersion(release)
+  if (!remoteVersion) {
+    throw new Error("Missing version in GitHub release response")
   }
 
   const releaseTag = buildGitHubReleaseTag(release.tag_name ?? release.name ?? "")
   const preferredAsset = resolvePreferredGitHubAsset(release)
 
   return {
-    remoteVersion: resolveGitHubReleaseVersion(release),
+    remoteVersion,
     releaseTag,
     downloadAssetUrl:
       preferredAsset?.browser_download_url?.trim() ??
@@ -250,6 +261,7 @@ function loadCachedAppUpdateState(
       checkedAt: parsed.checkedAt,
       releaseTag: parsed.releaseTag,
       downloadAssetUrl: parsed.downloadAssetUrl,
+      checkError: null,
     }
   } catch {
     return null
@@ -288,6 +300,21 @@ async function fetchGitHubReleaseByTag(tag: string): Promise<GitHubReleasePayloa
   }
 
   return (await response.json()) as GitHubReleasePayload
+}
+
+async function fetchLatestGitHubRcRelease(): Promise<GitHubReleasePayload> {
+  const response = await fetch(`${G2M_GITHUB_RELEASES_API}?per_page=10`)
+  if (!response.ok) {
+    throw new Error(response.statusText || "Failed to fetch GitHub releases")
+  }
+
+  const releases = (await response.json()) as GitHubReleasePayload[]
+  const release = resolveLatestGitHubRcRelease(releases)
+  if (!release) {
+    throw new Error("Missing release in GitHub releases response")
+  }
+
+  return release
 }
 
 function resolveModxVersion(payload: ModxAppPayload | null | undefined): string {

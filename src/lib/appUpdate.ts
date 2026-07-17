@@ -1,5 +1,17 @@
 export type AppUpdateApiSource = "gtamodx" | "github"
 export type AppUpdateDownloadSource = "proxy" | "official"
+export type AppUpdateErrorCode =
+  | "network"
+  | "updater-source-unsupported"
+  | "updater-pubkey-missing"
+  | "updater-signature-invalid"
+  | "updater-manifest-invalid"
+  | "updater-no-update"
+  | "unknown"
+export type AppUpdateErrorDetails = {
+  code: AppUpdateErrorCode
+  message: string
+}
 
 export type GitHubReleasePayload = {
   tag_name?: string | null
@@ -26,6 +38,108 @@ export const G2M_GITHUB_RELEASES_API = `https://api.github.com/repos/${G2M_GITHU
 export const G2M_GITHUB_RELEASES_URL = `https://github.com/${G2M_GITHUB_REPO}/releases`
 export const G2M_GITHUB_PROXY_RELEASES_URL = `https://gh-proxy.com/github.com/${G2M_GITHUB_REPO}/releases`
 export const G2M_GITHUB_PROXY_DOWNLOAD_PREFIX = "https://gh-proxy.com/"
+
+export function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message.trim()
+  }
+
+  if (typeof error === "string") {
+    return error.trim()
+  }
+
+  return String(error ?? "").trim()
+}
+
+export function resolveAppUpdateError(
+  error: unknown,
+  context: "check" | "install",
+): AppUpdateErrorDetails {
+  const message = normalizeErrorMessage(error)
+  const normalizedMessage = message.toLowerCase()
+
+  if (
+    context === "install" &&
+    normalizedMessage.includes("only supports gtamodx source")
+  ) {
+    return {
+      code: "updater-source-unsupported",
+      message,
+    }
+  }
+
+  if (
+    normalizedMessage.includes("pubkey") ||
+    normalizedMessage.includes("public key")
+  ) {
+    return {
+      code: "updater-pubkey-missing",
+      message,
+    }
+  }
+
+  if (
+    normalizedMessage.includes("signature") ||
+    normalizedMessage.includes("minisign") ||
+    normalizedMessage.includes("verify") ||
+    normalizedMessage.includes("verification")
+  ) {
+    return {
+      code: "updater-signature-invalid",
+      message,
+    }
+  }
+
+  if (
+    normalizedMessage.includes("manifest") ||
+    normalizedMessage.includes("json") ||
+    normalizedMessage.includes("serde") ||
+    normalizedMessage.includes("204") ||
+    normalizedMessage.includes("no content") ||
+    normalizedMessage.includes("missing version") ||
+    normalizedMessage.includes("missing release") ||
+    normalizedMessage.includes("missing url") ||
+    normalizedMessage.includes("missing signature")
+  ) {
+    return {
+      code: "updater-manifest-invalid",
+      message,
+    }
+  }
+
+  if (
+    normalizedMessage.includes("no update") ||
+    normalizedMessage.includes("already up to date")
+  ) {
+    return {
+      code: "updater-no-update",
+      message,
+    }
+  }
+
+  if (
+    normalizedMessage.includes("fetch") ||
+    normalizedMessage.includes("network") ||
+    normalizedMessage.includes("timeout") ||
+    normalizedMessage.includes("timed out") ||
+    normalizedMessage.includes("connection") ||
+    normalizedMessage.includes("dns") ||
+    normalizedMessage.includes("tls") ||
+    normalizedMessage.includes("certificate") ||
+    normalizedMessage.includes("socket") ||
+    normalizedMessage.includes("status")
+  ) {
+    return {
+      code: "network",
+      message,
+    }
+  }
+
+  return {
+    code: "unknown",
+    message,
+  }
+}
 
 export function normalizeVersionValue(value: string | null | undefined): string {
   return typeof value === "string" ? value.trim() : ""
@@ -110,6 +224,8 @@ export function resolvePreferredGitHubAsset(
   }
 
   return (
+    assets.find((asset) => matchesAssetPattern(asset.name, /^g2m_setup\.exe$/i)) ??
+    assets.find((asset) => matchesAssetPattern(asset.name, /^g2m[-_ ]setup\.exe$/i)) ??
     assets.find((asset) => matchesAssetPattern(asset.name, /setup.*\.exe$/i)) ??
     assets.find((asset) => matchesAssetPattern(asset.name, /\.msi$/i)) ??
     assets.find((asset) => matchesAssetPattern(asset.name, /\.exe$/i)) ??
