@@ -162,6 +162,9 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.3.2
         version: 4.3.2(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0))
+      gsap:
+        specifier: ^3.13.0
+        version: 3.15.0
       motion-v:
         specifier: ^1.10.3
         version: 1.10.3(@vueuse/core@14.3.0(vue@3.5.39(typescript@6.0.3)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vue@3.5.39(typescript@6.0.3))
