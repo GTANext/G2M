@@ -44,6 +44,14 @@ export type ModxRemoteModPayload = {
   [key: string]: unknown
 }
 
+export type ModxAppPayload = {
+  version?: string | null
+  latestVersion?: string | null
+  currentVersion?: string | null
+  buildVersion?: string | null
+  [key: string]: unknown
+}
+
 export async function loginToModx(email: string, password: string): Promise<ModxLoginState> {
   const payload = await requestModx<ModxLoginPayload>("/auth/login", {
     method: "POST",
@@ -112,15 +120,12 @@ export async function fetchModxModBySlug(
     throw new Error("Missing mod slug")
   }
 
-  const headers: HeadersInit = {}
-  const normalizedLoginId = loginId?.trim()
-  if (normalizedLoginId) {
-    headers["X-Login-Id"] = normalizedLoginId
-  }
+  return fetchModxResource<ModxRemoteModPayload>(`/mods/${encodeURIComponent(normalizedSlug)}`, loginId)
+}
 
-  return requestModx<ModxRemoteModPayload>(`/mods/${encodeURIComponent(normalizedSlug)}`, {
-    headers,
-  })
+export async function fetchModxAppVersion(loginId?: string | null): Promise<string> {
+  const payload = await fetchModxResource<ModxAppPayload>("/mods/g2m", loginId)
+  return resolveModxVersion(payload)
 }
 
 export function loadStoredModxLoginState(): ModxLoginState | null {
@@ -171,6 +176,23 @@ export function getModxAuthHeaders(state: ModxLoginState | null | undefined): He
   return {
     "X-Login-Id": state.loginId,
   }
+}
+
+export async function fetchModxResource<T = unknown>(
+  path: string,
+  loginId?: string | null,
+  init?: RequestInit,
+): Promise<T> {
+  const normalizedLoginId = loginId?.trim()
+  const headers = new Headers(init?.headers)
+  if (normalizedLoginId) {
+    headers.set("X-Login-Id", normalizedLoginId)
+  }
+
+  return requestModx<T>(path, {
+    ...init,
+    headers,
+  })
 }
 
 async function requestModx<T = unknown>(
@@ -272,4 +294,20 @@ function normalizeUser(user: ModxAuthUser | null | undefined): ModxAuthUser | nu
     avatar,
     avatarUrl: avatar,
   }
+}
+
+function resolveModxVersion(payload: ModxAppPayload | null | undefined): string {
+  if (!payload || typeof payload !== "object") {
+    return ""
+  }
+
+  const candidateKeys = ["version", "latestVersion", "currentVersion", "buildVersion"] as const
+  for (const key of candidateKeys) {
+    const value = payload[key]
+    if (typeof value === "string" && value.trim()) {
+      return value.trim()
+    }
+  }
+
+  return ""
 }

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
-import { useModxAuth } from "@/components/app/modxAuthProvider"
 import { formatApiErrorMessage } from "@/lib/api"
+import { normalizeVersionValue } from "@/lib/appUpdate"
 import type { ManagedMod } from "@/lib/g2m"
-import { fetchModxModBySlug, type ModxRemoteModPayload } from "@/lib/modxAuth"
+import type { ModxRemoteModPayload } from "@/lib/modxAuth"
+import { useModxApi } from "@/hooks/useModxApi"
 
 export type ModUpdateCheckState = {
   status: "idle" | "checking" | "success"
@@ -52,13 +53,9 @@ function resolveRemoteModVersion(mod: ModxRemoteModPayload | null): string {
   return ""
 }
 
-function normalizeVersionValue(value: string | null | undefined): string {
-  return typeof value === "string" ? value.trim() : ""
-}
-
 export function useModUpdateCheck(mod: ManagedMod | null) {
   const { t } = useTranslation()
-  const { authState } = useModxAuth()
+  const { requestModxApi } = useModxApi()
   const [updateCheckState, setUpdateCheckState] = useState<ModUpdateCheckState>(
     DEFAULT_UPDATE_CHECK_STATE,
   )
@@ -82,7 +79,9 @@ export function useModUpdateCheck(mod: ManagedMod | null) {
     })
 
     try {
-      const remoteMod = await fetchModxModBySlug(mod.modxSlug, authState?.loginId)
+      const remoteMod = await requestModxApi<ModxRemoteModPayload>(
+        `/mods/${encodeURIComponent(mod.modxSlug.trim())}`,
+      )
       const remoteVersion = resolveRemoteModVersion(remoteMod)
       if (!remoteVersion) {
         throw new Error(t("workspacePage.updateVersionMissing"))
@@ -109,7 +108,7 @@ export function useModUpdateCheck(mod: ManagedMod | null) {
         description: formatApiErrorMessage(error),
       })
     }
-  }, [authState?.loginId, mod, t])
+  }, [mod, requestModxApi, t])
 
   return {
     canCheckModUpdate,

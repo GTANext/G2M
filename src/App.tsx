@@ -2,9 +2,11 @@ import { lazy, Suspense, type ReactNode, useEffect, useRef, useState } from "rea
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { ShieldAlert, X } from "lucide-react"
 import { Navbar } from "@/components/app/navbar"
+import { UpdateNotice } from "@/components/app/updateNotice"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster } from "@/components/ui/sonner"
+import { useAppUpdate } from "@/hooks/useAppUpdate"
 import { useG2mWorkspace } from "@/hooks/useG2MWorkspace"
 import { invokeApi } from "@/lib/api"
 import type { AppInfoPayload } from "@/lib/g2m"
@@ -30,6 +32,9 @@ const WorkspaceDialogs = lazy(() =>
     default: module.WorkspaceDialogs,
   })),
 )
+const UpdatePage = lazy(() =>
+  import("@/pages/update").then((module) => ({ default: module.UpdatePage })),
+)
 
 function AppShell({
   appInfo,
@@ -37,12 +42,14 @@ function AppShell({
   subtitle,
   showFooter = false,
   showAdminAlert = false,
+  updateNotice,
 }: {
   appInfo?: AppInfoPayload | null
   children: ReactNode
   subtitle: string
   showFooter?: boolean
   showAdminAlert?: boolean
+  updateNotice?: ReactNode
 }) {
   const { t } = useTranslation()
   const [isAdminAlertDismissed, setIsAdminAlertDismissed] = useState(false)
@@ -82,7 +89,10 @@ function AppShell({
       <Navbar title="GTAMODX Manager" subtitle={subtitle} />
 
       <main className={showFooter ? "px-4 pb-24 pt-4 lg:px-6" : "px-4 pb-8 pt-4 lg:px-6"}>
-        {children}
+        <div className="mx-auto max-w-[1700px] space-y-4">
+          {updateNotice}
+          {children}
+        </div>
       </main>
 
       {showFooter ? (
@@ -185,9 +195,11 @@ function RouteLoader() {
 function HomeRoute({
   workspace,
   appInfo,
+  appUpdate,
 }: {
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
+  appUpdate: ReturnType<typeof useAppUpdate>
 }) {
   const { t } = useTranslation()
   const navbarSubtitle = t("routes.homeSubtitle")
@@ -198,6 +210,14 @@ function HomeRoute({
       subtitle={navbarSubtitle}
       showFooter
       showAdminAlert={workspace.bootstrap?.isElevated === false}
+      updateNotice={
+        appUpdate.hasUpdate && appUpdate.remoteVersion ? (
+          <UpdateNotice
+            currentVersion={appUpdate.currentVersion}
+            remoteVersion={appUpdate.remoteVersion}
+          />
+        ) : null
+      }
     >
       <Suspense fallback={<RouteLoader />}>
         <HomePage workspace={workspace} />
@@ -209,9 +229,11 @@ function HomeRoute({
 function SettingsRoute({
   workspace,
   appInfo,
+  appUpdate,
 }: {
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
+  appUpdate: ReturnType<typeof useAppUpdate>
 }) {
   const { t } = useTranslation()
 
@@ -220,6 +242,14 @@ function SettingsRoute({
       appInfo={appInfo}
       subtitle={t("routes.settingsSubtitle")}
       showAdminAlert={workspace.bootstrap?.isElevated === false}
+      updateNotice={
+        appUpdate.hasUpdate && appUpdate.remoteVersion ? (
+          <UpdateNotice
+            currentVersion={appUpdate.currentVersion}
+            remoteVersion={appUpdate.remoteVersion}
+          />
+        ) : null
+      }
     >
       <Suspense fallback={<RouteLoader />}>
         <SettingsPage />
@@ -231,9 +261,11 @@ function SettingsRoute({
 function BuilderRoute({
   workspace,
   appInfo,
+  appUpdate,
 }: {
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
+  appUpdate: ReturnType<typeof useAppUpdate>
 }) {
   const { t } = useTranslation()
   const navbarSubtitle = t("routes.builderSubtitle")
@@ -243,6 +275,14 @@ function BuilderRoute({
       appInfo={appInfo}
       subtitle={navbarSubtitle}
       showAdminAlert={workspace.bootstrap?.isElevated === false}
+      updateNotice={
+        appUpdate.hasUpdate && appUpdate.remoteVersion ? (
+          <UpdateNotice
+            currentVersion={appUpdate.currentVersion}
+            remoteVersion={appUpdate.remoteVersion}
+          />
+        ) : null
+      }
     >
       <Suspense fallback={<RouteLoader />}>
         <ModBuilderPage />
@@ -254,9 +294,11 @@ function BuilderRoute({
 function GameWorkspaceRoute({
   workspace,
   appInfo,
+  appUpdate,
 }: {
   workspace: ReturnType<typeof useG2mWorkspace>
   appInfo?: AppInfoPayload | null
+  appUpdate: ReturnType<typeof useAppUpdate>
 }) {
   const { t } = useTranslation()
   const navbarSubtitle = workspace.activeGame?.name
@@ -268,9 +310,49 @@ function GameWorkspaceRoute({
       appInfo={appInfo}
       subtitle={navbarSubtitle}
       showAdminAlert={workspace.bootstrap?.isElevated === false}
+      updateNotice={
+        appUpdate.hasUpdate && appUpdate.remoteVersion ? (
+          <UpdateNotice
+            currentVersion={appUpdate.currentVersion}
+            remoteVersion={appUpdate.remoteVersion}
+          />
+        ) : null
+      }
     >
       <Suspense fallback={<RouteLoader />}>
         <GameWorkspacePage workspace={workspace} />
+      </Suspense>
+    </AppShell>
+  )
+}
+
+function UpdateRoute({
+  workspace,
+  appInfo,
+  appUpdate,
+}: {
+  workspace: ReturnType<typeof useG2mWorkspace>
+  appInfo?: AppInfoPayload | null
+  appUpdate: ReturnType<typeof useAppUpdate>
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <AppShell
+      appInfo={appInfo}
+      subtitle={t("routes.updateSubtitle")}
+      showAdminAlert={workspace.bootstrap?.isElevated === false}
+      updateNotice={
+        appUpdate.hasUpdate && appUpdate.remoteVersion ? (
+          <UpdateNotice
+            currentVersion={appUpdate.currentVersion}
+            remoteVersion={appUpdate.remoteVersion}
+          />
+        ) : null
+      }
+    >
+      <Suspense fallback={<RouteLoader />}>
+        <UpdatePage appUpdate={appUpdate} />
       </Suspense>
     </AppShell>
   )
@@ -280,6 +362,7 @@ function App() {
   const workspace = useG2mWorkspace()
   const [appInfo, setAppInfo] = useState<AppInfoPayload | null>(null)
   const hasClosedSplashscreenRef = useRef(false)
+  const appUpdate = useAppUpdate(appInfo?.version)
 
   useEffect(() => {
     let cancelled = false
@@ -315,10 +398,11 @@ function App() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<HomeRoute workspace={workspace} appInfo={appInfo} />} />
-        <Route path="/builder" element={<BuilderRoute workspace={workspace} appInfo={appInfo} />} />
-        <Route path="/settings" element={<SettingsRoute workspace={workspace} appInfo={appInfo} />} />
-        <Route path="/game/:gameId" element={<GameWorkspaceRoute workspace={workspace} appInfo={appInfo} />} />
+        <Route path="/" element={<HomeRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
+        <Route path="/builder" element={<BuilderRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
+        <Route path="/settings" element={<SettingsRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
+        <Route path="/update" element={<UpdateRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
+        <Route path="/game/:gameId" element={<GameWorkspaceRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

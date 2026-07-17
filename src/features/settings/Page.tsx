@@ -13,6 +13,8 @@ import {
   SunMedium,
   Hammer,
   MousePointer2,
+  RefreshCcw,
+  Download,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -32,16 +34,22 @@ function Page() {
   const { t } = useTranslation()
   const {
     builderMappingMode,
+    appUpdateApiSource,
+    appUpdateDownloadSource,
     currentBuilderModeLabel,
     currentHomeViewLabel,
     currentListDisplayLabel,
     currentThemeLabel,
     currentTitleBarLabel,
+    currentUpdateApiSourceLabel,
+    currentUpdateDownloadSourceLabel,
     currentWorkspaceViewModeLabel,
     homeViewMode,
     locale,
     modListViewMode,
     resolvedThemeMode,
+    setAppUpdateApiSource,
+    setAppUpdateDownloadSource,
     setBuilderMappingMode,
     setHomeViewMode,
     setLocale,
@@ -76,10 +84,11 @@ function Page() {
       <Tabs defaultValue="appearance">
         <G2MPanel className="overflow-hidden p-2">
           <div className="border-b border-black/5 px-4 py-4 dark:border-white/10 sm:px-5">
-            <TabsList className="!grid !h-auto !w-full grid-cols-2 gap-1 rounded-full bg-black/[0.04] p-1 dark:bg-white/[0.05] sm:grid-cols-3 xl:grid-cols-5">
+            <TabsList className="!grid !h-auto !w-full grid-cols-2 gap-1 rounded-full bg-black/[0.04] p-1 dark:bg-white/[0.05] sm:grid-cols-3 xl:grid-cols-6">
               <TabTrigger value="appearance" title={t("settings.appearanceTitle")} />
               <TabTrigger value="title-bar" title={t("settings.titleBar")} />
               <TabTrigger value="list-display" title={t("settings.listDisplayTitle")} />
+              <TabTrigger value="update" title={t("update.settingsTitle")} />
               <TabTrigger value="builder" title={t("navbar.builder")} />
               <TabTrigger value="language" title={t("settings.languageSectionTitle")} />
             </TabsList>
@@ -243,6 +252,67 @@ function Page() {
                           value={currentHomeViewLabel}
                         />
                       </div>
+                    </div>
+                  </G2MSubtlePanel>
+                </div>
+              </SectionShell>
+            </TabsContent>
+
+            <TabsContent value="update" className="mt-0">
+              <SectionShell
+                title={t("update.settingsTitle")}
+                description={t("update.settingsDescription")}
+                badge={`${currentUpdateApiSourceLabel} · ${currentUpdateDownloadSourceLabel}`}
+                icon={<RefreshCcw className="size-5" />}
+              >
+                <div className="space-y-6">
+                  <G2MSubtlePanel className="rounded-[28px] border border-white/75 bg-white/65 p-5 ring-1 ring-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
+                    <CategoryHeader
+                      title={t("update.apiSource")}
+                      description={t("update.apiSourceDescription")}
+                      icon={<RefreshCcw className="size-5" />}
+                    />
+
+                    <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                      <ChoiceCard
+                        active={appUpdateApiSource === "gtamodx"}
+                        title="GTAMODX"
+                        description={t("update.apiSourceGtmodxDescription")}
+                        icon={<RefreshCcw className="size-5" />}
+                        onClick={() => setAppUpdateApiSource("gtamodx")}
+                      />
+                      <ChoiceCard
+                        active={appUpdateApiSource === "github"}
+                        title="GitHub RC"
+                        description={t("update.apiSourceGithubDescription")}
+                        icon={<Download className="size-5" />}
+                        onClick={() => setAppUpdateApiSource("github")}
+                      />
+                    </div>
+                  </G2MSubtlePanel>
+
+                  <G2MSubtlePanel className="rounded-[28px] border border-white/75 bg-white/65 p-5 ring-1 ring-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
+                    <CategoryHeader
+                      title={t("update.downloadSource")}
+                      description={t("update.downloadSourceDescription")}
+                      icon={<Download className="size-5" />}
+                    />
+
+                    <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                      <ChoiceCard
+                        active={appUpdateDownloadSource === "proxy"}
+                        title="gh-proxy.com"
+                        description={t("update.downloadSourceProxyDescription")}
+                        icon={<Download className="size-5" />}
+                        onClick={() => setAppUpdateDownloadSource("proxy")}
+                      />
+                      <ChoiceCard
+                        active={appUpdateDownloadSource === "official"}
+                        title="GitHub"
+                        description={t("update.downloadSourceOfficialDescription")}
+                        icon={<Download className="size-5" />}
+                        onClick={() => setAppUpdateDownloadSource("official")}
+                      />
                     </div>
                   </G2MSubtlePanel>
                 </div>

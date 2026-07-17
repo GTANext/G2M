@@ -6,12 +6,16 @@ import { i18n, STORAGE_KEY, type AppLocale } from "@/i18n"
 
 function useSummary() {
   const {
+    appUpdateApiSource,
+    appUpdateDownloadSource,
     homeViewMode,
     setHomeViewMode,
     builderMappingMode,
     setBuilderMappingMode,
     modListViewMode,
     setModListViewMode,
+    setAppUpdateApiSource,
+    setAppUpdateDownloadSource,
     setShowHomeGameDetails,
     setTitleBarStyle,
     showHomeGameDetails,
@@ -48,19 +52,31 @@ function useSummary() {
     modListViewMode === "detailed"
       ? t("settings.workspaceViewModeDetailed")
       : t("settings.workspaceViewModeCompact")
+  const currentUpdateApiSourceLabel =
+    appUpdateApiSource === "gtamodx" ? t("update.sourceGtmodx") : t("update.sourceGithub")
+  const currentUpdateDownloadSourceLabel =
+    appUpdateDownloadSource === "proxy"
+      ? t("update.downloadSourceProxy")
+      : t("update.downloadSourceOfficial")
 
   return {
+    appUpdateApiSource,
+    appUpdateDownloadSource,
     builderMappingMode,
     currentBuilderModeLabel,
     currentHomeViewLabel,
     currentListDisplayLabel: `${currentHomeViewLabel} · ${currentWorkspaceViewModeLabel}`,
     currentThemeLabel,
     currentTitleBarLabel,
+    currentUpdateApiSourceLabel,
+    currentUpdateDownloadSourceLabel,
     currentWorkspaceViewModeLabel,
     homeViewMode,
     locale,
     modListViewMode,
     resolvedThemeMode,
+    setAppUpdateApiSource,
+    setAppUpdateDownloadSource,
     setBuilderMappingMode,
     setHomeViewMode,
     setLocale,
