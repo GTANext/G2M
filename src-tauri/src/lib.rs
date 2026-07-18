@@ -28,7 +28,7 @@ use commands::{
     inspect_mod_source_digest, install_game_prerequisite_module, launch_game_executable, preview_mod_directory,
     read_game_folders, resolve_prerequisite_conflict, save_game_path, update_game_entry, update_mod_enabled,
     update_mod_name,
-    install_all_game_prerequisites, repair_game_symlinks, uninstall_game_prerequisite_module, update_games_sort_order, read_image_base64,
+    install_all_game_prerequisites, repair_game_symlinks, uninstall_game_prerequisite_module, update_games_sort_order, read_image_base64, rollback_mod_state,
 };
 
 pub(crate) use game_support::{canonical_exe_name, canonical_game_name};
@@ -193,6 +193,8 @@ pub fn run() {
         .manage(AppState::default())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             setup_system_tray(app)?;
@@ -241,7 +243,8 @@ pub fn run() {
             resolve_prerequisite_conflict,
             read_game_folders,
             launch_game_executable,
-            read_image_base64
+            read_image_base64,
+            rollback_mod_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

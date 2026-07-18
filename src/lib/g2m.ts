@@ -102,6 +102,7 @@ export type ExistingBuilderManifest = {
   prerequisites: string[]
   customPrerequisites: BuilderCustomPrerequisite[]
   update: ExistingBuilderManifestUpdate | null
+  readmePath?: string
   files: ExistingBuilderManifestFile[]
 }
 
@@ -143,6 +144,7 @@ export type ManagedMod = {
   conflictWith: string[]
   links: ExistingBuilderManifestLink[]
   modxSlug: string
+  readmePath: string
 }
 
 export type BackendGame = {
@@ -267,6 +269,7 @@ export function buildDisplayMods(sourceMods: BackendMod[]): ManagedMod[] {
     conflictWith: mod.conflictWith,
     links: mod.links ?? [],
     modxSlug: mod.modxSlug ?? "",
+    readmePath: mod.readmePath ?? "",
   }))
 }
 

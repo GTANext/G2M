@@ -40,18 +40,31 @@
       "csp": null
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "g2m"
+        ]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
     "windows": {
       "wix": {
-        "language": "zh-CN"
+        "language": [
+          "zh-CN",
+          "en-US"
+        ]
       },
       "nsis": {
         "languages": [
-          "SimpChinese"
+          "SimpChinese",
+          "English"
         ],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": true
       }
     },
     "resources": [

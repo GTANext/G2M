@@ -21,6 +21,7 @@ type BuilderForm = {
   sourcePath: string
   sourceType: "directory" | "zip"
   version: string
+  readmePath: string
 }
 
 type BuilderManifestFileEntry = {

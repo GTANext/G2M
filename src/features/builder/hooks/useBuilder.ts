@@ -18,6 +18,7 @@ import { useManifestActions } from "@/features/builder/hooks/useManifestActions"
 import { useMappingActions } from "@/features/builder/hooks/useMappingActions"
 import { useMetadataActions } from "@/features/builder/hooks/useMetadataActions"
 import { useSourceActions } from "@/features/builder/hooks/useSourceActions"
+import { useAIAssistant } from "@/features/builder/hooks/useAIAssistant"
 
 function useBuilder() {
   const { t } = useTranslation()
@@ -35,6 +36,7 @@ function useBuilder() {
     sourcePath: "",
     sourceType: "directory",
     version: "",
+    readmePath: "",
   })
   const [preview, setPreview] = useState<ModImportPreview | null>(null)
   const [mappings, setMappings] = useState<ModImportFileEntry[]>([])
@@ -63,6 +65,7 @@ function useBuilder() {
         prerequisites: form.prerequisites,
         customPrerequisites: form.customPrerequisites,
         version: form.version,
+        readmePath: form.readmePath,
         files: manifestEntries,
       }),
     [form, manifestEntries, preview],
@@ -91,6 +94,12 @@ function useBuilder() {
     setMappings,
     setGameTargetsByPath,
   })
+  const aiAssistantActions = useAIAssistant({
+    files: mappings,
+    sourceDir: preview?.sourceDir || "",
+    setMappings,
+    setForm,
+  })
   const manifestActions = useManifestActions({
     form,
     manifestPayload,
@@ -104,6 +113,7 @@ function useBuilder() {
     ...mappingActions,
     ...metadataActions,
     ...sourceActions,
+    ...aiAssistantActions,
     builderMappingMode,
     customPrereqForm,
     form,

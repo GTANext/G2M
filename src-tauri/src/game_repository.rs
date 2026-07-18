@@ -27,7 +27,8 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
                 size_bytes INTEGER NOT NULL DEFAULT 0,
                 enabled INTEGER NOT NULL DEFAULT 0,
                 links_json TEXT NOT NULL DEFAULT '[]',
-                modx_slug TEXT NOT NULL DEFAULT ''
+                modx_slug TEXT NOT NULL DEFAULT '',
+                readme_path TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS games (
@@ -49,6 +50,16 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
                 source_path TEXT NOT NULL,
                 target_path TEXT NOT NULL,
                 target_folder TEXT NOT NULL DEFAULT '',
+                file_name TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (mod_id) REFERENCES mods(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS mod_backups (
+                id TEXT PRIMARY KEY,
+                mod_id TEXT NOT NULL,
+                original_path TEXT NOT NULL,
+                backup_path TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
                 FOREIGN KEY (mod_id) REFERENCES mods(id) ON DELETE CASCADE
             );
             ",
@@ -90,12 +101,33 @@ pub(crate) fn initialize_database(database_path: &Path) -> Result<(), String> {
     ensure_table_column(&connection, "mods", "size_bytes", "INTEGER NOT NULL DEFAULT 0")?;
     ensure_table_column(&connection, "mods", "links_json", "TEXT NOT NULL DEFAULT '[]'")?;
     ensure_table_column(&connection, "mods", "modx_slug", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_table_column(&connection, "mods", "readme_path", "TEXT NOT NULL DEFAULT ''")?;
     ensure_table_column(
         &connection,
         "files",
         "target_folder",
         "TEXT NOT NULL DEFAULT ''",
     )?;
+    ensure_table_column(&connection, "files", "file_name", "TEXT NOT NULL DEFAULT ''")?;
+
+    // Backfill file_name if empty
+    let mut stmt = connection.prepare("SELECT id, target_path FROM files WHERE file_name = ''").map_err(|e| format!("failed to prepare file_name backfill query: {}", e))?;
+    let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+        .map_err(|e| format!("failed to query files for backfill: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("failed to collect files for backfill: {}", e))?;
+    
+    for (id, target_path) in rows {
+        let file_name = Path::new(&target_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        connection.execute(
+            "UPDATE files SET file_name = ?1 WHERE id = ?2",
+            params![file_name, id],
+        ).map_err(|e| format!("failed to backfill file_name: {}", e))?;
+    }
     connection
         .execute(
             "

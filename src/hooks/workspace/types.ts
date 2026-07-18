@@ -164,6 +164,7 @@ export type UseG2mWorkspaceResult = {
   openConflictDialog: () => void
   openDeleteGameDialog: (gameId: string) => void
   openDeleteModDialog: (modId: string) => void
+  confirmRollbackMod: (modId: string) => Promise<void>
   openEditGameDialog: (gameId: string) => void
   openImportModDialog: () => void
   openGameDirectory: (gameId?: string) => Promise<void>

@@ -85,6 +85,7 @@ pub(crate) fn set_mod_symlinks_enabled(
     install_plan: &ModInstallPlan,
     enabled: bool,
     overwrite_targets: &[String],
+    database_path: Option<&Path>,
 ) -> Result<(), String> {
     if enabled {
         return create_mod_symlinks(
@@ -93,6 +94,7 @@ pub(crate) fn set_mod_symlinks_enabled(
             Path::new(&install_plan.source_dir),
             &install_plan.files,
             overwrite_targets,
+            database_path,
         );
     }
 

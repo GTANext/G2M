@@ -181,6 +181,48 @@ export function useModManagement(
     }
   }, [applyBootstrap, state, t])
 
+  const confirmRollbackMod = useCallback(async (modId: string) => {
+    const modName = state.allMods.find((mod) => mod.id === modId)?.name ?? t("workspacePage.importMod")
+    const shouldRollback = await confirm(
+      t("workspaceActions.rollbackConfirmDescription", "确认要将游戏资源回滚至安装此 Mod 前的状态吗？\n此操作将清理该 Mod 的所有残留文件。"),
+      {
+        title: t("workspaceActions.rollbackConfirmTitle", "确认回滚"),
+        kind: "warning",
+        okLabel: t("workspaceDialogs.rollback", "确认回滚"),
+        cancelLabel: t("workspaceDialogs.cancel", "取消"),
+      },
+    )
+
+    if (!shouldRollback) {
+      return
+    }
+
+    let toastId: string | number | undefined
+
+    try {
+      state.setDeletingModId(modId) // reuse deleting state for UI spinner
+      toastId = toast.loading(t("workspaceActions.rollingBack", "正在回滚 Mod 状态..."))
+
+      const payload = await invokeApi<BootstrapPayload>("rollback_mod_state", {
+        modId,
+      })
+
+      applyBootstrap(payload)
+      state.setDeleteTargetModId(null)
+      toast.success(t("workspaceActions.rollbackSuccess", "Mod 状态已回滚"), {
+        id: toastId,
+        description: modName,
+      })
+    } catch (error) {
+      toast.error(t("workspaceActions.rollbackFailed", "Mod 回滚失败"), {
+        id: toastId,
+        description: formatApiErrorMessage(error),
+      })
+    } finally {
+      state.setDeletingModId(null)
+    }
+  }, [applyBootstrap, state, t])
+
   const updateModName = useCallback(async (modId: string, name: string) => {
     const targetMod = state.allMods.find((mod) => mod.id === modId)
     if (!targetMod) {
@@ -488,6 +530,7 @@ export function useModManagement(
     closeImportModDialog,
     toggleMod,
     confirmDeleteMod,
+    confirmRollbackMod,
     updateModName,
     pickImportModSource,
     confirmImportMod,

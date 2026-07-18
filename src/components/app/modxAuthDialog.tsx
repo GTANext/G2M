@@ -24,11 +24,19 @@ import { Input } from "@/components/ui/input"
 
 function ModxAuthDialog() {
   const { t } = useTranslation()
-  const { authState, isAuthenticated, isHydrated, isPending, login, logout } =
-    useModxAuth()
+  const {
+    authState,
+    closeLoginDialog,
+    isAuthenticated,
+    isHydrated,
+    isLoginDialogOpen,
+    isPending,
+    login,
+    logout,
+    openLoginDialog,
+  } = useModxAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [open, setOpen] = useState(false)
   const [statusText, setStatusText] = useState("")
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -93,7 +101,7 @@ function ModxAuthDialog() {
       setStatusText(t("auth.loginSuccess"))
       toast.success(t("auth.loginSuccess"))
       setPassword("")
-      setOpen(false)
+      closeLoginDialog()
 
       if (nextState.user?.email) {
         setEmail(nextState.user.email)
@@ -221,14 +229,14 @@ function ModxAuthDialog() {
           size="icon-sm"
           className="relative size-9 cursor-pointer rounded-[14px] border border-black/6 bg-white/82 text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.06)] ring-1 ring-black/[0.03] backdrop-blur-xl hover:bg-white hover:text-slate-950 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-300 dark:ring-white/[0.04] dark:hover:bg-white/[0.09] dark:hover:text-white"
           title={t("auth.openLogin")}
-          onClick={() => setOpen(true)}
+          onClick={openLoginDialog}
         >
           <User className="size-4" />
           <span className="absolute right-1 top-1 size-2 rounded-full bg-sky-500 ring-2 ring-white dark:ring-slate-900" />
         </Button>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={isLoginDialogOpen} onOpenChange={(nextOpen) => (nextOpen ? openLoginDialog() : closeLoginDialog())}>
         <DialogContent className="max-w-[24rem] overflow-hidden rounded-[24px] border border-black/6 bg-white/96 p-0 shadow-[0_18px_60px_rgba(15,23,42,0.16)] ring-1 ring-black/[0.04] dark:border-white/10 dark:bg-[rgba(15,23,42,0.96)] dark:ring-white/[0.04]">
           <div className="px-6 pb-4 pt-6">
             <DialogHeader className="gap-2 text-left">

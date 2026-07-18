@@ -1,4 +1,4 @@
-import { FileCode2, Files, RefreshCcw } from "lucide-react"
+import { FileCode2, Files, RefreshCcw, Sparkles } from "lucide-react"
 
 import { useTranslation } from "react-i18next"
 import { FileMappingModeSwitch } from "@/components/g2m/FileMappingModeSwitch"
@@ -21,6 +21,8 @@ function MappingSection({
   setBuilderMappingMode,
   toggleGameType,
   updateTargetPath,
+  handleAiAutoMap,
+  isAiProcessing,
 }: {
   builderMappingMode: "list" | "tree" | "explorer"
   files: ModImportFileEntry[]
@@ -31,6 +33,8 @@ function MappingSection({
   setBuilderMappingMode: (mode: "list" | "tree" | "explorer") => void
   toggleGameType: (path: string, type: GameTypeTarget) => void
   updateTargetPath: (path: string, newTargetPath: string) => void
+  handleAiAutoMap: () => Promise<void>
+  isAiProcessing: boolean
 }) {
   const { t } = useTranslation()
 
@@ -44,6 +48,16 @@ function MappingSection({
             description={t("workspaceDialogs.folderMappingHint")}
           />
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-lg border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+              onClick={() => void handleAiAutoMap()}
+              disabled={isAiProcessing}
+            >
+              <Sparkles className="mr-1.5 size-3" />
+              {isAiProcessing ? t("builderPage.aiProcessing") : t("builderPage.aiAutoMap")}
+            </Button>
             <FileMappingModeSwitch
               t={t}
               mode={builderMappingMode}

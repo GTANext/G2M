@@ -48,7 +48,7 @@ use crate::{
     symlink_install::{
         count_missing_mod_targets,
         cleanup_legacy_mod_root_symlinks,
-        remove_path_if_exists,
+        remove_path_if_exists, rollback_mod_from_backups,
     },
     utils::{current_timestamp, is_process_elevated, paths_equal},
     workspace_package::{import_game_packages_into_database, sync_game_packages},
@@ -553,6 +553,30 @@ pub(crate) fn update_games_sort_order(
 
 #[allow(non_snake_case)]
 #[tauri::command]
+pub(crate) fn rollback_mod_state(
+    app: AppHandle,
+    modId: String,
+) -> CommandResponse<BootstrapPayload> {
+    wrap_command(|| {
+        let paths = ensure_storage(&app)?;
+        let install_plan =
+            load_required_mod_install_plan(&paths.database_path, &modId, "未找到要回滚的 Mod")?;
+
+        // Perform rollback from backups recorded in DB
+        rollback_mod_from_backups(&paths.database_path, &install_plan.game_path, &modId)?;
+
+        // Update mod status or delete it, depending on requirements.
+        // We will just disable it and remove its physical symlinks as part of rollback
+        set_mod_symlinks_enabled(&install_plan, false, &[], Some(&paths.database_path))?;
+        delete_mod_by_id(&paths.database_path, &modId)?;
+        let _ = remove_path_if_exists(Path::new(&install_plan.source_dir));
+
+        bootstrap_app_payload(&app)
+    })
+}
+
+#[allow(non_snake_case)]
+#[tauri::command]
 pub(crate) fn delete_mod_entry(
     app: AppHandle,
     modId: String,
@@ -562,7 +586,7 @@ pub(crate) fn delete_mod_entry(
         let install_plan =
             load_required_mod_install_plan(&paths.database_path, &modId, "未找到要删除的 Mod")?;
 
-        set_mod_symlinks_enabled(&install_plan, false, &[])?;
+        set_mod_symlinks_enabled(&install_plan, false, &[], Some(&paths.database_path))?;
         delete_mod_by_id(&paths.database_path, &modId)?;
 
         let _ = remove_path_if_exists(Path::new(&install_plan.source_dir));
@@ -583,7 +607,7 @@ pub(crate) fn update_mod_enabled(
         let install_plan =
             load_required_mod_install_plan(&paths.database_path, &modId, "未找到要更新的 Mod")?;
 
-        set_mod_symlinks_enabled(&install_plan, enabled, &[])?;
+        set_mod_symlinks_enabled(&install_plan, enabled, &[], Some(&paths.database_path))?;
 
         let updated_rows = update_mod_enabled_in_database(&paths.database_path, &modId, enabled)?;
 
@@ -732,8 +756,8 @@ pub(crate) fn import_mod_directory(
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        if let Err(error) = set_mod_symlinks_enabled(&install_plan, true, &overwrite_targets) {
-            let _ = set_mod_symlinks_enabled(&install_plan, false, &[]);
+        if let Err(error) = set_mod_symlinks_enabled(&install_plan, true, &overwrite_targets, Some(&paths.database_path)) {
+            let _ = set_mod_symlinks_enabled(&install_plan, false, &[], Some(&paths.database_path));
             let _ = delete_mod_by_id(&paths.database_path, &mod_id);
             let _ = fs::remove_dir_all(&target_dir);
             return Err(error);
@@ -854,7 +878,7 @@ pub(crate) fn repair_game_symlinks(
                 .iter()
                 .map(|file| file.target_path.clone())
                 .collect::<Vec<_>>();
-            if let Err(error) = set_mod_symlinks_enabled(&install_plan, true, &overwrite_targets) {
+            if let Err(error) = set_mod_symlinks_enabled(&install_plan, true, &overwrite_targets, Some(&paths.database_path)) {
                 failed_mods.push(format!("{}（{error}）", mod_entry.name));
             }
         }

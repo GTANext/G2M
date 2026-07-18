@@ -92,6 +92,7 @@ pub(crate) struct StoredMod {
     pub(crate) conflict_with: Vec<String>,
     pub(crate) links: Vec<ExistingBuilderManifestLinkPayload>,
     pub(crate) modx_slug: String,
+    pub(crate) readme_path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -158,6 +159,8 @@ pub(crate) struct ExistingBuilderManifestPayload {
     pub(crate) custom_prerequisites: Vec<ExistingBuilderManifestCustomPrerequisitePayload>,
     pub(crate) update: Option<ExistingBuilderManifestUpdatePayload>,
     pub(crate) files: Vec<ExistingBuilderManifestFilePayload>,
+    #[serde(default)]
+    pub(crate) readme_path: String,
 }
 
 #[derive(Debug, Serialize)]

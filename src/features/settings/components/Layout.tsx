@@ -14,7 +14,7 @@ function TabTrigger({
   return (
     <TabsTrigger
       value={value}
-      className="!h-auto rounded-full border border-transparent bg-transparent px-3 py-2.5 text-sm font-medium text-slate-500 transition-all hover:text-slate-800 data-active:border-white/80 data-active:bg-white/90 data-active:text-slate-950 data-active:shadow-[0_6px_20px_rgba(15,23,42,0.08)] dark:text-slate-300 dark:hover:text-slate-100 dark:data-active:border-white/10 dark:data-active:bg-white/[0.08] dark:data-active:text-slate-50"
+      className="!h-auto rounded-full border border-transparent bg-transparent px-4 py-2 text-[13px] font-medium text-slate-500 shadow-none transition-all duration-300 ease-out hover:bg-black/[0.04] hover:text-slate-800 data-active:border-white/80 data-active:bg-white data-active:text-slate-950 data-active:shadow-[0_2px_12px_rgba(15,23,42,0.06)] dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200 dark:data-active:border-white/10 dark:data-active:bg-white/[0.12] dark:data-active:text-white dark:data-active:shadow-[0_2px_12px_rgba(0,0,0,0.2)]"
     >
       {title}
     </TabsTrigger>

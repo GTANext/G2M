@@ -1,3 +1,5 @@
+import { parseHttpResponse, resolveHttpMessage } from "./api"
+
 export const MODX_AUTH_STORAGE_KEY = "g2m:modx-auth-state"
 export const MODX_API_BASE = "https://api.miomoe.cn/modx"
 
@@ -200,17 +202,17 @@ async function requestModx<T = unknown>(
   init?: RequestInit,
 ): Promise<T> {
   const response = await fetch(`${MODX_API_BASE}${path}`, init)
-  const payload = await parseResponse<ModxEnvelope<T>>(response)
+  const payload = await parseHttpResponse<ModxEnvelope<T>>(response)
 
   if (!response.ok) {
-    throw new Error(resolveMessage(payload, response.statusText))
+    throw new Error(resolveHttpMessage(payload, response.statusText))
   }
 
   if (payload && typeof payload === "object" && "data" in payload) {
     const typedPayload = payload as ModxEnvelope<T>
 
     if (typedPayload.success === false) {
-      throw new Error(resolveMessage(payload, "Request failed"))
+      throw new Error(resolveHttpMessage(payload, "Request failed"))
     }
 
     if (
@@ -218,42 +220,13 @@ async function requestModx<T = unknown>(
       typedPayload.code !== 0 &&
       typedPayload.code !== 200
     ) {
-      throw new Error(resolveMessage(payload, "Request failed"))
+      throw new Error(resolveHttpMessage(payload, "Request failed"))
     }
 
     return (typedPayload.data ?? null) as T
   }
 
   return payload as T
-}
-
-async function parseResponse<T>(response: Response): Promise<T> {
-  const rawText = await response.text()
-
-  if (!rawText) {
-    return null as T
-  }
-
-  try {
-    return JSON.parse(rawText) as T
-  } catch {
-    return rawText as T
-  }
-}
-
-function resolveMessage(payload: unknown, fallback: string): string {
-  if (payload && typeof payload === "object" && "message" in payload) {
-    const message = (payload as { message?: unknown }).message
-    if (typeof message === "string" && message.trim()) {
-      return message
-    }
-  }
-
-  if (typeof payload === "string" && payload.trim()) {
-    return payload
-  }
-
-  return fallback
 }
 
 function normalizeLoginState(

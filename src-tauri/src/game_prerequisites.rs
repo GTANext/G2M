@@ -338,7 +338,7 @@ fn install_copy_targets(
                 if backup_path.exists() {
                     remove_path_if_exists(&target_path)?;
                 } else {
-                    backup_existing_target(&target_path, &backup_path)?;
+                    backup_existing_target(&target_path, &backup_path, None)?;
                 }
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}

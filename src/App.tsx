@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactNode, useEffect, useRef, useState } from "react"
 import { openUrl } from "@tauri-apps/plugin-opener"
+import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link"
 import { ShieldAlert, X } from "lucide-react"
 import { Navbar } from "@/components/app/navbar"
 import { UpdateNotice } from "@/components/app/updateNotice"
@@ -10,7 +11,7 @@ import { useAppUpdate } from "@/hooks/useAppUpdate"
 import { useG2mWorkspace } from "@/hooks/useG2MWorkspace"
 import { invokeApi } from "@/lib/api"
 import type { AppInfoPayload } from "@/lib/g2m"
-import { Navigate, Route, Routes } from "react-router-dom"
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import "./App.css"
 import "./g2m.css"
@@ -34,6 +35,9 @@ const WorkspaceDialogs = lazy(() =>
 )
 const UpdatePage = lazy(() =>
   import("@/pages/update").then((module) => ({ default: module.UpdatePage })),
+)
+const DownloadPage = lazy(() =>
+  import("@/pages/download").then((module) => ({ default: module.DownloadPage })),
 )
 
 function AppShell({
@@ -358,11 +362,83 @@ function UpdateRoute({
   )
 }
 
+function DownloadRoute({
+  workspace,
+  appInfo,
+  appUpdate,
+}: {
+  workspace: ReturnType<typeof useG2mWorkspace>
+  appInfo?: AppInfoPayload | null
+  appUpdate: ReturnType<typeof useAppUpdate>
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <AppShell
+      appInfo={appInfo}
+      subtitle={t("routes.downloadSubtitle")}
+      showAdminAlert={workspace.bootstrap?.isElevated === false}
+      updateNotice={
+        appUpdate.hasUpdate && appUpdate.remoteVersion ? (
+          <UpdateNotice
+            currentVersion={appUpdate.currentVersion}
+            remoteVersion={appUpdate.remoteVersion}
+          />
+        ) : null
+      }
+    >
+      <Suspense fallback={<RouteLoader />}>
+        <DownloadPage />
+      </Suspense>
+    </AppShell>
+  )
+}
+
 function App() {
   const workspace = useG2mWorkspace()
   const [appInfo, setAppInfo] = useState<AppInfoPayload | null>(null)
   const hasClosedSplashscreenRef = useRef(false)
   const appUpdate = useAppUpdate(appInfo?.version)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    // 1. 检查应用是否是*首次*通过深链接启动的
+    getCurrent().then((urls) => {
+      if (urls && urls.length > 0) {
+        console.log("App started via Deep Link:", urls)
+        handleDeepLink(urls[0])
+      }
+    })
+
+    // 2. 监听应用在后台运行时，再次被深链接唤醒的事件
+    let unlisten: (() => void) | undefined
+    onOpenUrl((urls) => {
+      console.log("App awakened via Deep Link:", urls)
+      handleDeepLink(urls[0])
+    }).then((fn) => {
+      unlisten = fn
+    })
+
+    return () => {
+      if (unlisten) unlisten()
+    }
+  }, [])
+
+  // 处理具体的路由逻辑
+  const handleDeepLink = (url: string) => {
+    try {
+      const parsedUrl = new URL(url)
+      // 假设我们允许类似 g2m://builder 或者 g2m://settings?tab=ai 的唤醒
+      // parsedUrl.hostname 就是协议后面的第一段，比如 "builder", "settings"
+      if (parsedUrl.hostname) {
+        // 如果想处理更复杂的路径：
+        const targetPath = `/${parsedUrl.hostname}${parsedUrl.pathname}${parsedUrl.search}`
+        navigate(targetPath)
+      }
+    } catch (error) {
+      console.error("Invalid deep link URL:", error)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -402,6 +478,7 @@ function App() {
         <Route path="/builder" element={<BuilderRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
         <Route path="/settings" element={<SettingsRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
         <Route path="/update" element={<UpdateRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
+        <Route path="/download" element={<DownloadRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
         <Route path="/game/:gameId" element={<GameWorkspaceRoute workspace={workspace} appInfo={appInfo} appUpdate={appUpdate} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

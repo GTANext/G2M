@@ -1,4 +1,5 @@
 import { invoke, type InvokeArgs } from "@tauri-apps/api/core"
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http"
 
 export type ApiResponse<T> = {
   code: number
@@ -72,4 +73,59 @@ function isApiResponse<T>(value: unknown): value is ApiResponse<T> {
     typeof candidate.message === "string" &&
     "data" in candidate
   )
+}
+
+export async function parseHttpResponse<T>(response: Response): Promise<T> {
+  const rawText = await response.text()
+
+  if (!rawText) {
+    return null as T
+  }
+
+  try {
+    return JSON.parse(rawText) as T
+  } catch {
+    return rawText as unknown as T
+  }
+}
+
+export function resolveHttpMessage(payload: unknown, fallback: string): string {
+  if (payload && typeof payload === "object") {
+    const obj = payload as Record<string, unknown>
+    if (typeof obj.message === "string" && obj.message.trim()) {
+      return obj.message
+    }
+    if (obj.error && typeof obj.error === "object") {
+      const errObj = obj.error as Record<string, unknown>
+      if (typeof errObj.message === "string" && errObj.message.trim()) {
+        return errObj.message
+      }
+    }
+    if (typeof obj.error === "string" && obj.error.trim()) {
+      return obj.error
+    }
+  }
+
+  if (typeof payload === "string" && payload.trim()) {
+    return payload
+  }
+
+  return fallback
+}
+
+export async function requestHttp<T = unknown>(url: string, init?: RequestInit & { timeout?: number }): Promise<T> {
+  const { timeout = 60000, ...fetchInit } = init || {}
+  
+  const response = await tauriFetch(url, {
+    ...fetchInit,
+    connectTimeout: timeout,
+  })
+  
+  const payload = await parseHttpResponse<T>(response)
+
+  if (!response.ok) {
+    throw new Error(resolveHttpMessage(payload, response.statusText || "Request failed"))
+  }
+
+  return payload
 }

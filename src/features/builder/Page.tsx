@@ -55,6 +55,8 @@ function Page() {
               setBuilderMappingMode={builder.setBuilderMappingMode}
               toggleGameType={builder.toggleGameType}
               updateTargetPath={builder.updateTargetPath}
+              handleAiAutoMap={builder.handleAiAutoMap}
+              isAiProcessing={builder.isAiProcessing}
             />
             <ManifestSection
               buildArchive={builder.buildArchive}

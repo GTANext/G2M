@@ -26,8 +26,10 @@ pub(crate) fn create_mod_symlinks(
     mod_source_dir: &Path,
     files: &[ModInstallFileRecord],
     overwrite_targets: &[String],
+    database_path: Option<&Path>,
 ) -> Result<(), String> {
-    create_symlinks(
+    let mut backups_created = Vec::new();
+    let result = create_symlinks(
         game_path,
         mod_id,
         mod_source_dir,
@@ -35,7 +37,32 @@ pub(crate) fn create_mod_symlinks(
         overwrite_targets,
         true,
         true,
-    )
+        &mut backups_created,
+    );
+
+    if let Ok(()) = result {
+        if let Some(db_path) = database_path {
+            if !backups_created.is_empty() {
+                if let Ok(connection) = rusqlite::Connection::open(db_path) {
+                    let timestamp = crate::current_timestamp();
+                    for (original, backup) in backups_created {
+                        let _ = connection.execute(
+                            "INSERT INTO mod_backups (id, mod_id, original_path, backup_path, timestamp) VALUES (?1, ?2, ?3, ?4, ?5)",
+                            rusqlite::params![
+                                format!("backup-{}", crate::random_suffix()),
+                                mod_id,
+                                original.to_string_lossy().to_string(),
+                                backup.to_string_lossy().to_string(),
+                                timestamp
+                            ]
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    result
 }
 
 fn create_symlinks(
@@ -46,12 +73,13 @@ fn create_symlinks(
     overwrite_targets: &[String],
     reserve_install_roots: bool,
     cleanup_legacy_targets: bool,
+    backups_created: &mut Vec<(PathBuf, PathBuf)>,
 ) -> Result<(), String> {
     if cleanup_legacy_targets {
         cleanup_legacy_mod_root_symlinks(game_path, source_dir, files)?;
     }
 
-    ensure_runtime_root_symlinks(game_path, files)?;
+    ensure_runtime_root_symlinks(game_path, files, backups_created)?;
 
     let overwrite_targets = overwrite_targets
         .iter()
@@ -83,6 +111,7 @@ fn create_symlinks(
             &candidate.target_path,
             &candidate.backup_path,
             should_overwrite,
+            backups_created,
         ) {
             rollback_applied_symlink_targets(&applied_targets);
             return Err(error);
@@ -112,7 +141,7 @@ fn create_symlinks(
             || backup_path.exists();
 
         if let Err(error) =
-            create_file_symlink_at_target(source_path, &target_path, &backup_path, should_overwrite)
+            create_file_symlink_at_target(source_path, &target_path, &backup_path, should_overwrite, backups_created)
         {
             rollback_applied_symlink_targets(&applied_targets);
             return Err(error);
@@ -132,6 +161,7 @@ fn create_symlinks(
 fn ensure_runtime_root_symlinks(
     game_path: &Path,
     files: &[ModInstallFileRecord],
+    backups_created: &mut Vec<(PathBuf, PathBuf)>,
 ) -> Result<(), String> {
     for root_name in ["scripts", "plugins"] {
         let should_link_root = files.iter().any(|file| {
@@ -145,13 +175,13 @@ fn ensure_runtime_root_symlinks(
             continue;
         }
 
-        ensure_runtime_root_symlink(game_path, root_name)?;
+        ensure_runtime_root_symlink(game_path, root_name, backups_created)?;
     }
 
     Ok(())
 }
 
-fn ensure_runtime_root_symlink(game_path: &Path, root_name: &str) -> Result<(), String> {
+fn ensure_runtime_root_symlink(game_path: &Path, root_name: &str, backups_created: &mut Vec<(PathBuf, PathBuf)>) -> Result<(), String> {
     let source_dir = game_path
         .join(crate::GAME_WORKSPACE_DIR_NAME)
         .join("runtime")
@@ -180,19 +210,19 @@ fn ensure_runtime_root_symlink(game_path: &Path, root_name: &str) -> Result<(), 
             }
         } else if metadata.is_dir() {
             if !backup_path.exists() {
-                backup_existing_target(&target_path, &backup_path)?;
+                backup_existing_target(&target_path, &backup_path, Some(backups_created))?;
                 copy_non_symlink_directory_contents(&backup_path, &source_dir)?;
             } else {
                 remove_path_if_exists(&target_path)?;
             }
         } else if !backup_path.exists() {
-            backup_existing_target(&target_path, &backup_path)?;
+            backup_existing_target(&target_path, &backup_path, Some(backups_created))?;
         } else {
             remove_path_if_exists(&target_path)?;
         }
     }
 
-    create_directory_symlink_at_target(&source_dir, &target_path, &backup_path, true)
+    create_directory_symlink_at_target(&source_dir, &target_path, &backup_path, true, backups_created)
 }
 
 fn copy_non_symlink_directory_contents(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
@@ -713,12 +743,13 @@ fn create_directory_symlink_at_target(
     target_path: &Path,
     backup_path: &Path,
     allow_overwrite: bool,
+    backups_created: &mut Vec<(PathBuf, PathBuf)>,
 ) -> Result<(), String> {
     if !source_path.is_dir() {
         return Err(format!("软链接来源目录不存在: {}", source_path.display()));
     }
 
-    ensure_target_parent_directory(target_path, backup_path, allow_overwrite)?;
+    ensure_target_parent_directory(target_path, backup_path, allow_overwrite, backups_created)?;
 
     match fs::symlink_metadata(target_path) {
         Ok(metadata) => {
@@ -737,7 +768,7 @@ fn create_directory_symlink_at_target(
                 ));
             }
 
-            backup_existing_target(target_path, backup_path)?;
+            backup_existing_target(target_path, backup_path, Some(backups_created))?;
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => {
@@ -763,12 +794,13 @@ fn create_file_symlink_at_target(
     target_path: &Path,
     backup_path: &Path,
     allow_overwrite: bool,
+    backups_created: &mut Vec<(PathBuf, PathBuf)>,
 ) -> Result<(), String> {
     if !source_path.is_file() {
         return Err(format!("软链接来源文件不存在: {}", source_path.display()));
     }
 
-    ensure_target_parent_directory(target_path, backup_path, allow_overwrite)?;
+    ensure_target_parent_directory(target_path, backup_path, allow_overwrite, backups_created)?;
 
     match fs::symlink_metadata(target_path) {
         Ok(metadata) => {
@@ -787,7 +819,7 @@ fn create_file_symlink_at_target(
                 ));
             }
 
-            backup_existing_target(target_path, backup_path)?;
+            backup_existing_target(target_path, backup_path, Some(backups_created))?;
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => {
@@ -858,6 +890,7 @@ fn ensure_target_parent_directory(
     target_path: &Path,
     backup_path: &Path,
     allow_overwrite: bool,
+    backups_created: &mut Vec<(PathBuf, PathBuf)>,
 ) -> Result<(), String> {
     let Some(parent_dir) = target_path.parent() else {
         return Ok(());
@@ -900,7 +933,7 @@ fn ensure_target_parent_directory(
 
         let current_backup_path = derive_nested_backup_path(target_path, backup_path, current_path)
             .unwrap_or_else(|| backup_path.to_path_buf());
-        backup_existing_target(current_path, &current_backup_path)?;
+        backup_existing_target(current_path, &current_backup_path, Some(backups_created))?;
         fs::create_dir_all(current_path)
             .map_err(|error| format!("failed to create target directory: {error}"))?;
     }
@@ -975,7 +1008,7 @@ fn remove_legacy_directory_symlink_if_matches(
     Ok(())
 }
 
-pub(crate) fn backup_existing_target(target_path: &Path, backup_path: &Path) -> Result<(), String> {
+pub(crate) fn backup_existing_target(target_path: &Path, backup_path: &Path, backups_created: Option<&mut Vec<(PathBuf, PathBuf)>>) -> Result<(), String> {
     if let Some(parent_dir) = backup_path.parent() {
         fs::create_dir_all(parent_dir)
             .map_err(|error| format!("failed to create backup directory: {error}"))?;
@@ -988,6 +1021,9 @@ pub(crate) fn backup_existing_target(target_path: &Path, backup_path: &Path) -> 
             target_path.display()
         )
     })?;
+    if let Some(bc) = backups_created {
+        bc.push((target_path.to_path_buf(), backup_path.to_path_buf()));
+    }
     Ok(())
 }
 
@@ -1002,8 +1038,8 @@ pub(crate) fn restore_target_from_backup(target_path: &Path, backup_path: &Path)
         }
     };
 
-    if target_path.exists() {
-        return Ok(());
+    if target_path.exists() || fs::symlink_metadata(target_path).is_ok() {
+        remove_path_if_exists(target_path)?;
     }
 
     if let Some(parent_dir) = target_path.parent() {
@@ -1022,6 +1058,7 @@ pub(crate) fn restore_target_from_backup(target_path: &Path, backup_path: &Path)
         } else {
             create_file_symlink(&link_target, target_path).map_err(format_symlink_creation_error)?;
         }
+        remove_path_if_exists(backup_path)?;
         return Ok(());
     }
 
@@ -1031,8 +1068,55 @@ pub(crate) fn restore_target_from_backup(target_path: &Path, backup_path: &Path)
         return Ok(());
     }
 
-    fs::copy(backup_path, target_path)
-        .map_err(|error| format!("failed to restore backup file: {error}"))?;
+    fs::rename(backup_path, target_path).or_else(|_| {
+        fs::copy(backup_path, target_path)?;
+        fs::remove_file(backup_path)
+    }).map_err(|error| format!("failed to restore backup file: {error}"))?;
+    Ok(())
+}
+
+pub(crate) fn rollback_mod_from_backups(
+    database_path: &Path,
+    _game_path: &str,
+    mod_id: &str,
+) -> Result<(), String> {
+    let connection = rusqlite::Connection::open(database_path)
+        .map_err(|error| format!("failed to open database for rollback: {error}"))?;
+    
+    let mut statement = connection.prepare(
+        "SELECT id, original_path, backup_path FROM mod_backups WHERE mod_id = ?1 ORDER BY timestamp DESC"
+    ).map_err(|e| format!("failed to prepare backup query: {}", e))?;
+
+    let rows = statement.query_map(rusqlite::params![mod_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    }).map_err(|e| format!("failed to execute backup query: {}", e))?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|e| format!("failed to fetch backups: {}", e))?;
+
+    for (backup_id, original_path_str, backup_path_str) in rows {
+        let original_path = Path::new(&original_path_str);
+        let backup_path = Path::new(&backup_path_str);
+
+        if !backup_path.exists() {
+            continue; // Skip missing backups to avoid stopping the whole rollback process
+        }
+
+        // Before restoring, if something exists at the original path, remove it (e.g. symlink installed by this mod)
+        if original_path.exists() || fs::symlink_metadata(original_path).is_ok() {
+            remove_path_if_exists(original_path)?;
+        }
+
+        if let Err(e) = restore_target_from_backup(original_path, backup_path) {
+            return Err(format!("回滚失败: {}", e));
+        }
+
+        let _ = connection.execute("DELETE FROM mod_backups WHERE id = ?1", rusqlite::params![backup_id]);
+    }
+
     Ok(())
 }
 
@@ -1127,5 +1211,87 @@ fn path_component_equals(left: &str, right: &str) -> bool {
     #[cfg(not(target_family = "windows"))]
     {
         left == right
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self};
+    use tempfile::tempdir;
+    use rusqlite::{Connection, params};
+    use crate::game_repository::initialize_database;
+
+    #[test]
+    fn test_backup_and_restore_target() {
+        let dir = tempdir().unwrap();
+        let target_path = dir.path().join("target.txt");
+        let backup_path = dir.path().join("backup.txt");
+
+        // Create a dummy target file
+        fs::write(&target_path, "original content").unwrap();
+
+        let mut backups = Vec::new();
+        // Test backup
+        backup_existing_target(&target_path, &backup_path, Some(&mut backups)).unwrap();
+        
+        // Target should have been moved to backup
+        assert!(!target_path.exists());
+        assert!(backup_path.exists());
+        assert_eq!(fs::read_to_string(&backup_path).unwrap(), "original content");
+        assert_eq!(backups.len(), 1);
+        assert_eq!(backups[0], (target_path.clone(), backup_path.clone()));
+
+        // Create a new file at target (simulating installed mod)
+        fs::write(&target_path, "mod content").unwrap();
+
+        // Test restore
+        restore_target_from_backup(&target_path, &backup_path).unwrap();
+
+        // Backup should have been moved back to target
+        assert!(target_path.exists());
+        assert!(!backup_path.exists());
+        assert_eq!(fs::read_to_string(&target_path).unwrap(), "original content");
+    }
+
+    #[test]
+    fn test_rollback_mod_from_backups() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        initialize_database(&db_path).unwrap();
+
+        let mut conn = Connection::open(&db_path).unwrap();
+
+        let mod_id = "test_mod_rollback";
+        let game_id = "test_game_1";
+        let game_path = "C:\\Games\\GTA";
+
+        conn.execute("INSERT INTO games (id, path, game_type, name, exe_name) VALUES (?1, ?2, 'sa', 'GTA SA', 'gta_sa.exe')", params![game_id, game_path]).unwrap();
+        conn.execute("INSERT INTO mods (id, game_id, name, version, author, description, enabled, source_dir, installed_at) VALUES (?1, ?2, 'Mod 1', '1.0', '', '', 1, 'C:\\Mods\\1', 0)", params![mod_id, game_id]).unwrap();
+
+        let target_path = dir.path().join("game_file.txt");
+        let backup_path = dir.path().join("backup_file.txt");
+
+        // Simulate that game_file.txt was backed up and a mod file was put in its place
+        fs::write(&target_path, "mod content").unwrap();
+        fs::write(&backup_path, "original game content").unwrap();
+
+        // Insert backup record into DB
+        conn.execute(
+            "INSERT INTO mod_backups (id, mod_id, original_path, backup_path, timestamp) VALUES ('backup_1', ?1, ?2, ?3, 1000)",
+            params![mod_id, target_path.to_string_lossy().to_string(), backup_path.to_string_lossy().to_string()]
+        ).unwrap();
+
+        // Rollback
+        rollback_mod_from_backups(&db_path, game_path, mod_id).unwrap();
+
+        // Check if rollback was successful
+        assert!(target_path.exists());
+        assert!(!backup_path.exists());
+        assert_eq!(fs::read_to_string(&target_path).unwrap(), "original game content");
+
+        // Check if DB record was removed
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM mod_backups WHERE mod_id = ?1", params![mod_id], |row| row.get(0)).unwrap();
+        assert_eq!(count, 0);
     }
 }

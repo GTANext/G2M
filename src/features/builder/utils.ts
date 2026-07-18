@@ -53,6 +53,7 @@ function buildManifestPayload(options: {
   prerequisites: string[]
   customPrerequisites: BuilderCustomPrerequisite[]
   version: string
+  readmePath: string
 }) {
   const links = options.links
     .map((link) => ({
@@ -72,6 +73,7 @@ function buildManifestPayload(options: {
     ...(links.length > 0 ? { links } : {}),
     ...(options.prerequisites.length > 0 ? { prerequisites: options.prerequisites } : {}),
     ...(options.customPrerequisites.length > 0 ? { customPrerequisites: options.customPrerequisites } : {}),
+    ...(options.readmePath ? { readmePath: options.readmePath } : {}),
     files: options.files,
   }
 }

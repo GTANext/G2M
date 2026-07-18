@@ -205,6 +205,17 @@ function Row({
             >
               {t("workspacePage.deleteCurrentMod")}
             </Button>
+            <Button
+              variant="ghost"
+              className="cursor-pointer rounded-xl px-3 text-amber-600 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-200"
+              onClick={(event) => {
+                event.stopPropagation()
+                void workspace.confirmRollbackMod(mod.id)
+              }}
+              disabled={workspace.deletingModId === mod.id}
+            >
+              {workspace.deletingModId === mod.id ? t("workspaceDialogs.saving", "处理中") : t("workspacePage.rollbackCurrentMod", "一键回滚")}
+            </Button>
           </div>
         </div>
       </div>

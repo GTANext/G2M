@@ -35,6 +35,18 @@ type AppPreferencesContextValue = {
   setAppUpdateApiSource: (value: AppUpdateApiSource) => void
   appUpdateDownloadSource: AppUpdateDownloadSource
   setAppUpdateDownloadSource: (value: AppUpdateDownloadSource) => void
+  aiApiKey: string
+  setAiApiKey: (value: string) => void
+  aiModelId: string
+  setAiModelId: (value: string) => void
+  aiProviderType: "miomoe" | "custom"
+  setAiProviderType: (value: "miomoe" | "custom") => void
+  aiCustomProtocol: "openai" | "anthropic" | "gemini" | "ollama"
+  setAiCustomProtocol: (value: "openai" | "anthropic" | "gemini" | "ollama") => void
+  aiCustomBaseUrl: string
+  setAiCustomBaseUrl: (value: string) => void
+  aiTimeout: number
+  setAiTimeout: (value: number) => void
   setShowHomeGameDetails: (value: boolean) => void
   setTitleBarStyle: (value: TitleBarStyle) => void
   showHomeGameDetails: boolean
@@ -50,6 +62,12 @@ const MOD_LIST_VIEW_MODE_STORAGE_KEY = "g2m:mod-list-view-mode"
 const MOD_SORT_RULE_STORAGE_KEY = "g2m:mod-sort-rule"
 const APP_UPDATE_API_SOURCE_STORAGE_KEY = "g2m:app-update-api-source"
 const APP_UPDATE_DOWNLOAD_SOURCE_STORAGE_KEY = "g2m:app-update-download-source"
+const AI_API_KEY_STORAGE_KEY = "g2m:ai-api-key"
+const AI_MODEL_ID_STORAGE_KEY = "g2m:ai-model-id"
+const AI_PROVIDER_TYPE_STORAGE_KEY = "g2m:ai-provider-type"
+const AI_CUSTOM_PROTOCOL_STORAGE_KEY = "g2m:ai-custom-protocol"
+const AI_CUSTOM_BASE_URL_STORAGE_KEY = "g2m:ai-custom-base-url"
+const AI_TIMEOUT_STORAGE_KEY = "g2m:ai-timeout"
 
 const AppPreferencesContext = createContext<AppPreferencesContextValue | null>(null)
 
@@ -65,6 +83,12 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
   )
   const [appUpdateDownloadSource, setAppUpdateDownloadSourceState] =
     useState<AppUpdateDownloadSource>(APP_UPDATE_DOWNLOAD_SOURCE_DEFAULT)
+  const [aiApiKey, setAiApiKeyState] = useState("")
+  const [aiModelId, setAiModelIdState] = useState("deepseek-ai/deepseek-v4-pro")
+  const [aiProviderType, setAiProviderTypeState] = useState<"miomoe" | "custom">("miomoe")
+  const [aiCustomProtocol, setAiCustomProtocolState] = useState<"openai" | "anthropic" | "gemini" | "ollama">("openai")
+  const [aiCustomBaseUrl, setAiCustomBaseUrlState] = useState("")
+  const [aiTimeout, setAiTimeoutState] = useState(300000) // 默认 5 分钟 (300,000 ms)
   const [showHomeGameDetails, setShowHomeGameDetailsState] = useState(false)
 
   useEffect(() => {
@@ -123,6 +147,44 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
     if (storedAppUpdateDownloadSource === "proxy" || storedAppUpdateDownloadSource === "official") {
       setAppUpdateDownloadSourceState(storedAppUpdateDownloadSource)
     }
+
+    const storedAiApiKey = window.localStorage.getItem(AI_API_KEY_STORAGE_KEY)
+    if (storedAiApiKey) {
+      setAiApiKeyState(storedAiApiKey)
+    }
+
+    const storedAiModelId = window.localStorage.getItem(AI_MODEL_ID_STORAGE_KEY)
+    if (storedAiModelId) {
+      setAiModelIdState(storedAiModelId)
+    }
+
+    const storedAiProviderType = window.localStorage.getItem(AI_PROVIDER_TYPE_STORAGE_KEY)
+    if (storedAiProviderType === "miomoe" || storedAiProviderType === "custom") {
+      setAiProviderTypeState(storedAiProviderType)
+    }
+
+    const storedAiCustomProtocol = window.localStorage.getItem(AI_CUSTOM_PROTOCOL_STORAGE_KEY)
+    if (
+      storedAiCustomProtocol === "openai" ||
+      storedAiCustomProtocol === "anthropic" ||
+      storedAiCustomProtocol === "gemini" ||
+      storedAiCustomProtocol === "ollama"
+    ) {
+      setAiCustomProtocolState(storedAiCustomProtocol)
+    }
+
+    const storedAiCustomBaseUrl = window.localStorage.getItem(AI_CUSTOM_BASE_URL_STORAGE_KEY)
+    if (storedAiCustomBaseUrl) {
+      setAiCustomBaseUrlState(storedAiCustomBaseUrl)
+    }
+
+    const storedAiTimeout = window.localStorage.getItem(AI_TIMEOUT_STORAGE_KEY)
+    if (storedAiTimeout) {
+      const parsedTimeout = parseInt(storedAiTimeout, 10)
+      if (!isNaN(parsedTimeout)) {
+        setAiTimeoutState(parsedTimeout)
+      }
+    }
   }, [])
 
   function setTitleBarStyle(value: TitleBarStyle) {
@@ -165,6 +227,36 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(APP_UPDATE_DOWNLOAD_SOURCE_STORAGE_KEY, value)
   }
 
+  function setAiApiKey(value: string) {
+    setAiApiKeyState(value)
+    window.localStorage.setItem(AI_API_KEY_STORAGE_KEY, value)
+  }
+
+  function setAiModelId(value: string) {
+    setAiModelIdState(value)
+    window.localStorage.setItem(AI_MODEL_ID_STORAGE_KEY, value)
+  }
+
+  function setAiProviderType(value: "miomoe" | "custom") {
+    setAiProviderTypeState(value)
+    window.localStorage.setItem(AI_PROVIDER_TYPE_STORAGE_KEY, value)
+  }
+
+  function setAiCustomProtocol(value: "openai" | "anthropic" | "gemini" | "ollama") {
+    setAiCustomProtocolState(value)
+    window.localStorage.setItem(AI_CUSTOM_PROTOCOL_STORAGE_KEY, value)
+  }
+
+  function setAiCustomBaseUrl(value: string) {
+    setAiCustomBaseUrlState(value)
+    window.localStorage.setItem(AI_CUSTOM_BASE_URL_STORAGE_KEY, value)
+  }
+
+  function setAiTimeout(value: number) {
+    setAiTimeoutState(value)
+    window.localStorage.setItem(AI_TIMEOUT_STORAGE_KEY, value.toString())
+  }
+
   function setShowHomeGameDetails(value: boolean) {
     setShowHomeGameDetailsState(value)
     window.localStorage.setItem(HOME_DETAILS_STORAGE_KEY, String(value))
@@ -186,6 +278,18 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
       setAppUpdateApiSource,
       appUpdateDownloadSource,
       setAppUpdateDownloadSource,
+      aiApiKey,
+      setAiApiKey,
+      aiModelId,
+      setAiModelId,
+      aiProviderType,
+      setAiProviderType,
+      aiCustomProtocol,
+      setAiCustomProtocol,
+      aiCustomBaseUrl,
+      setAiCustomBaseUrl,
+      aiTimeout,
+      setAiTimeout,
       setShowHomeGameDetails,
       setTitleBarStyle,
       showHomeGameDetails,
@@ -199,6 +303,12 @@ function AppPreferencesProvider({ children }: { children: ReactNode }) {
       defaultBuilderOutputPath,
       appUpdateApiSource,
       appUpdateDownloadSource,
+      aiApiKey,
+      aiModelId,
+      aiProviderType,
+      aiCustomProtocol,
+      aiCustomBaseUrl,
+      aiTimeout,
       showHomeGameDetails,
       titleBarStyle,
     ],

@@ -226,51 +226,28 @@ function Navbar({ subtitle, title }: NavbarProps) {
             )}
           >
             <div className={cn(navbarControlGroupClass, "hidden gap-1 md:flex")}>
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-9 cursor-pointer rounded-[14px] px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
-                  isHomeRoute &&
-                    "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
-                )}
-              >
-                <NavLink to="/" title={t("navbar.openHome")}>
-                  <House className="size-4" />
-                  <span>{t("navbar.home")}</span>
+              {[
+                { to: "/", icon: House, label: t("navbar.home"), title: t("navbar.openHome"), isActive: isHomeRoute },
+                { to: "/builder", icon: FileCode2, label: t("navbar.builder"), title: t("navbar.openBuilder"), isActive: isBuilderRoute },
+                { to: "/settings", icon: Settings2, label: t("navbar.settings"), title: t("navbar.openSettings"), isActive: isSettingsRoute },
+              ].map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  title={item.title}
+                  className={cn(
+                    "group flex h-9 cursor-pointer items-center justify-center rounded-[14px] px-3.5 text-[13px] font-medium transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                    item.isActive
+                      ? "bg-white text-slate-950 shadow-[0_2px_10px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.03] dark:bg-white/[0.12] dark:text-white dark:shadow-[0_2px_10px_rgba(0,0,0,0.2)] dark:ring-white/[0.05]"
+                      : "text-slate-500 hover:bg-black/[0.04] hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200"
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    <item.icon className={cn("size-4 transition-all duration-300", item.isActive ? "scale-100" : "scale-95 opacity-70 group-hover:scale-100 group-hover:opacity-100")} />
+                    <span>{item.label}</span>
+                  </span>
                 </NavLink>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-9 cursor-pointer rounded-[14px] px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
-                  isBuilderRoute &&
-                    "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
-                )}
-              >
-                <NavLink to="/builder" title={t("navbar.openBuilder")}>
-                  <FileCode2 className="size-4" />
-                  <span>{t("navbar.builder")}</span>
-                </NavLink>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-9 cursor-pointer rounded-[14px] px-3 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-slate-100",
-                  isSettingsRoute &&
-                    "bg-white text-slate-900 shadow-sm dark:bg-white/[0.1] dark:text-slate-100",
-                )}
-              >
-                <NavLink to="/settings" title={t("navbar.openSettings")}>
-                  <Settings2 className="size-4" />
-                  <span>{t("navbar.settings")}</span>
-                </NavLink>
-              </Button>
+              ))}
             </div>
 
             <div className={cn(navbarControlGroupClass, "gap-2")}>

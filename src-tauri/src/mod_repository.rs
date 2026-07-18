@@ -16,7 +16,7 @@ pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> 
             "
             SELECT mods.id, mods.game_id, games.path, mods.name, mods.icon_base64, mods.version, mods.mod_type,
                    mods.author, mods.enabled, mods.description, mods.source_dir, mods.installed_at, mods.size_bytes,
-                   mods.links_json, mods.modx_slug
+                   mods.links_json, mods.modx_slug, mods.readme_path
             FROM mods
             INNER JOIN games ON games.id = mods.game_id
             ORDER BY mods.game_id COLLATE NOCASE ASC, mods.name COLLATE NOCASE ASC
@@ -30,6 +30,7 @@ pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> 
             let stored_source_dir = row.get::<_, String>(10)?;
             let links = parse_manifest_links(&row.get::<_, String>(13)?);
             let stored_modx_slug = row.get::<_, String>(14)?;
+            let readme_path = row.get::<_, String>(15)?;
             Ok(StoredMod {
                 id: row.get(0)?,
                 game_id: row.get(1)?,
@@ -52,6 +53,7 @@ pub(crate) fn load_mods(database_path: &Path) -> Result<Vec<StoredMod>, String> 
                 conflict_files: Vec::new(),
                 conflict_with: Vec::new(),
                 modx_slug: normalize_modx_slug(&stored_modx_slug, &links),
+                readme_path,
                 links,
             })
         })
@@ -260,8 +262,9 @@ pub(crate) fn load_preview_conflict_files(
             FROM files AS other_files
             INNER JOIN mods AS other_mods
                 ON other_mods.id = other_files.mod_id
-               AND other_mods.game_id = ?2
+               AND other_mods.game_id = ?3
             WHERE other_files.target_path = ?1
+               OR (?2 = 'modloader' AND other_files.target_folder = 'modloader' AND other_files.file_name = ?4)
             ORDER BY other_mods.name COLLATE NOCASE ASC
             ",
         )
@@ -273,8 +276,13 @@ pub(crate) fn load_preview_conflict_files(
             continue;
         }
 
+        let file_name = Path::new(&imported_file.target_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+
         let rows = statement
-            .query_map(params![imported_file.target_path, game_id], |row| {
+            .query_map(params![imported_file.target_path, imported_file.target_folder, game_id, file_name], |row| {
                 let other_source_path = row.get::<_, String>(2)?;
                 let target_path = row.get::<_, String>(1)?;
                 let file_name = Path::new(&target_path)
@@ -387,8 +395,15 @@ fn load_mod_conflict_files(
             FROM files AS current_files
             INNER JOIN mods AS current_mods ON current_mods.id = current_files.mod_id
             INNER JOIN files AS other_files
-                ON other_files.target_path = current_files.target_path
-               AND other_files.mod_id != current_files.mod_id
+                ON other_files.mod_id != current_files.mod_id
+               AND (
+                   other_files.target_path = current_files.target_path
+                   OR (
+                       current_files.target_folder = 'modloader'
+                       AND other_files.target_folder = 'modloader'
+                       AND other_files.file_name = current_files.file_name
+                   )
+               )
             INNER JOIN mods AS other_mods
                 ON other_mods.id = other_files.mod_id
                AND other_mods.game_id = ?2
@@ -471,4 +486,50 @@ fn extract_modx_slug_from_url(url: &str) -> Option<String> {
     let slug = without_hash[start + marker.len()..].trim_matches('/');
 
     (!slug.is_empty()).then(|| slug.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::{Connection, params};
+    use crate::game_repository::initialize_database;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_cross_folder_conflict_detection() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        initialize_database(&db_path).unwrap();
+
+        let mut conn = Connection::open(&db_path).unwrap();
+
+        let game_id = "test_game_1";
+        conn.execute("INSERT INTO games (id, path, game_type, name, exe_name) VALUES (?1, 'C:\\Games\\GTA', 'sa', 'GTA SA', 'gta_sa.exe')", params![game_id]).unwrap();
+
+        let mod1_id = "mod1";
+        let mod2_id = "mod2";
+        conn.execute("INSERT INTO mods (id, game_id, name, version, author, description, enabled, source_dir, installed_at) VALUES (?1, ?2, 'Mod 1', '1.0', '', '', 1, 'C:\\Mods\\1', 0)", params![mod1_id, game_id]).unwrap();
+        conn.execute("INSERT INTO mods (id, game_id, name, version, author, description, enabled, source_dir, installed_at) VALUES (?1, ?2, 'Mod 2', '1.0', '', '', 1, 'C:\\Mods\\2', 0)", params![mod2_id, game_id]).unwrap();
+
+        // mod1 has a file in modloader/cars/
+        conn.execute("INSERT INTO files (mod_id, source_path, target_path, target_folder, file_name) VALUES (?1, 'car.dff', 'modloader/cars/car.dff', 'modloader', 'car.dff')", params![mod1_id]).unwrap();
+        
+        // mod2 has a file with the same name in modloader/vehicles/
+        conn.execute("INSERT INTO files (mod_id, source_path, target_path, target_folder, file_name) VALUES (?1, 'car.dff', 'modloader/vehicles/car.dff', 'modloader', 'car.dff')", params![mod2_id]).unwrap();
+
+        // mod2 also has a file with same target_path as another file in mod1
+        conn.execute("INSERT INTO files (mod_id, source_path, target_path, target_folder, file_name) VALUES (?1, 'script.cs', 'cleo/script.cs', 'cleo', 'script.cs')", params![mod1_id]).unwrap();
+        conn.execute("INSERT INTO files (mod_id, source_path, target_path, target_folder, file_name) VALUES (?1, 'script.cs', 'cleo/script.cs', 'cleo', 'script.cs')", params![mod2_id]).unwrap();
+
+        let conflicts = load_mod_conflict_files(&conn, mod2_id, game_id).unwrap();
+        
+        assert_eq!(conflicts.len(), 2);
+        
+        let mut target_paths: Vec<String> = conflicts.iter().map(|c| c.target_path.clone()).collect();
+        target_paths.sort();
+        
+        assert_eq!(target_paths[0], "cleo/script.cs");
+        assert_eq!(target_paths[1], "modloader/vehicles/car.dff");
+    }
 }

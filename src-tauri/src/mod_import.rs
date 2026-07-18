@@ -86,6 +86,8 @@ struct ExistingBuilderManifestInput {
     update: Option<ExistingBuilderManifestUpdateInput>,
     #[serde(default)]
     files: Vec<ExistingBuilderManifestFileInput>,
+    #[serde(alias = "readmePath", default)]
+    readme_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -312,13 +314,18 @@ pub(crate) fn import_mod_into_database(
 
     for file in import_summary.files {
         let stored_source_path = build_game_scoped_storage_path(game_path, Path::new(&file.source_path));
+        let file_name = Path::new(&file.target_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
         connection
             .execute(
                 "
-                INSERT INTO files (mod_id, source_path, target_path, target_folder)
-                VALUES (?1, ?2, ?3, ?4)
+                INSERT INTO files (mod_id, source_path, target_path, target_folder, file_name)
+                VALUES (?1, ?2, ?3, ?4, ?5)
                 ",
-                params![mod_id, stored_source_path, file.target_path, file.target_folder],
+                params![mod_id, stored_source_path, file.target_path, file.target_folder, file_name],
             )
             .map_err(|error| format!("failed to insert mod file entry: {error}"))?;
     }
@@ -712,6 +719,7 @@ fn parse_builder_manifest_content(content: &str) -> Result<Option<ExistingBuilde
                     .collect(),
             })
             .collect(),
+        readme_path: parsed.readme_path.trim().to_string(),
     }))
 }
 
@@ -946,6 +954,10 @@ fn collect_imported_mod_files(
             continue;
         }
 
+        if normalized_relative.to_lowercase().ends_with(".md") {
+            continue;
+        }
+
         let (target_path, target_folder, wrap_modloader_target) = infer_target_path(relative_path);
 
         match target_folder.as_str() {
@@ -974,13 +986,12 @@ fn collect_imported_mod_files(
 
 fn infer_target_path(relative_path: &Path) -> (String, String, bool) {
     let normalized_relative = normalize_path(relative_path);
+    let lower_relative = normalized_relative.to_lowercase();
     let file_name = relative_path
         .file_name()
         .and_then(|value| value.to_str())
         .unwrap_or("unknown");
-    let file_name_normalized = file_name.replace('\\', "/");
-    let lower_relative = normalized_relative.to_lowercase();
-    let lower_file_name = file_name_normalized.to_lowercase();
+    let lower_file_name = file_name.to_lowercase();
 
     if lower_relative.starts_with("modloader/") {
         return (normalized_relative, "modloader".to_string(), false);
@@ -995,26 +1006,25 @@ fn infer_target_path(relative_path: &Path) -> (String, String, bool) {
         return (normalized_relative, "scripts".to_string(), false);
     }
 
-    if lower_file_name.ends_with(".cs")
-        || lower_file_name.ends_with(".js")
-        || lower_file_name.ends_with(".ts")
-        || lower_file_name.ends_with(".cleo")
-        || lower_file_name.ends_with(".csa")
-    {
-        return (format!("cleo/{file_name_normalized}"), "cleo".to_string(), false);
-    }
-    if lower_file_name.ends_with(".asi")
-        || lower_file_name.ends_with(".dll")
-        || lower_file_name.ends_with(".ini")
-    {
-        return (format!("plugins/{file_name_normalized}"), "plugins".to_string(), false);
-    }
+    let extension = match lower_file_name.rfind('.') {
+        Some(idx) => &lower_file_name[idx + 1..],
+        None => "",
+    };
 
-    (
-        format!("modloader/{normalized_relative}"),
-        "modloader".to_string(),
-        true,
-    )
+    match extension {
+        "cs" | "js" | "ts" | "cleo" | "csa" => {
+            (format!("cleo/{normalized_relative}"), "cleo".to_string(), false)
+        }
+        "asi" | "dll" | "ini" => {
+            (format!("plugins/{normalized_relative}"), "plugins".to_string(), false)
+        }
+        "gxt" | "txd" | "dff" | "col" | "ifp" | "img" | "ide" | "ipl" | "dat" | "cfg" | "fxp" | "fxt" | "saa" | "scm" => {
+            (format!("modloader/{normalized_relative}"), "modloader".to_string(), true)
+        }
+        _ => {
+            (format!("modloader/{normalized_relative}"), "modloader".to_string(), true)
+        }
+    }
 }
 
 fn apply_import_file_overrides(
@@ -1467,4 +1477,87 @@ fn collect_digest_files(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use crate::random_suffix;
+
+    #[test]
+    fn test_infer_target_path_complex_mod() {
+        // Test script files
+        let (target, folder, wrap) = infer_target_path(&PathBuf::from("ComplexMod/main.cs"));
+        assert_eq!(target, "cleo/ComplexMod/main.cs");
+        assert_eq!(folder, "cleo");
+        assert_eq!(wrap, false);
+
+        // Test plugin files
+        let (target, folder, wrap) = infer_target_path(&PathBuf::from("ComplexMod/plugin.asi"));
+        assert_eq!(target, "plugins/ComplexMod/plugin.asi");
+        assert_eq!(folder, "plugins");
+        assert_eq!(wrap, false);
+
+        let (target, folder, wrap) = infer_target_path(&PathBuf::from("ComplexMod/config.ini"));
+        assert_eq!(target, "plugins/ComplexMod/config.ini");
+        assert_eq!(folder, "plugins");
+        assert_eq!(wrap, false);
+
+        // Test resource files
+        let (target, folder, wrap) = infer_target_path(&PathBuf::from("ComplexMod/models/car.dff"));
+        assert_eq!(target, "modloader/ComplexMod/models/car.dff");
+        assert_eq!(folder, "modloader");
+        assert_eq!(wrap, true);
+
+        let (target, folder, wrap) = infer_target_path(&PathBuf::from("ComplexMod/text/american.gxt"));
+        assert_eq!(target, "modloader/ComplexMod/text/american.gxt");
+        assert_eq!(folder, "modloader");
+        assert_eq!(wrap, true);
+        
+        // Test explicit folder bypass
+        let (target, folder, wrap) = infer_target_path(&PathBuf::from("cleo/my_script.cs"));
+        assert_eq!(target, "cleo/my_script.cs");
+        assert_eq!(folder, "cleo");
+        assert_eq!(wrap, false);
+    }
+
+    #[test]
+    fn test_collect_imported_mod_files_filtering() {
+        let temp_dir = std::env::temp_dir().join(format!("g2m_test_{}", random_suffix()));
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        fs::write(temp_dir.join("modx.json"), "{}").unwrap();
+        fs::write(temp_dir.join("README.md"), "markdown content").unwrap();
+        fs::write(temp_dir.join("guide.MD"), "more markdown").unwrap();
+        fs::write(temp_dir.join("script.cs"), "cleo script").unwrap();
+        fs::create_dir_all(temp_dir.join("models")).unwrap();
+        fs::write(temp_dir.join("models/car.dff"), "model file").unwrap();
+
+        let mut files = Vec::new();
+        let mut total_size = 0;
+        let mut has_modloader = false;
+        let mut has_cleo = false;
+        let mut has_asi = false;
+
+        collect_imported_mod_files(
+            &temp_dir,
+            &temp_dir,
+            &mut files,
+            &mut total_size,
+            &mut has_modloader,
+            &mut has_cleo,
+            &mut has_asi,
+        ).unwrap();
+
+        fs::remove_dir_all(&temp_dir).unwrap();
+
+        let file_paths: Vec<_> = files.into_iter().map(|f| f.relative_path).collect();
+        assert!(!file_paths.contains(&"modx.json".to_string()));
+        assert!(!file_paths.contains(&"README.md".to_string()));
+        assert!(!file_paths.contains(&"guide.MD".to_string()));
+        assert!(file_paths.contains(&"script.cs".to_string()));
+        assert!(file_paths.contains(&"models/car.dff".to_string()));
+    }
 }

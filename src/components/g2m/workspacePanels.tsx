@@ -7,6 +7,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  RotateCcw,
   Trash2,
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -476,6 +477,15 @@ export function SelectedModSheet({
                   >
                     <Trash2 className="size-4" />
                     {t("workspacePage.deleteCurrentMod")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className={`${softOutlineButtonClass} text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300`}
+                    onClick={() => void workspace.confirmRollbackMod(activeMod.id)}
+                    disabled={workspace.deletingModId === activeMod.id}
+                  >
+                    <RotateCcw className="size-4" />
+                    {workspace.deletingModId === activeMod.id ? t("workspaceDialogs.saving", "处理中") : t("workspacePage.rollbackCurrentMod", "一键回滚")}
                   </Button>
                   {activeMod.conflictFiles.length > 0 ? (
                     <Button

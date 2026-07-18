@@ -13,10 +13,13 @@ import {
 type ModxAuthContextValue = {
   authState: ModxLoginState | null
   isAuthenticated: boolean
+  isLoginDialogOpen: boolean
   isHydrated: boolean
   isPending: boolean
+  closeLoginDialog: () => void
   login: (email: string, password: string) => Promise<ModxLoginState>
   logout: () => Promise<void>
+  openLoginDialog: () => void
 }
 
 const ModxAuthContext = createContext<ModxAuthContextValue | null>(null)
@@ -24,6 +27,7 @@ const ModxAuthContext = createContext<ModxAuthContextValue | null>(null)
 function ModxAuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<ModxLoginState | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
 
   useEffect(() => {
@@ -89,6 +93,14 @@ function ModxAuthProvider({ children }: { children: ReactNode }) {
     storeModxLoginState(authState)
   }, [authState, isHydrated])
 
+  const openLoginDialog = useCallback(() => {
+    setIsLoginDialogOpen(true)
+  }, [])
+
+  const closeLoginDialog = useCallback(() => {
+    setIsLoginDialogOpen(false)
+  }, [])
+
   const login = useCallback(async (email: string, password: string) => {
     setIsPending(true)
     try {
@@ -103,6 +115,7 @@ function ModxAuthProvider({ children }: { children: ReactNode }) {
       }
 
       setAuthState(resolvedState)
+      setIsLoginDialogOpen(false)
       return resolvedState
     } finally {
       setIsPending(false)
@@ -128,12 +141,24 @@ function ModxAuthProvider({ children }: { children: ReactNode }) {
     () => ({
       authState,
       isAuthenticated: !!authState?.loginId,
+      isLoginDialogOpen,
       isHydrated,
+      isPending,
+      closeLoginDialog,
+      login,
+      logout,
+      openLoginDialog,
+    }),
+    [
+      authState,
+      closeLoginDialog,
+      isHydrated,
+      isLoginDialogOpen,
       isPending,
       login,
       logout,
-    }),
-    [authState, isHydrated, isPending, login, logout],
+      openLoginDialog,
+    ],
   )
 
   return <ModxAuthContext.Provider value={value}>{children}</ModxAuthContext.Provider>
