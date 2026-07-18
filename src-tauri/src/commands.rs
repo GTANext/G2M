@@ -1,4 +1,4 @@
-const APP_VERSION: &str = "v0.0.1-alpha1";
+const APP_VERSION: &str = "v0.0.1-alpha2";
 
 use std::{
     fs,
