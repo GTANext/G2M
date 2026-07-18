@@ -193,6 +193,7 @@ export type BackendMod = {
   conflictWith: string[]
   links: ExistingBuilderManifestLink[]
   modxSlug: string
+  readmePath: string
 }
 
 export type ModImportPreview = {
