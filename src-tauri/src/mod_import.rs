@@ -280,9 +280,9 @@ pub(crate) fn import_mod_into_database(
         .execute(
             "
             INSERT INTO mods (
-                id, game_id, name, icon_base64, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug
+                id, game_id, name, icon_base64, version, mod_type, author, description, source_dir, installed_at, size_bytes, enabled, links_json, modx_slug, readme_path
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, ?12, ?13)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, ?12, ?13, ?14)
             ",
             params![
                 mod_id,
@@ -307,6 +307,11 @@ pub(crate) fn import_mod_into_database(
                     .existing_manifest
                     .as_ref()
                     .map(|manifest| resolve_modx_slug_from_links(&manifest.links))
+                    .unwrap_or_default(),
+                import_summary
+                    .existing_manifest
+                    .as_ref()
+                    .map(|manifest| manifest.readme_path.clone())
                     .unwrap_or_default()
             ],
         )
